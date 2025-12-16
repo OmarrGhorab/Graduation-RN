@@ -19,31 +19,29 @@ import { cskColors, Colors } from '@/constants/theme';
 
 const { width, height } = Dimensions.get('window');
 
-export default function SignInScreen() {
+export default function SignUpScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
     
+    const [fullName, setFullName] = useState('');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = () => {
-        console.log('Login with:', email, password);
-        // Implement login logic here
+    const handleSignUp = () => {
+        console.log('Sign Up with:', { fullName, username, email, password });
+        // Implement sign up logic here
+        router.push('/verification');
     };
 
     const handleGoogleSignIn = () => {
         console.log('Google Sign In');
     };
 
-    const handleSignUp = () => {
-        // Navigate to sign up
-        router.push('/signup'); 
-    };
-    
-    const handleForgotPassword = () => {
-        router.push('/forgot-password');
+    const handleSignIn = () => {
+        router.push('/signin');
     };
 
     return (
@@ -64,10 +62,41 @@ export default function SignInScreen() {
                 </View>
 
                 {/* Title */}
-                <Text style={[styles.title, { color: cskColors[500] }]}>Log In</Text>
+                <Text style={[styles.title, { color: cskColors[500] }]}>Sign Up</Text>
 
                 {/* Form */}
                 <View style={styles.form}>
+                    
+                    {/* Full Name Input */}
+                    <View style={styles.inputWrapper}>
+                        <View style={styles.labelContainer}>
+                            <Text style={[styles.label, { color: '#888', backgroundColor: theme.background }]}>Full Name</Text>
+                        </View>
+                        <TextInput
+                            style={[styles.input, { color: theme.text, borderColor: '#ccc' }]}
+                            placeholder="Enter your full name"
+                            placeholderTextColor="#A0A0A0"
+                            value={fullName}
+                            onChangeText={setFullName}
+                            autoCapitalize="words"
+                        />
+                    </View>
+
+                    {/* Username Input */}
+                    <View style={styles.inputWrapper}>
+                        <View style={styles.labelContainer}>
+                            <Text style={[styles.label, { color: '#888', backgroundColor: theme.background }]}>Username</Text>
+                        </View>
+                        <TextInput
+                            style={[styles.input, { color: theme.text, borderColor: '#ccc' }]}
+                            placeholder="Choose a unique username"
+                            placeholderTextColor="#A0A0A0"
+                            value={username}
+                            onChangeText={setUsername}
+                            autoCapitalize="none"
+                        />
+                    </View>
+
                     {/* Email Input */}
                     <View style={styles.inputWrapper}>
                         <View style={styles.labelContainer}>
@@ -75,7 +104,7 @@ export default function SignInScreen() {
                         </View>
                         <TextInput
                             style={[styles.input, { color: theme.text, borderColor: '#ccc' }]}
-                            placeholder="smantha@mail.com"
+                            placeholder="Enter your email address"
                             placeholderTextColor="#A0A0A0"
                             value={email}
                             onChangeText={setEmail}
@@ -92,7 +121,7 @@ export default function SignInScreen() {
                         <View style={[styles.passwordContainer, { borderColor: '#ccc' }]}>
                             <TextInput
                                 style={[styles.passwordInput, { color: theme.text }]}
-                                placeholder="* * * *"
+                                placeholder="Create a password"
                                 placeholderTextColor="#A0A0A0"
                                 value={password}
                                 onChangeText={setPassword}
@@ -104,19 +133,22 @@ export default function SignInScreen() {
                         </View>
                     </View>
 
-                    {/* Forgot Password */}
-                    <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordContainer}>
-                        <Text style={[styles.forgotPasswordText, { color: cskColors[500] }]}>Forgot password ?</Text>
-                    </TouchableOpacity>
-
-                    {/* Login Button */}
+                    {/* Create Account Button */}
                     <TouchableOpacity
-                        style={[styles.loginButton, { backgroundColor: cskColors[500] }]}
-                        onPress={handleLogin}
+                        style={[styles.createButton, { backgroundColor: cskColors[500] }]}
+                        onPress={handleSignUp}
                         activeOpacity={0.8}
                     >
-                        <Text style={styles.loginButtonText}>Login</Text>
+                        <Text style={styles.createButtonText}>Create Account</Text>
                     </TouchableOpacity>
+
+                    {/* Footer / Login Link */}
+                    <View style={styles.footer}>
+                        <Text style={[styles.footerText, { color: '#A0A0A0' }]}>Already have an account? </Text>
+                        <TouchableOpacity onPress={handleSignIn}>
+                            <Text style={[styles.signInText, { color: cskColors[500] }]}>Log In</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Divider */}
                     <View style={styles.dividerContainer}>
@@ -138,14 +170,6 @@ export default function SignInScreen() {
                         />
                         <Text style={[styles.googleButtonText, { color: cskColors[500] }]}>Continue With Google</Text>
                     </TouchableOpacity>
-
-                    {/* Sign Up Link */}
-                    <View style={styles.footer}>
-                        <Text style={[styles.footerText, { color: '#A0A0A0' }]}>Don't have an account? </Text>
-                        <TouchableOpacity onPress={handleSignUp}>
-                            <Text style={[styles.signUpText, { color: cskColors[500] }]}>Sign Up</Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -184,7 +208,7 @@ const styles = StyleSheet.create({
     inputWrapper: {
         marginBottom: 20,
         position: 'relative',
-        paddingTop: 8, // Make space for the label
+        paddingTop: 8,
     },
     labelContainer: {
         position: 'absolute',
@@ -221,15 +245,7 @@ const styles = StyleSheet.create({
     eyeIcon: {
         padding: 4,
     },
-    forgotPasswordContainer: {
-        alignItems: 'flex-end',
-        marginBottom: 24,
-    },
-    forgotPasswordText: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    loginButton: {
+    createButton: {
         borderRadius: 8,
         paddingVertical: 16,
         alignItems: 'center',
@@ -239,8 +255,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
+        marginTop: 10,
     },
-    loginButtonText: {
+    createButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
@@ -282,12 +299,12 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
     footerText: {
         fontSize: 14,
     },
-    signUpText: {
+    signInText: {
         fontSize: 14,
         fontWeight: '700',
     },

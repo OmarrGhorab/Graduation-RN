@@ -27,7 +27,8 @@ export default function ForgotPasswordScreen() {
 
     const handleContinue = () => {
         console.log('Continue with email:', email);
-        // Navigate to verification code screen (to be implemented)
+        // Navigate to verification code screen
+        router.push('/verification');
     };
 
     const handleBack = () => {

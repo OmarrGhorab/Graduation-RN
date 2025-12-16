@@ -25,8 +25,7 @@ export default function LoginScreen() {
     };
 
     const handleSignUp = () => {
-        // Navigate to sign up screen
-        console.log('Navigate to Sign Up');
+        router.push('/signup');
     };
 
     const handleLogIn = () => {
