@@ -30,6 +30,7 @@ export default function SignInScreen() {
 
     const handleLogin = () => {
         console.log('Login with:', email, password);
+        router.push('/onboarding/step1');
         // Implement login logic here
     };
 
