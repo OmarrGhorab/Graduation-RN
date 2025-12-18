@@ -17,12 +17,13 @@ import {
     useColorScheme
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
+import {
+    GoogleSignin,
+    statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { cskColors, Colors } from '@/constants/theme';
 import {
     BASE_URL,
-    GOOGLE_ANDROID_CLIENT_ID,
     GOOGLE_WEB_CLIENT_ID,
 } from '@/constants/config';
 
@@ -38,18 +39,13 @@ export default function SignInScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-    // Google Sign-In hook using ID token flow without Expo Auth Proxy
-    const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'graduation',
-        path: 'oauthredirect'
-    });
-    console.log('Generated redirect URI:', redirectUri);
-    
-    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-        webClientId: GOOGLE_WEB_CLIENT_ID,
-        redirectUri,
-    });
+    // Configure Google Sign-In on component mount
+    useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: GOOGLE_WEB_CLIENT_ID,
+            offlineAccess: false, // Don't need refresh token for mobile
+        });
+    }, []);
 
     // Send ID token to backend
     const handleGoogleBackendAuth = useCallback(async (idToken: string) => {
@@ -81,46 +77,47 @@ export default function SignInScreen() {
         }
     }, [router]);
 
-    // Handle Google Sign-In response
-    useEffect(() => {
-        if (response?.type === 'success') {
-            const { id_token } = response.params;
-            if (id_token) {
-                handleGoogleBackendAuth(id_token);
-            } else {
-                setIsGoogleLoading(false);
-                Alert.alert('Error', 'Failed to retrieve Google ID token. Please try again.');
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        try {
+            // Check if device supports Google Play Services
+            await GoogleSignin.hasPlayServices();
+            
+            // Sign in and get user info with ID token
+            const userInfo = await GoogleSignin.signIn();
+            
+            // Get the ID token - use type assertion since the type definitions might be outdated
+            const idToken = (userInfo as any).idToken;
+            
+            if (!idToken) {
+                throw new Error('Failed to retrieve Google ID token');
             }
-        } else if (response?.type === 'error') {
+            
+            // Send ID token to backend
+            await handleGoogleBackendAuth(idToken);
+        } catch (error: any) {
             setIsGoogleLoading(false);
-            Alert.alert(
-                'Google Sign-In Error',
-                response.error?.message || 'An error occurred during Google Sign-In. Please try again.'
-            );
-        } else if (response?.type === 'dismiss') {
-            setIsGoogleLoading(false);
+            
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // User cancelled the sign-in
+                console.log('Google Sign-In cancelled');
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                // Operation is already in progress
+                console.log('Google Sign-In already in progress');
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                Alert.alert('Error', 'Google Play Services is not available');
+            } else {
+                const errorMessage = error.message || 'Failed to sign in with Google';
+                Alert.alert('Google Sign-In Error', errorMessage);
+                console.error('Google Sign-In error:', error);
+            }
         }
-    }, [response, handleGoogleBackendAuth]);
+    };
 
     const handleLogin = () => {
         console.log('Login with:', email, password);
         router.push('/onboarding/step1');
         // Implement login logic here
-    };
-
-    const handleGoogleSignIn = async () => {
-        if (!request) {
-            Alert.alert('Error', 'Google Sign-In is not available. Please try again later.');
-            return;
-        }
-        setIsGoogleLoading(true);
-        try {
-            await promptAsync();
-        } catch (error) {
-            setIsGoogleLoading(false);
-            Alert.alert('Error', 'Failed to start Google Sign-In. Please try again.');
-            console.error('Google Sign-In prompt error:', error);
-        }
     };
 
     const handleSignUp = () => {
@@ -220,7 +217,7 @@ export default function SignInScreen() {
                         ]}
                         onPress={handleGoogleSignIn}
                         activeOpacity={0.8}
-                        disabled={isGoogleLoading || !request}
+                        disabled={isGoogleLoading}
                     >
                         {isGoogleLoading ? (
                             <ActivityIndicator size="small" color={cskColors[500]} />
