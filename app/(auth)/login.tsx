@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Image,
     StatusBar,
@@ -11,6 +12,7 @@ import {
     useColorScheme
 } from 'react-native';
 import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,10 +20,27 @@ export default function LoginScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-    const handleGoogleSignIn = () => {
-        // Handle Google sign in
-        console.log('Google Sign In');
+    useEffect(() => {
+        configureGoogleSignIn();
+    }, []);
+
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        
+        await googleSignIn({
+            showAlerts: true,
+            onSuccess: (data) => {
+                console.log('Google Sign-In successful:', data);
+                router.push('/onboarding/step1');
+            },
+            onCancel: () => {
+                console.log('Google Sign-In cancelled');
+            },
+        });
+        
+        setIsGoogleLoading(false);
     };
 
     const handleSignUp = () => {
@@ -51,16 +70,26 @@ export default function LoginScreen() {
                 
                 {/* Google Sign In Button */}
                 <TouchableOpacity
-                    style={styles.googleButton}
+                    style={[
+                        styles.googleButton,
+                        isGoogleLoading && styles.googleButtonDisabled,
+                    ]}
                     onPress={handleGoogleSignIn}
                     activeOpacity={0.8}
+                    disabled={isGoogleLoading}
                 >
-                    <Image
-                        source={require('@/assets/images/google-icon.png')}
-                        style={styles.googleIcon}
-                        resizeMode="contain"
-                    />
-                    <Text style={styles.googleButtonText}>Continue With Google</Text>
+                    {isGoogleLoading ? (
+                        <ActivityIndicator size="small" color={cskColors[500]} />
+                    ) : (
+                        <>
+                            <Image
+                                source={require('@/assets/images/google-icon.png')}
+                                style={styles.googleIcon}
+                                resizeMode="contain"
+                            />
+                            <Text style={styles.googleButtonText}>Continue With Google</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
                 
                 {/* Sign Up Button */}
@@ -119,6 +148,7 @@ const styles = StyleSheet.create({
     googleButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#E5E5E5',
@@ -128,6 +158,7 @@ const styles = StyleSheet.create({
         width: width * 0.85,
         maxWidth: 350,
         marginBottom: 16,
+        minHeight: 56,
         shadowColor: '#000',
         shadowOffset: {
             width: 0,
@@ -136,6 +167,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 2,
+    },
+    googleButtonDisabled: {
+        opacity: 0.7,
     },
     googleIcon: {
         width: 24,

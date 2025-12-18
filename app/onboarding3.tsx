@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     },
     textContainer: {
         position: 'absolute',
-        top: '50%',
+        top: '54%',
         left: 24,
         alignItems: 'flex-start',
         marginTop: 100,

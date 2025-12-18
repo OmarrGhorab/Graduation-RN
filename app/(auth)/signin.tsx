@@ -1,8 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Dimensions,
     Image,
     KeyboardAvoidingView,
@@ -17,15 +16,8 @@ import {
     useColorScheme
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-    GoogleSignin,
-    statusCodes,
-} from '@react-native-google-signin/google-signin';
 import { cskColors, Colors } from '@/constants/theme';
-import {
-    BASE_URL,
-    GOOGLE_WEB_CLIENT_ID,
-} from '@/constants/config';
+import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,79 +33,24 @@ export default function SignInScreen() {
 
     // Configure Google Sign-In on component mount
     useEffect(() => {
-        GoogleSignin.configure({
-            webClientId: GOOGLE_WEB_CLIENT_ID,
-            offlineAccess: false, // Don't need refresh token for mobile
-        });
+        configureGoogleSignIn();
     }, []);
-
-    // Send ID token to backend
-    const handleGoogleBackendAuth = useCallback(async (idToken: string) => {
-        try {
-            const backendResponse = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ idToken }),
-            });
-
-            if (!backendResponse.ok) {
-                const errorData = await backendResponse.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error: ${backendResponse.status}`);
-            }
-
-            const data = await backendResponse.json();
-            console.log('Backend auth successful:', data);
-
-            // Navigate to next screen on success
-            router.push('/onboarding/step1');
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to authenticate with server';
-            Alert.alert('Authentication Error', errorMessage);
-            console.error('Backend auth error:', error);
-        } finally {
-            setIsGoogleLoading(false);
-        }
-    }, [router]);
 
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
-        try {
-            // Check if device supports Google Play Services
-            await GoogleSignin.hasPlayServices();
-            
-            // Sign in and get user info with ID token
-            const response = await GoogleSignin.signIn();
-            
-            console.log('Google Sign-In response:', JSON.stringify(response, null, 2));
-            
-            // In v16+, the response has a 'data' property containing user info and idToken
-            const idToken = response.data?.idToken;
-            
-            if (!idToken) {
-                throw new Error('Failed to retrieve Google ID token');
-            }
-            
-            // Send ID token to backend
-            await handleGoogleBackendAuth(idToken);
-        } catch (error: any) {
-            setIsGoogleLoading(false);
-            
-            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                // User cancelled the sign-in
+        
+        const result = await googleSignIn({
+            showAlerts: true,
+            onSuccess: (data) => {
+                console.log('Backend auth successful:', data);
+                router.push('/onboarding/step1');
+            },
+            onCancel: () => {
                 console.log('Google Sign-In cancelled');
-            } else if (error.code === statusCodes.IN_PROGRESS) {
-                // Operation is already in progress
-                console.log('Google Sign-In already in progress');
-            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-                Alert.alert('Error', 'Google Play Services is not available');
-            } else {
-                const errorMessage = error.message || 'Failed to sign in with Google';
-                Alert.alert('Google Sign-In Error', errorMessage);
-                console.error('Google Sign-In error:', error);
-            }
-        }
+            },
+        });
+        
+        setIsGoogleLoading(false);
     };
 
     const handleLogin = () => {

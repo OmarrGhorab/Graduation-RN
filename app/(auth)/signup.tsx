@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Image,
     KeyboardAvoidingView,
@@ -16,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
+import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +31,11 @@ export default function SignUpScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+    useEffect(() => {
+        configureGoogleSignIn();
+    }, []);
 
     const handleSignUp = () => {
         console.log('Sign Up with:', { fullName, username, email, password });
@@ -36,8 +43,21 @@ export default function SignUpScreen() {
         router.push('/verification');
     };
 
-    const handleGoogleSignIn = () => {
-        console.log('Google Sign In');
+    const handleGoogleSignIn = async () => {
+        setIsGoogleLoading(true);
+        
+        await googleSignIn({
+            showAlerts: true,
+            onSuccess: (data) => {
+                console.log('Google Sign-In successful:', data);
+                router.push('/onboarding/step1');
+            },
+            onCancel: () => {
+                console.log('Google Sign-In cancelled');
+            },
+        });
+        
+        setIsGoogleLoading(false);
     };
 
     const handleSignIn = () => {
@@ -159,16 +179,27 @@ export default function SignUpScreen() {
 
                     {/* Google Button */}
                     <TouchableOpacity
-                        style={[styles.googleButton, { borderColor: cskColors[500] }]}
+                        style={[
+                            styles.googleButton,
+                            { borderColor: cskColors[500] },
+                            isGoogleLoading && styles.googleButtonDisabled,
+                        ]}
                         onPress={handleGoogleSignIn}
                         activeOpacity={0.8}
+                        disabled={isGoogleLoading}
                     >
-                        <Image
-                            source={require('@/assets/images/google-icon.png')}
-                            style={styles.googleIcon}
-                            resizeMode="contain"
-                        />
-                        <Text style={[styles.googleButtonText, { color: cskColors[500] }]}>Continue With Google</Text>
+                        {isGoogleLoading ? (
+                            <ActivityIndicator size="small" color={cskColors[500]} />
+                        ) : (
+                            <>
+                                <Image
+                                    source={require('@/assets/images/google-icon.png')}
+                                    style={styles.googleIcon}
+                                    resizeMode="contain"
+                                />
+                                <Text style={[styles.googleButtonText, { color: cskColors[500] }]}>Continue With Google</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -286,6 +317,10 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         borderRadius: 8,
         marginBottom: 24,
+        minHeight: 52,
+    },
+    googleButtonDisabled: {
+        opacity: 0.7,
     },
     googleIcon: {
         width: 24,
