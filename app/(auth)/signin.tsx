@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Dimensions,
     Image,
     KeyboardAvoidingView,
@@ -15,7 +17,14 @@ import {
     useColorScheme
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 import { cskColors, Colors } from '@/constants/theme';
+import {
+    BASE_URL,
+    GOOGLE_ANDROID_CLIENT_ID,
+    GOOGLE_WEB_CLIENT_ID,
+} from '@/constants/config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,10 +32,75 @@ export default function SignInScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+    // Google Sign-In hook using ID token flow without Expo Auth Proxy
+    const redirectUri = AuthSession.makeRedirectUri({
+        scheme: 'graduation',
+        path: 'oauthredirect'
+    });
+    console.log('Generated redirect URI:', redirectUri);
+    
+    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+        webClientId: GOOGLE_WEB_CLIENT_ID,
+        redirectUri,
+    });
+
+    // Send ID token to backend
+    const handleGoogleBackendAuth = useCallback(async (idToken: string) => {
+        try {
+            const backendResponse = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ idToken }),
+            });
+
+            if (!backendResponse.ok) {
+                const errorData = await backendResponse.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server error: ${backendResponse.status}`);
+            }
+
+            const data = await backendResponse.json();
+            console.log('Backend auth successful:', data);
+
+            // Navigate to next screen on success
+            router.push('/onboarding/step1');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to authenticate with server';
+            Alert.alert('Authentication Error', errorMessage);
+            console.error('Backend auth error:', error);
+        } finally {
+            setIsGoogleLoading(false);
+        }
+    }, [router]);
+
+    // Handle Google Sign-In response
+    useEffect(() => {
+        if (response?.type === 'success') {
+            const { id_token } = response.params;
+            if (id_token) {
+                handleGoogleBackendAuth(id_token);
+            } else {
+                setIsGoogleLoading(false);
+                Alert.alert('Error', 'Failed to retrieve Google ID token. Please try again.');
+            }
+        } else if (response?.type === 'error') {
+            setIsGoogleLoading(false);
+            Alert.alert(
+                'Google Sign-In Error',
+                response.error?.message || 'An error occurred during Google Sign-In. Please try again.'
+            );
+        } else if (response?.type === 'dismiss') {
+            setIsGoogleLoading(false);
+        }
+    }, [response, handleGoogleBackendAuth]);
 
     const handleLogin = () => {
         console.log('Login with:', email, password);
@@ -34,8 +108,19 @@ export default function SignInScreen() {
         // Implement login logic here
     };
 
-    const handleGoogleSignIn = () => {
-        console.log('Google Sign In');
+    const handleGoogleSignIn = async () => {
+        if (!request) {
+            Alert.alert('Error', 'Google Sign-In is not available. Please try again later.');
+            return;
+        }
+        setIsGoogleLoading(true);
+        try {
+            await promptAsync();
+        } catch (error) {
+            setIsGoogleLoading(false);
+            Alert.alert('Error', 'Failed to start Google Sign-In. Please try again.');
+            console.error('Google Sign-In prompt error:', error);
+        }
     };
 
     const handleSignUp = () => {
@@ -128,21 +213,34 @@ export default function SignInScreen() {
 
                     {/* Google Button */}
                     <TouchableOpacity
-                        style={[styles.googleButton, { borderColor: cskColors[500] }]}
+                        style={[
+                            styles.googleButton,
+                            { borderColor: cskColors[500] },
+                            isGoogleLoading && styles.googleButtonDisabled,
+                        ]}
                         onPress={handleGoogleSignIn}
                         activeOpacity={0.8}
+                        disabled={isGoogleLoading || !request}
                     >
-                        <Image
-                            source={require('@/assets/images/google-icon.png')}
-                            style={styles.googleIcon}
-                            resizeMode="contain"
-                        />
-                        <Text style={[styles.googleButtonText, { color: cskColors[500] }]}>Continue With Google</Text>
+                        {isGoogleLoading ? (
+                            <ActivityIndicator size="small" color={cskColors[500]} />
+                        ) : (
+                            <>
+                                <Image
+                                    source={require('@/assets/images/google-icon.png')}
+                                    style={styles.googleIcon}
+                                    resizeMode="contain"
+                                />
+                                <Text style={[styles.googleButtonText, { color: cskColors[500] }]}>
+                                    Continue With Google
+                                </Text>
+                            </>
+                        )}
                     </TouchableOpacity>
 
                     {/* Sign Up Link */}
                     <View style={styles.footer}>
-                        <Text style={[styles.footerText, { color: '#A0A0A0' }]}>Don't have an account? </Text>
+                        <Text style={[styles.footerText, { color: '#A0A0A0' }]}>Don&apos;t have an account? </Text>
                         <TouchableOpacity onPress={handleSignUp}>
                             <Text style={[styles.signUpText, { color: cskColors[500] }]}>Sign Up</Text>
                         </TouchableOpacity>
@@ -270,6 +368,10 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         borderRadius: 8,
         marginBottom: 24,
+        minHeight: 52,
+    },
+    googleButtonDisabled: {
+        opacity: 0.7,
     },
     googleIcon: {
         width: 24,
