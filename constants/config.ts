@@ -1,5 +1,5 @@
 // API Configuration
-export const BASE_URL = 'http://localhost:3000'; // TODO: Replace with actual backend URL
+export const BASE_URL = 'http://10.0.2.2:3000'; // Android emulator uses 10.0.2.2 to reach host's localhost
 
 // Google OAuth Client IDs
 // Get these from Google Cloud Console: https://console.cloud.google.com/apis/credentials

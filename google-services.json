@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "564438837664",
+    "project_id": "graduation-project-d71d7",
+    "storage_bucket": "graduation-project-d71d7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:564438837664:android:6fe4d39bfe87d8a60e1cc5",
+        "android_client_info": {
+          "package_name": "com.omarghorab.graduation"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "564438837664-o3jciigqr956a73jtu4l6fg7kgrh78md.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.omarghorab.graduation",
+            "certificate_hash": "0ddf1ac6f8fd1d5268994ac117d2ab5c51844f91"
+          }
+        },
+        {
+          "client_id": "564438837664-tcv289cukv6pvmmhgr4n7kki8mj8t3pf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS7m82IInEwkPYorg6G-wLsstUrVa-YFo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "564438837664-tcv289cukv6pvmmhgr4n7kki8mj8t3pf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.omarghorab.graduation"
+      "package": "com.omarghorab.graduation",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

@@ -84,10 +84,12 @@ export default function SignInScreen() {
             await GoogleSignin.hasPlayServices();
             
             // Sign in and get user info with ID token
-            const userInfo = await GoogleSignin.signIn();
+            const response = await GoogleSignin.signIn();
             
-            // Get the ID token - use type assertion since the type definitions might be outdated
-            const idToken = (userInfo as any).idToken;
+            console.log('Google Sign-In response:', JSON.stringify(response, null, 2));
+            
+            // In v16+, the response has a 'data' property containing user info and idToken
+            const idToken = response.data?.idToken;
             
             if (!idToken) {
                 throw new Error('Failed to retrieve Google ID token');
