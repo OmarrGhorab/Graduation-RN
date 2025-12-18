@@ -34,16 +34,6 @@ const GOALS = [
     'Start a Business', 'Get Certified', 'Teach Others', 'Stay Updated', 'Others',
 ];
 
-const LANGUAGES = [
-    { id: 'english', label: 'English' },
-    { id: 'arabic', label: 'Arabic' },
-];
-
-const THEMES = [
-    { id: 'light', label: 'Light', icon: 'sunny-outline' },
-    { id: 'dark', label: 'Dark', icon: 'moon-outline' },
-    { id: 'system', label: 'System', icon: 'settings-outline' },
-];
 
 export default function OnboardingStep3() {
     const router = useRouter();
@@ -53,10 +43,6 @@ export default function OnboardingStep3() {
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [searchResults, setSearchResults] = useState<typeof MOCK_USERS>([]);
     const [selectedParent, setSelectedParent] = useState<typeof MOCK_USERS[0] | null>(null);
-    const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
-    const [selectedTheme, setSelectedTheme] = useState<string>('system');
-    const [showLanguagePicker, setShowLanguagePicker] = useState(false);
-    const [showThemePicker, setShowThemePicker] = useState(false);
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
     const [customGoals, setCustomGoals] = useState<string[]>([]);
     const [customGoalInput, setCustomGoalInput] = useState<string>('');
@@ -304,40 +290,6 @@ export default function OnboardingStep3() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Preferences</Text>
                     
-                    {/* Language */}
-                    <View style={styles.preferenceItem}>
-                        <View style={styles.preferenceInfo}>
-                            <Text style={styles.preferenceItemTitle}>Language</Text>
-                            <Text style={styles.preferenceItemDescription}>Choose your preferred language</Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.preferenceInput}
-                            onPress={() => setShowLanguagePicker(true)}
-                        >
-                            <Text style={[styles.preferenceInputText, !selectedLanguage && styles.placeholder]}>
-                                {selectedLanguage ? LANGUAGES.find(l => l.id === selectedLanguage)?.label : 'Select language'}
-                            </Text>
-                            <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    {/* Theme */}
-                    <View style={styles.preferenceItem}>
-                        <View style={styles.preferenceInfo}>
-                            <Text style={styles.preferenceItemTitle}>Theme</Text>
-                            <Text style={styles.preferenceItemDescription}>Choose your app theme</Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.preferenceInput}
-                            onPress={() => setShowThemePicker(true)}
-                        >
-                            <Text style={[styles.preferenceInputText, !selectedTheme && styles.placeholder]}>
-                                {selectedTheme ? THEMES.find(t => t.id === selectedTheme)?.label : 'Select theme'}
-                            </Text>
-                            <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
-                        </TouchableOpacity>
-                    </View>
-                    
                     <View style={styles.preferenceItem}>
                         <View style={styles.preferenceInfo}>
                             <Text style={styles.preferenceItemTitle}>Push Notifications</Text>
@@ -378,102 +330,7 @@ export default function OnboardingStep3() {
                 </TouchableOpacity>
             </ScrollView>
 
-            <Modal
-                visible={showLanguagePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowLanguagePicker(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Language</Text>
-                            <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setSelectedLanguage('english');
-                                setShowLanguagePicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>English</Text>
-                            {selectedLanguage === 'english' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setSelectedLanguage('arabic');
-                                setShowLanguagePicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Arabic</Text>
-                            {selectedLanguage === 'arabic' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            <Modal
-                visible={showThemePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowThemePicker(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Theme</Text>
-                            <TouchableOpacity onPress={() => setShowThemePicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setSelectedTheme('light');
-                                setShowThemePicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Light</Text>
-                            {selectedTheme === 'light' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setSelectedTheme('dark');
-                                setShowThemePicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Dark</Text>
-                            {selectedTheme === 'dark' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setSelectedTheme('system');
-                                setShowThemePicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>System</Text>
-                            {selectedTheme === 'system' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-        </KeyboardAvoidingView>
+                    </KeyboardAvoidingView>
     );
 }
 

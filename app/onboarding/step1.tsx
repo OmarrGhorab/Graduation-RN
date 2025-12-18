@@ -33,6 +33,25 @@ const COUNTRIES = [
     'Argentina', 'Chile', 'Colombia', 'Peru', 'Turkey', 'Russia',
 ];
 
+const LANGUAGES = [
+    { id: 'english', label: 'English' },
+    { id: 'arabic', label: 'Arabic' },
+    { id: 'spanish', label: 'Spanish' },
+    { id: 'french', label: 'French' },
+    { id: 'german', label: 'German' },
+    { id: 'chinese', label: 'Chinese' },
+    { id: 'japanese', label: 'Japanese' },
+    { id: 'korean', label: 'Korean' },
+    { id: 'portuguese', label: 'Portuguese' },
+    { id: 'russian', label: 'Russian' },
+];
+
+const THEMES = [
+    { id: 'light', label: 'Light', icon: 'sunny-outline' },
+    { id: 'dark', label: 'Dark', icon: 'moon-outline' },
+    { id: 'system', label: 'System', icon: 'settings-outline' },
+];
+
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
@@ -41,11 +60,16 @@ export default function OnboardingStep1() {
     const [profileImg, setProfileImg] = useState<string>('');
     const [gender, setGender] = useState<any | null>(null);
     const [country, setCountry] = useState<string>('');
+    const [language, setLanguage] = useState<string>('english');
+    const [theme, setTheme] = useState<string>('system');
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
+    const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+    const [showThemePicker, setShowThemePicker] = useState(false);
     const [filteredCountries, setFilteredCountries] = useState<string[]>(COUNTRIES);
     const [countrySearch, setCountrySearch] = useState<string>('');
+    const [showImageOptions, setShowImageOptions] = useState(false);
 
     useEffect(() => {
         if (countrySearch) {
@@ -61,6 +85,7 @@ export default function OnboardingStep1() {
 
 
     const handleImagePick = async () => {
+        setShowImageOptions(false);
         try {
             // Lazy load expo-image-picker to avoid native module errors
             if (Platform.OS === 'web') {
@@ -92,6 +117,11 @@ export default function OnboardingStep1() {
             console.error('Error picking image:', error);
             Alert.alert('Error', error.message || 'Failed to pick image');
         }
+    };
+
+    const handleDeleteImage = () => {
+        setShowImageOptions(false);
+        setProfileImg('');
     };
 
     const handleDateChange = (type: 'day' | 'month' | 'year', value: number) => {
@@ -197,7 +227,7 @@ export default function OnboardingStep1() {
                 <View style={styles.profileImageContainer}>
                     <TouchableOpacity 
                         style={styles.profileImageWrapper}
-                        onPress={handleImagePick}
+                        onPress={() => setShowImageOptions(true)}
                     >
                         {profileImg ? (
                             <Image 
@@ -206,12 +236,10 @@ export default function OnboardingStep1() {
                             />
                         ) : (
                             <View style={styles.profileImagePlaceholder}>
-                                <Ionicons name="camera" size={40} color={cskColors[500]} />
+                                <Ionicons name="person-add" size={40} color={cskColors[500]} />
+                                <Text style={styles.placeholderText}>Add Photo</Text>
                             </View>
                         )}
-                        <View style={styles.cameraIconOverlay}>
-                            <Ionicons name="camera" size={20} color="#FFFFFF" />
-                        </View>
                     </TouchableOpacity>
                     <Text style={styles.imageSizeLabel}>74x74 (Optional)</Text>
                 </View>
@@ -258,6 +286,34 @@ export default function OnboardingStep1() {
                     >
                         <Text style={[styles.inputText, !country && styles.placeholder]}>
                             {country || 'Select Country'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Language */}
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Language</Text>
+                    <TouchableOpacity
+                        style={styles.input}
+                        onPress={() => setShowLanguagePicker(true)}
+                    >
+                        <Text style={[styles.inputText, !language && styles.placeholder]}>
+                            {language ? LANGUAGES.find(l => l.id === language)?.label : 'Select Language'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Theme */}
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Theme</Text>
+                    <TouchableOpacity
+                        style={styles.input}
+                        onPress={() => setShowThemePicker(true)}
+                    >
+                        <Text style={[styles.inputText, !theme && styles.placeholder]}>
+                            {theme ? THEMES.find(t => t.id === theme)?.label : 'Select Theme'}
                         </Text>
                         <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
                     </TouchableOpacity>
@@ -471,6 +527,125 @@ export default function OnboardingStep1() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Language Picker Modal */}
+            <Modal
+                visible={showLanguagePicker}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowLanguagePicker(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Select Language</Text>
+                            <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
+                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                            </TouchableOpacity>
+                        </View>
+                        {LANGUAGES.map((lang) => (
+                            <TouchableOpacity
+                                key={lang.id}
+                                style={styles.modalOption}
+                                onPress={() => {
+                                    setLanguage(lang.id);
+                                    setShowLanguagePicker(false);
+                                }}
+                            >
+                                <Text style={styles.modalOptionText}>{lang.label}</Text>
+                                {language === lang.id && (
+                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Image Options Modal */}
+            <Modal
+                visible={showImageOptions}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowImageOptions(false)}
+            >
+                <TouchableOpacity 
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowImageOptions(false)}
+                >
+                    <View style={styles.imageOptionsContainer}>
+                        <View style={styles.imageOptionsContent}>
+                            <TouchableOpacity 
+                                style={styles.imageOptionButton}
+                                onPress={handleImagePick}
+                            >
+                                <Ionicons name="camera" size={24} color={cskColors[500]} />
+                                <Text style={styles.imageOptionText}>
+                                    {profileImg ? 'Change Photo' : 'Upload Photo'}
+                                </Text>
+                            </TouchableOpacity>
+                            {profileImg && (
+                                <TouchableOpacity 
+                                    style={[styles.imageOptionButton, styles.deleteButton]}
+                                    onPress={handleDeleteImage}
+                                >
+                                    <Ionicons name="trash" size={24} color="#FF4444" />
+                                    <Text style={[styles.imageOptionText, styles.deleteText]}>Delete Photo</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity 
+                                style={[styles.imageOptionButton, styles.cancelButton]}
+                                onPress={() => setShowImageOptions(false)}
+                            >
+                                <Text style={styles.cancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Theme Picker Modal */}
+            <Modal
+                visible={showThemePicker}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowThemePicker(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Select Theme</Text>
+                            <TouchableOpacity onPress={() => setShowThemePicker(false)}>
+                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                            </TouchableOpacity>
+                        </View>
+                        {THEMES.map((themeOption) => (
+                            <TouchableOpacity
+                                key={themeOption.id}
+                                style={styles.modalOption}
+                                onPress={() => {
+                                    setTheme(themeOption.id);
+                                    setShowThemePicker(false);
+                                }}
+                            >
+                                <View style={styles.themeOption}>
+                                    <Ionicons 
+                                        name={themeOption.icon as any} 
+                                        size={20} 
+                                        color={Colors.light.text} 
+                                        style={styles.themeIcon} 
+                                    />
+                                    <Text style={styles.modalOptionText}>{themeOption.label}</Text>
+                                </View>
+                                {theme === themeOption.id && (
+                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -517,18 +692,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: grayColors[50],
     },
-    cameraIconOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        backgroundColor: cskColors[500],
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: Colors.light.background,
+    placeholderText: {
+        marginTop: 4,
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+        color: cskColors[500],
     },
     imageSizeLabel: {
         fontSize: 12,
@@ -652,7 +820,7 @@ const styles = StyleSheet.create({
         color: Colors.light.text,
     },
     countryList: {
-        maxHeight: 400,
+        maxHeight: 300,
     },
     datePickerContainer: {
         flexDirection: 'row',
@@ -682,5 +850,54 @@ const styles = StyleSheet.create({
     datePickerItemTextSelected: {
         color: '#FFFFFF',
         fontFamily: Fonts.semiBold,
+    },
+    themeOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    themeIcon: {
+        marginRight: 12,
+    },
+    imageOptionsContainer: {
+        flex: 1,
+        justifyContent: 'flex-end',
+    },
+    imageOptionsContent: {
+        backgroundColor: Colors.light.background,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 20,
+    },
+    imageOptionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5',
+    },
+    imageOptionText: {
+        marginLeft: 16,
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: Colors.light.text,
+    },
+    deleteButton: {
+        borderBottomWidth: 0,
+    },
+    deleteText: {
+        color: '#FF4444',
+    },
+    cancelButton: {
+        borderTopWidth: 8,
+        borderTopColor: '#F5F5F5',
+        justifyContent: 'center',
+    },
+    cancelText: {
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[500],
+        textAlign: 'center',
+        width: '100%',
     },
 });
