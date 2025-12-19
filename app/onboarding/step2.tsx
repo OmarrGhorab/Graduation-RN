@@ -1,7 +1,7 @@
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, cskColors, grayColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Dimensions,
@@ -17,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useOnboardingStore } from '@/libs/onboarding';
 
 const { width } = Dimensions.get('window');
 
@@ -30,7 +31,7 @@ const INTERESTS = [
 
 const ROLES = [
     { id: 'student', label: 'Student', description: 'Learning and growing' },
-    { id: 'teacher', label: 'Teacher', description: 'Educating others' }, 
+    { id: 'teacher', label: 'Teacher', description: 'Educating others' },
     { id: 'parent', label: 'Parent', description: 'Supporting learning' },
     { id: 'instructor', label: 'Instructor', description: 'Teaching specific skills' },
     { id: 'assistant', label: 'Assistant', description: 'Helping teachers and instractors' },
@@ -39,7 +40,7 @@ const ROLES = [
 export default function OnboardingStep2() {
     const router = useRouter();
     const toast = useToast();
-    
+
     const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
     const [selectedRole, setSelectedRole] = useState<string>('');
     const [bio, setBio] = useState<string>('');
@@ -68,9 +69,29 @@ export default function OnboardingStep2() {
             return;
         }
 
-        // Store data locally (you can use AsyncStorage or context provider)
-        // For now, just navigate to next step
-        router.push('/onboarding/step3');
+        // Bio is now optional
+        if (bio.length > 0 && bio.length < 10) {
+            toast.error('Short Bio', 'Bio should be at least 10 characters if provided');
+            return;
+        }
+
+        // Map UI roles to backend enum
+        let mappedRole: 'STUDENT' | 'TEACHER' | 'PARENT' = 'STUDENT';
+        const roleLower = selectedRole.toLowerCase();
+        if (roleLower === 'teacher' || roleLower === 'instructor' || roleLower === 'assistant') {
+            mappedRole = 'TEACHER';
+        } else if (roleLower === 'parent') {
+            mappedRole = 'PARENT';
+        }
+
+        // Save data to store
+        useOnboardingStore.getState().setStep2Data({
+            role: mappedRole,
+            interests: selectedInterests,
+            bio: bio || undefined,
+        });
+
+        router.push('/onboarding/step3' as Href);
     };
 
     return (
@@ -79,13 +100,13 @@ export default function OnboardingStep2() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
-            
-            <ScrollView 
+
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Back Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => router.back()}
                 >
@@ -102,7 +123,7 @@ export default function OnboardingStep2() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Select Your Interests</Text>
                     <Text style={styles.sectionSubtitle}>Choose up to 5 topics you're interested in</Text>
-                    
+
                     <View style={styles.interestsGrid}>
                         {INTERESTS.map((interest) => (
                             <TouchableOpacity
@@ -129,7 +150,7 @@ export default function OnboardingStep2() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Select Your Role</Text>
                     <Text style={styles.sectionSubtitle}>Choose the role that best describes you</Text>
-                    
+
                     <TouchableOpacity
                         style={styles.input}
                         onPress={() => setShowRolePicker(true)}
@@ -145,7 +166,7 @@ export default function OnboardingStep2() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Bio (Optional)</Text>
                     <Text style={styles.sectionSubtitle}>Tell us a little about yourself</Text>
-                    
+
                     <TextInput
                         style={styles.bioInput}
                         placeholder="Share something about yourself..."

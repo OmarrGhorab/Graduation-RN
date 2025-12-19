@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
     Animated,
@@ -12,6 +12,8 @@ import {
     View
 } from 'react-native';
 import { Colors, Fonts, primaryGradient } from '@/constants/theme';
+import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
+import { useAuthStore } from '@/libs/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -58,9 +60,33 @@ export default function WelcomeScreen() {
         );
         spinAnimation.start();
 
-        // Navigate after 3 seconds
-        const timer = setTimeout(() => {
-            router.replace('/onboarding');
+        // Check status and navigate after 3 seconds
+        const timer = setTimeout(async () => {
+            const { isAuthenticated, user } = useAuthStore.getState();
+
+            if (isAuthenticated) {
+                if (user?.onboardingCompleted) {
+                    router.replace('/home' as Href); // Navigate to main app
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
+            } else {
+                const isCompleted = await isOnboardingCompleted();
+                if (isCompleted) {
+                    router.replace('/login');
+                } else {
+                    const currentStep = await getCurrentOnboardingStep();
+                    if (currentStep === 1) {
+                        router.replace('/onboarding');
+                    } else if (currentStep === 2) {
+                        router.replace('/onboarding2');
+                    } else if (currentStep === 3) {
+                        router.replace('/onboarding3');
+                    } else {
+                        router.replace('/onboarding');
+                    }
+                }
+            }
         }, 3000);
 
         return () => clearTimeout(timer);

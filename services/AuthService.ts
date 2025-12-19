@@ -7,11 +7,35 @@ import {
     BASE_URL,
     GOOGLE_WEB_CLIENT_ID,
 } from '@/constants/config';
+import { Platform } from 'react-native';
+import {
+    LoginResponse,
+    LoginResponseSchema,
+    RegisterResponse,
+    RegisterResponseSchema,
+    RegisterRequest,
+    LoginRequest,
+    LoginSuccessResponse,
+    LoginErrorResponse,
+    VerifyEmailOTPRequest,
+    VerifyEmailOTPResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
+    OnboardingData,
+    OnboardingResponse,
+    ParentSearchResponse,
+    ParentLinkRequest,
+    ParentLinkResponse,
+    RefreshTokenResponse,
+} from '@/types/auth';
+import { useAuthStore } from '@/libs/auth';
 
 // Types
 export interface AuthResponse {
     success: boolean;
-    data?: any;
+    data?: LoginResponse;
     error?: string;
 }
 
@@ -21,7 +45,7 @@ export interface GoogleSignInResult {
     user?: {
         email: string;
         name: string;
-        photo: string | null;
+        profileImg: string | null;
     };
     error?: string;
     cancelled?: boolean;
@@ -32,7 +56,7 @@ let isConfigured = false;
 
 export const configureGoogleSignIn = () => {
     if (isConfigured) return;
-    
+
     GoogleSignin.configure({
         webClientId: GOOGLE_WEB_CLIENT_ID,
         offlineAccess: false,
@@ -45,30 +69,30 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
     try {
         // Ensure Google Sign-In is configured
         configureGoogleSignIn();
-        
+
         // Check if device supports Google Play Services
         await GoogleSignin.hasPlayServices();
-        
+
         // Sign in and get user info with ID token
         const response = await GoogleSignin.signIn();
-        
+
         const idToken = response.data?.idToken;
         const user = response.data?.user;
-        
+
         if (!idToken) {
             return {
                 success: false,
                 error: 'Failed to retrieve Google ID token',
             };
         }
-        
+
         return {
             success: true,
             idToken,
             user: user ? {
                 email: user.email,
                 name: user.name || '',
-                photo: user.photo,
+                profileImg: user.photo,
             } : undefined,
         };
     } catch (error: any) {
@@ -79,7 +103,7 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
         } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
             return { success: false, error: 'Google Play Services is not available' };
         }
-        
+
         return {
             success: false,
             error: error.message || 'Failed to sign in with Google',
@@ -98,15 +122,33 @@ export const authenticateWithBackend = async (idToken: string): Promise<AuthResp
             body: JSON.stringify({ idToken }),
         });
 
+        const rawData = await response.json().catch(() => ({}));
+
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
             return {
                 success: false,
-                error: errorData.message || `Server error: ${response.status}`,
+                error: rawData.message || `Server error: ${response.status}`,
             };
         }
 
-        const data = await response.json();
+        // Validate response with Zod
+        const result = LoginResponseSchema.safeParse(rawData);
+
+        if (!result.success) {
+            console.error('Zod Validation Error:', result.error);
+            return {
+                success: false,
+                error: 'Invalid response from server',
+            };
+        }
+
+        const data = result.data;
+
+        // Update Zustand store if we have user and token
+        if (data.user && data.accessToken) {
+            useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
+        }
+
         return {
             success: true,
             data,
@@ -119,25 +161,748 @@ export const authenticateWithBackend = async (idToken: string): Promise<AuthResp
     }
 };
 
+// Helper functions for token management
+const getAuthToken = async () => useAuthStore.getState().accessToken;
+const getRefreshToken = async () => useAuthStore.getState().refreshToken;
+const storeAuthToken = async (token: string) => {
+    const { user, refreshToken } = useAuthStore.getState();
+    if (user && refreshToken) {
+        useAuthStore.getState().setAuth(user, token, refreshToken);
+    } else {
+        useAuthStore.getState().setTokens(token, refreshToken || '');
+    }
+};
+const storeRefreshToken = async (token: string) => {
+    const { user, accessToken } = useAuthStore.getState();
+    if (user && accessToken) {
+        useAuthStore.getState().setAuth(user, accessToken, token);
+    } else {
+        useAuthStore.getState().setTokens(accessToken || '', token);
+    }
+};
+const clearAuthToken = async () => useAuthStore.getState().logout();
+
+// Simple atob polyfill for React Native if needed
+const atob = (input: string) => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let str = input.replace(/=+$/, '');
+    let output = '';
+
+    if (str.length % 4 == 1) {
+        throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
+    }
+
+    for (let bc = 0, bs = 0, buffer, i = 0; buffer = str.charAt(i++); ~buffer && (bs = bc % 4 ? bs * 64 + buffer : buffer, bc++ % 4) ? output += String.fromCharCode(255 & bs >> (-2 * bc & 6)) : 0) {
+        buffer = chars.indexOf(buffer);
+    }
+
+    return output;
+};
+
+/**
+ * Login user
+ * @param data - Login credentials (emailOrUsername, password)
+ * @returns LoginSuccessResponse if verified, throws LoginErrorResponse if not verified
+ */
+export async function login(data: LoginRequest): Promise<LoginSuccessResponse | LoginErrorResponse> {
+    try {
+        console.log('[Auth] Logging in with URL:', `${BASE_URL}/api/v1/auth/login`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/login`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    emailOrUsername: data.emailOrUsername,
+                    password: data.password,
+                    // deviceName: Platform.OS, // Optional: add if needed
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Check if it's an unverified account error - return it instead of throwing
+            if (response.status === 403 && responseData.requiresVerification) {
+                // Return the error response so the caller can handle it
+                return responseData as LoginErrorResponse;
+            }
+
+            // Other errors - throw them
+            const error: any = new Error(responseData.message || responseData.error || 'Login failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Store tokens on successful login
+        if (responseData.user && responseData.accessToken && responseData.refreshToken) {
+            useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
+        }
+
+        return responseData as LoginSuccessResponse;
+    } catch (error: any) {
+        console.error('[Auth] Login failed:', error);
+
+        // If it's already our custom error with responseData, re-throw it
+        if (error.responseData) {
+            throw error;
+        }
+
+        // Provide more helpful error messages for network errors
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+export async function register(data: RegisterRequest): Promise<RegisterResponse> {
+    try {
+        console.log('[Auth] Registering user with URL:', `${BASE_URL}/api/v1/auth/register`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/register`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: data.name,
+                    username: data.username,
+                    email: data.email,
+                    password: data.password,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Create a custom error with the response data for better error handling
+            const error: any = new Error(responseData.message || responseData.error || 'Registration failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Only set auth if we have tokens (some registrations might require verification first)
+        if (responseData.user && responseData.accessToken && responseData.refreshToken) {
+            useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Registration failed:', error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running. ' +
+                (Platform.OS === 'android'
+                    ? 'For Android emulator, make sure you\'re using 10.0.2.2 instead of localhost.'
+                    : 'For iOS simulator, make sure you\'re using localhost.')
+            );
+        }
+
+        throw error;
+    }
+}
+
+export async function logout(): Promise<void> {
+    try {
+        const token = await getValidAccessToken();
+        const refreshToken = await getRefreshToken();
+
+        if (token || refreshToken) {
+            // Call backend logout API
+            console.log('[Auth] Logging out with URL:', `${BASE_URL}/api/v1/auth/logout`);
+
+            try {
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+
+                // Add Authorization header if we have an access token
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                // Prepare request body with refresh token (if available)
+                const body = refreshToken ? JSON.stringify({ refreshToken }) : undefined;
+
+                const response = await fetch(
+                    `${BASE_URL}/api/v1/auth/logout`,
+                    {
+                        method: 'POST',
+                        headers,
+                        body,
+                    }
+                );
+
+                if (!response.ok) {
+                    const responseData = await response.json();
+                    console.warn('[Auth] Logout API returned error:', responseData);
+                    // Continue to clear local tokens even if API call fails
+                }
+            } catch (apiError) {
+                console.error('[Auth] Logout API call failed:', apiError);
+                // Continue to clear local tokens even if API call fails
+            }
+        }
+
+        // Clear local tokens
+        await clearAuthToken();
+
+        // Sign out from Google if user was signed in with Google
+        try {
+            await signOutGoogle();
+        } catch (googleError) {
+            // Ignore Google sign-out errors (user might not have been signed in with Google)
+            console.log('[Auth] Google sign-out not needed or failed (this is okay)');
+        }
+
+        console.log('[Auth] Logout completed successfully');
+    } catch (error) {
+        console.error('[Auth] Logout failed:', error);
+        // Even if logout fails, try to clear tokens
+        try {
+            await clearAuthToken();
+        } catch (clearError) {
+            console.error('[Auth] Failed to clear tokens during logout error handling:', clearError);
+        }
+        throw error;
+    }
+}
+
+/**
+ * Resend verification OTP
+ * @param email - Email address to resend OTP to
+ */
+export async function resendVerificationOTP(email: string): Promise<{ message: string }> {
+    try {
+        console.log('[Auth] Resending verification OTP with URL:', `${BASE_URL}/api/v1/auth/resend-verification-otp`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/resend-verification-otp`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Handle different error status codes
+            if (response.status === 400) {
+                throw new Error(responseData.message || 'Invalid email address');
+            }
+            if (response.status === 404) {
+                throw new Error(responseData.message || 'User not found');
+            }
+            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Resend verification OTP failed:', error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Verify email OTP
+ * @param data - Email and OTP for verification
+ */
+export async function verifyEmailOTP(data: VerifyEmailOTPRequest): Promise<VerifyEmailOTPResponse> {
+    try {
+        console.log('[Auth] Verifying email OTP with URL:', `${BASE_URL}/api/v1/auth/verify-email-otp`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/verify-email-otp`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: data.email,
+                    otp: data.otp,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Handle different error status codes
+            if (response.status === 400) {
+                throw new Error(responseData.message || 'Invalid OTP or email');
+            }
+            if (response.status === 404) {
+                throw new Error(responseData.message || 'User not found');
+            }
+            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Email verification failed:', error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Forgot password - Send OTP to email
+ * @param data - Email address
+ */
+export async function forgotPassword(data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+    try {
+        console.log('[Auth] Forgot password with URL:', `${BASE_URL}/api/v1/auth/forgot-password`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/forgot-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: data.email,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Handle different error status codes
+            if (response.status === 400) {
+                throw new Error(responseData.message || 'Invalid email address');
+            }
+            if (response.status === 404) {
+                throw new Error(responseData.message || 'User not found');
+            }
+            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Forgot password failed:', error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Reset password - Reset password with OTP
+ * @param data - Email, OTP, and new password
+ */
+export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    try {
+        console.log('[Auth] Reset password with URL:', `${BASE_URL}/api/v1/auth/reset-password`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/reset-password`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: data.email,
+                    otp: data.otp,
+                    newPassword: data.newPassword,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Handle different error status codes
+            if (response.status === 400) {
+                throw new Error(responseData.message || 'Invalid OTP or password');
+            }
+            if (response.status === 404) {
+                throw new Error(responseData.message || 'User not found');
+            }
+            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Reset password failed:', error);
+
+        // Provide more helpful error messages
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Submit onboarding data
+ * @param data - Onboarding data collected from all steps
+ */
+export async function submitOnboarding(data: OnboardingData): Promise<OnboardingResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Auth] Submitting onboarding data with URL:', `${BASE_URL}/api/v1/onboarding`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/onboarding`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(data),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Onboarding submission failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Onboarding submission failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Search for parents to link
+ * @param query - Search query string
+ * @param page - Page number (default: 1)
+ * @param limit - Results per page (default: 10)
+ */
+export async function searchParents(query: string, page: number = 1, limit: number = 10): Promise<ParentSearchResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const url = `${BASE_URL}/api/v1/parent-link/search?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
+        console.log('[Auth] Searching parents with URL:', url);
+
+        const response = await fetch(
+            url,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Parent search failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Parent search failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Request parent link
+ * @param data - Parent link request data
+ */
+export async function requestParentLink(data: ParentLinkRequest): Promise<ParentLinkResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Auth] Requesting parent link with URL:', `${BASE_URL}/api/v1/parent-link/request`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/parent-link/request`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(data),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Parent link request failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Parent link request failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Refresh access token using refresh token
+ * @param refreshToken - Refresh token
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<RefreshTokenResponse> {
+    try {
+        console.log('[Auth] Refreshing access token with URL:', `${BASE_URL}/api/v1/auth/refresh`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/refresh`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    refreshToken: refreshToken,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Token refresh failed');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Store new tokens
+        await storeAuthToken(responseData.accessToken);
+        await storeRefreshToken(responseData.refreshToken);
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Token refresh failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Get valid access token, refreshing if necessary
+ * @returns Valid access token or null if refresh fails
+ */
+export async function getValidAccessToken(): Promise<string | null> {
+    try {
+        const token = await getAuthToken();
+        const refreshToken = await getRefreshToken();
+
+        if (!token || !refreshToken) {
+            return null;
+        }
+
+        // Check if token is expired (simple check - decode JWT to get exp)
+        try {
+            // Using our atob polyfill
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(atob(base64));
+
+            const expirationTime = payload.exp * 1000; // Convert to milliseconds
+            const now = Date.now();
+            const timeUntilExpiry = expirationTime - now;
+
+            // If token expires in less than 1 minute, refresh it
+            if (timeUntilExpiry < 60000) {
+                console.log('[Auth] Access token expired or expiring soon, refreshing...');
+                const refreshResponse = await refreshAccessToken(refreshToken);
+                return refreshResponse.accessToken;
+            }
+
+            return token;
+        } catch (decodeError) {
+            // If we can't decode the token, try to refresh it
+            console.log('[Auth] Could not decode token, attempting refresh...');
+            const refreshResponse = await refreshAccessToken(refreshToken);
+            return refreshResponse.accessToken;
+        }
+    } catch (error) {
+        console.error('[Auth] Failed to get valid access token:', error);
+        // Clear tokens if refresh fails
+        await clearAuthToken();
+        return null;
+    }
+}
+
+/**
+ * Get user profile
+ * @returns User profile data
+ */
+export async function getUserProfile(): Promise<any> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Auth] Fetching user profile with URL:', `${BASE_URL}/api/v1/auth/myprofile`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/myprofile`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Failed to fetch user profile');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Update user data in store
+        if (responseData.user) {
+            useAuthStore.getState().updateUser(responseData.user);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Failed to fetch user profile:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
 // Combined: Google Sign-In + Backend Authentication
-// Use this for one-click Google authentication
 export const googleSignIn = async (options?: {
     showAlerts?: boolean;
-    onSuccess?: (data: any) => void;
+    onSuccess?: (data: LoginResponse) => void;
     onError?: (error: string) => void;
     onCancel?: () => void;
 }): Promise<AuthResponse> => {
     const { showAlerts = true, onSuccess, onError, onCancel } = options || {};
-    
+
     // Step 1: Sign in with Google
     const googleResult = await signInWithGoogle();
-    
+
     if (!googleResult.success) {
         if (googleResult.cancelled) {
             onCancel?.();
             return { success: false, error: 'cancelled' };
         }
-        
+
         const errorMsg = googleResult.error || 'Google Sign-In failed';
         if (showAlerts) {
             Alert.alert('Google Sign-In Error', errorMsg);
@@ -145,21 +910,54 @@ export const googleSignIn = async (options?: {
         onError?.(errorMsg);
         return { success: false, error: errorMsg };
     }
-    
-    // Step 2: Authenticate with backend
-    const backendResult = await authenticateWithBackend(googleResult.idToken!);
-    
-    if (!backendResult.success) {
-        const errorMsg = backendResult.error || 'Authentication failed';
+
+    // Step 2: Authenticate with backend using Google ID token
+    try {
+        const response = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ idToken: googleResult.idToken }),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const errorMsg = responseData.message || `Server error: ${response.status}`;
+            if (showAlerts) {
+                Alert.alert('Authentication Error', errorMsg);
+            }
+            onError?.(errorMsg);
+            return { success: false, error: errorMsg };
+        }
+
+        // Validate response with Zod
+        const result = LoginResponseSchema.safeParse(responseData);
+        if (!result.success) {
+            const errorMsg = 'Invalid response from server';
+            if (showAlerts) {
+                Alert.alert('Authentication Error', errorMsg);
+            }
+            onError?.(errorMsg);
+            return { success: false, error: errorMsg };
+        }
+
+        const data = result.data;
+        if (data.user && data.accessToken) {
+            useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
+        }
+
+        onSuccess?.(data);
+        return { success: true, data };
+    } catch (error: any) {
+        const errorMsg = error instanceof Error ? error.message : 'Failed to authenticate with server';
         if (showAlerts) {
             Alert.alert('Authentication Error', errorMsg);
         }
         onError?.(errorMsg);
         return { success: false, error: errorMsg };
     }
-    
-    onSuccess?.(backendResult.data);
-    return { success: true, data: backendResult.data };
 };
 
 // Sign out from Google
@@ -190,3 +988,4 @@ export const getCurrentGoogleUser = async () => {
         return null;
     }
 };
+

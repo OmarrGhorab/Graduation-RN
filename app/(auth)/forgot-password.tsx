@@ -11,10 +11,13 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    useColorScheme
+    useColorScheme,
+    ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
+import { forgotPassword } from '@/services/AuthService';
+import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,13 +25,32 @@ export default function ForgotPasswordScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    
-    const [email, setEmail] = useState('');
+    const { success, error } = useToast();
 
-    const handleContinue = () => {
-        console.log('Continue with email:', email);
-        // Navigate to verification code screen
-        router.push('/verification');
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleContinue = async () => {
+        if (!email) {
+            error('Required', 'Please enter your email address');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await forgotPassword({ email });
+            success('OTP Sent', 'An OTP has been sent to your email');
+            // Navigate to OTP verification screen
+            router.push({
+                pathname: '/verify-reset-otp',
+                params: { email }
+            } as any);
+        } catch (err: any) {
+            console.error('Forgot password error:', err);
+            error('Error', err.message || 'Failed to send reset code');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleBack = () => {
@@ -36,13 +58,13 @@ export default function ForgotPasswordScreen() {
     };
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                
+
                 {/* Header with Back Button */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -78,11 +100,20 @@ export default function ForgotPasswordScreen() {
 
                     {/* Continue Button */}
                     <TouchableOpacity
-                        style={[styles.continueButton, { backgroundColor: cskColors[500] }]}
+                        style={[
+                            styles.continueButton,
+                            { backgroundColor: cskColors[500] },
+                            isLoading && styles.continueButtonDisabled
+                        ]}
                         onPress={handleContinue}
                         activeOpacity={0.8}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.continueButtonText}>Continue</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.continueButtonText}>Continue</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -113,7 +144,7 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 12,
-        fontFamily: 'System', 
+        fontFamily: 'System',
     },
     subtitle: {
         fontSize: 14,
@@ -165,5 +196,8 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    continueButtonDisabled: {
+        opacity: 0.7,
     },
 });

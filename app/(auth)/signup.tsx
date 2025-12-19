@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
@@ -17,7 +17,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
+import { googleSignIn, configureGoogleSignIn, register } from '@/services/AuthService';
+import { useToast } from '@/components/toast';
+import { RegisterRequest } from '@/types/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,38 +27,83 @@ export default function SignUpScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    
+
     const [fullName, setFullName] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const { success, error } = useToast();
+    const [suggestions, setSuggestions] = useState<string[]>([]);
 
     useEffect(() => {
         configureGoogleSignIn();
     }, []);
 
-    const handleSignUp = () => {
-        console.log('Sign Up with:', { fullName, username, email, password });
-        // Implement sign up logic here
-        router.push('/verification');
+    const handleSignUp = async () => {
+        setSuggestions([]); // Clear previous suggestions
+        if (!fullName || !username || !email || !password) {
+            error('Missing fields', 'Please fill in all fields');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const data = await register({
+                name: fullName,
+                username: username,
+                email: email,
+                password: password
+            });
+
+            success('Account created', data.message || 'Verification code sent');
+            // After successful sign up, redirect to verification with email
+            router.push({
+                pathname: '/verification',
+                params: { email }
+            } as any);
+        } catch (err: any) {
+            console.error('Signup error:', err);
+            const errorMsg = err.message || 'Registration failed';
+
+            // Handle username suggestions if present in the error response
+            if (err.responseData?.suggestions && Array.isArray(err.responseData.suggestions)) {
+                setSuggestions(err.responseData.suggestions);
+                // Don't append to toast, just show the base error
+                error('Username taken', errorMsg);
+            } else {
+                error('Registration failed', errorMsg);
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSuggestionClick = (suggestion: string) => {
+        setUsername(suggestion);
+        setSuggestions([]);
     };
 
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
-        
-        await googleSignIn({
+
+        const result = await googleSignIn({
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Google Sign-In successful:', data);
-                router.push('/onboarding/step1');
+                if (data.user?.onboardingCompleted) {
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             },
             onCancel: () => {
                 console.log('Google Sign-In cancelled');
             },
         });
-        
+
         setIsGoogleLoading(false);
     };
 
@@ -65,16 +112,16 @@ export default function SignUpScreen() {
     };
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                
+
                 {/* Logo/Image */}
                 <View style={styles.imageContainer}>
-                     <Image
+                    <Image
                         source={require('@/assets/images/logo-green.png')}
                         style={styles.logo}
                         resizeMode="contain"
@@ -86,7 +133,7 @@ export default function SignUpScreen() {
 
                 {/* Form */}
                 <View style={styles.form}>
-                    
+
                     {/* Full Name Input */}
                     <View style={styles.inputWrapper}>
                         <View style={styles.labelContainer}>
@@ -116,6 +163,24 @@ export default function SignUpScreen() {
                             autoCapitalize="none"
                         />
                     </View>
+
+                    {/* Suggestions */}
+                    {suggestions.length > 0 && (
+                        <View style={styles.suggestionsContainer}>
+                            <Text style={styles.suggestionsLabel}>Username taken. Try one of these:</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
+                                {suggestions.map((suggestion, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={styles.suggestionChip}
+                                        onPress={() => handleSuggestionClick(suggestion)}
+                                    >
+                                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
                     {/* Email Input */}
                     <View style={styles.inputWrapper}>
@@ -155,11 +220,16 @@ export default function SignUpScreen() {
 
                     {/* Create Account Button */}
                     <TouchableOpacity
-                        style={[styles.createButton, { backgroundColor: cskColors[500] }]}
+                        style={[styles.createButton, { backgroundColor: cskColors[500] }, isLoading && { opacity: 0.7 }]}
                         onPress={handleSignUp}
                         activeOpacity={0.8}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.createButtonText}>Create Account</Text>
+                        {isLoading ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.createButtonText}>Create Account</Text>
+                        )}
                     </TouchableOpacity>
 
                     {/* Footer / Login Link */}
@@ -231,7 +301,7 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 30,
-        fontFamily: 'System', 
+        fontFamily: 'System',
     },
     form: {
         width: '100%',
@@ -342,5 +412,32 @@ const styles = StyleSheet.create({
     signInText: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    suggestionsContainer: {
+        marginBottom: 20,
+        marginTop: -10,
+    },
+    suggestionsLabel: {
+        fontSize: 14,
+        color: '#FF4444',
+        marginBottom: 8,
+        fontWeight: '500',
+    },
+    suggestionsScroll: {
+        flexDirection: 'row',
+    },
+    suggestionChip: {
+        backgroundColor: cskColors[50], // Light version of primary color
+        borderWidth: 1,
+        borderColor: cskColors[200],
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        marginRight: 8,
+    },
+    suggestionText: {
+        color: cskColors[500],
+        fontSize: 14,
+        fontWeight: '600',
     },
 });

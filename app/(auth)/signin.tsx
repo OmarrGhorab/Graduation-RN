@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
@@ -17,7 +17,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
+import { googleSignIn, configureGoogleSignIn, login } from '@/services/AuthService';
+import { useToast } from '@/components/toast';
+import { LoginSuccessResponse } from '@/types/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,6 +32,8 @@ export default function SignInScreen() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const { showToast, error, success } = useToast();
 
     // Configure Google Sign-In on component mount
     useEffect(() => {
@@ -38,47 +42,89 @@ export default function SignInScreen() {
 
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
-        
+
         const result = await googleSignIn({
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Backend auth successful:', data);
-                router.push('/onboarding/step1');
+                if (data.user?.onboardingCompleted) {
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             },
             onCancel: () => {
                 console.log('Google Sign-In cancelled');
             },
         });
-        
+
         setIsGoogleLoading(false);
     };
 
-    const handleLogin = () => {
-        console.log('Login with:', email, password);
-        router.push('/onboarding/step1');
-        // Implement login logic here
+    const handleLogin = async () => {
+        if (!email || !password) {
+            error('Missing fields', 'Email and password are required');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const result = await login({ emailOrUsername: email, password });
+
+            // If we got a response but it's a verification required error
+            if ('requiresVerification' in result && result.requiresVerification) {
+                router.push({
+                    pathname: '/verification',
+                    params: { email }
+                } as any);
+                return;
+            }
+
+            // At this point it's a LoginSuccessResponse
+            const successData = result as LoginSuccessResponse;
+            if (successData.user.onboardingCompleted) {
+                router.replace('/home' as Href);
+            } else {
+                router.replace('/onboarding/step1' as Href);
+            }
+        } catch (err: any) {
+            console.error('Login error:', err);
+            const responseData = err.responseData;
+
+            if (responseData?.requiresDeviceVerification) {
+                showToast('info', 'New Device', 'Please verify this device using the code sent to your email.');
+                router.push({
+                    pathname: '/verification',
+                    params: { email, type: 'device' }
+                } as any);
+            } else {
+                error('Login failed', err.message || 'Check your credentials');
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleSignUp = () => {
         // Navigate to sign up
-        router.push('/signup'); 
+        router.push('/signup');
     };
-    
+
     const handleForgotPassword = () => {
         router.push('/forgot-password');
     };
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                
+
                 {/* Logo/Image */}
                 <View style={styles.imageContainer}>
-                     <Image
+                    <Image
                         source={require('@/assets/images/logo-green.png')}
                         style={styles.logo}
                         resizeMode="contain"
@@ -133,11 +179,20 @@ export default function SignInScreen() {
 
                     {/* Login Button */}
                     <TouchableOpacity
-                        style={[styles.loginButton, { backgroundColor: cskColors[500] }]}
+                        style={[
+                            styles.loginButton,
+                            { backgroundColor: cskColors[500] },
+                            isLoading && styles.loginButtonDisabled
+                        ]}
                         onPress={handleLogin}
                         activeOpacity={0.8}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.loginButtonText}>Login</Text>
+                        {isLoading ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                            <Text style={styles.loginButtonText}>Login</Text>
+                        )}
                     </TouchableOpacity>
 
                     {/* Divider */}
@@ -211,7 +266,7 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '700',
         marginBottom: 30,
-        fontFamily: 'System', 
+        fontFamily: 'System',
     },
     form: {
         width: '100%',
@@ -279,6 +334,9 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    loginButtonDisabled: {
+        opacity: 0.7,
     },
     dividerContainer: {
         flexDirection: 'row',

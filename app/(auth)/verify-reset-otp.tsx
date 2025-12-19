@@ -17,16 +17,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { resendVerificationOTP, verifyEmailOTP } from '@/services/AuthService';
+import { forgotPassword } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
 
-export default function VerificationScreen() {
+export default function VerifyResetOTPScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    const { email, type, source } = useLocalSearchParams<{ email: string; type?: string; source?: string }>();
+    const { email } = useLocalSearchParams<{ email: string }>();
     const { success, error, info } = useToast();
     const [loading, setLoading] = useState(false);
 
@@ -76,34 +76,25 @@ export default function VerificationScreen() {
             return;
         }
 
-        setLoading(true);
-        try {
-            const result = await verifyEmailOTP({ email, otp: otpValue });
-            success('Account Verified', result.message || 'Verification successful');
-
-            if (source === 'forgot-password') {
-                router.replace({
-                    pathname: '/reset-password',
-                    params: { email, otp: otpValue }
-                } as any);
-            } else {
-                router.replace('/signin' as Href);
-            }
-        } catch (err: any) {
-            console.error('Verification error:', err);
-            error('Verification failed', err.message || 'Please check the code and try again');
-        } finally {
-            setLoading(false);
-        }
+        // Simply navigate to reset password with the OTP
+        // The actual validation will happen when they submit the new password
+        success('Code Verified', 'Please enter your new password');
+        router.replace({
+            pathname: '/reset-password',
+            params: { email, otp: otpValue }
+        } as any);
     };
 
     const handleResend = async () => {
         if (timer === 0 && email) {
             setLoading(true);
             try {
-                const result = await resendVerificationOTP(email);
+                const result = await forgotPassword({ email });
                 success('Code Sent', result.message || 'A new code has been sent to your email');
                 setTimer(60);
+                // Clear OTP inputs
+                setOtp(['', '', '', '', '', '']);
+                inputRefs.current[0]?.focus();
             } catch (err: any) {
                 console.error('Resend OTP error:', err);
                 error('Error', err.message || 'Failed to resend code');
@@ -146,9 +137,9 @@ export default function VerificationScreen() {
 
                 {/* Title and Subtitle */}
                 <View style={styles.titleContainer}>
-                    <Text style={[styles.title, { color: cskColors[500] }]}>Verification Code</Text>
+                    <Text style={[styles.title, { color: cskColors[500] }]}>Verify OTP Code</Text>
                     <Text style={[styles.subtitle, { color: '#888' }]}>
-                        Please confirm the security code received on yur registered email.
+                        Please enter the security code sent to your email to reset your password.
                     </Text>
                 </View>
 

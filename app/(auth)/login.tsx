@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
     ActivityIndicator,
@@ -28,18 +28,22 @@ export default function LoginScreen() {
 
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
-        
+
         await googleSignIn({
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Google Sign-In successful:', data);
-                router.push('/onboarding/step1');
+                if (data.user?.onboardingCompleted) {
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             },
             onCancel: () => {
                 console.log('Google Sign-In cancelled');
             },
         });
-        
+
         setIsGoogleLoading(false);
     };
 
@@ -54,20 +58,20 @@ export default function LoginScreen() {
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-            
+
             {/* Content */}
             <View style={styles.content}>
                 {/* Welcome Text */}
                 <Text style={[styles.welcomeText, { color: cskColors[500] }]}>WELCOME BACK</Text>
                 <Text style={[styles.subtitle, { color: cskColors[500] }]}>Sign in to access your account and continue your journey with us.</Text>
-                
+
                 {/* Logo */}
                 <Image
                     source={require('@/assets/images/logo-green.png')}
                     style={styles.logo}
                     resizeMode="contain"
                 />
-                
+
                 {/* Google Sign In Button */}
                 <TouchableOpacity
                     style={[
@@ -91,7 +95,7 @@ export default function LoginScreen() {
                         </>
                     )}
                 </TouchableOpacity>
-                
+
                 {/* Sign Up Button */}
                 <TouchableOpacity
                     style={[styles.signUpButton, { backgroundColor: cskColors[500] }]}
@@ -100,7 +104,7 @@ export default function LoginScreen() {
                 >
                     <Text style={styles.buttonText}>Sign Up</Text>
                 </TouchableOpacity>
-                
+
                 {/* Log In Button */}
                 <TouchableOpacity
                     style={[styles.logInButton, { borderColor: cskColors[500] }]}

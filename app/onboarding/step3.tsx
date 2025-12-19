@@ -1,7 +1,7 @@
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, cskColors, grayColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Href } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Dimensions,
@@ -16,18 +16,17 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    useColorScheme,
 } from 'react-native';
+import { useOnboardingStore } from '@/libs/onboarding';
+import { submitOnboarding, searchParents } from '@/services/AuthService';
+import { ProfileCompletionBody } from '@/types/auth';
 
 const { width } = Dimensions.get('window');
 
-// Mock user data for parent search
-const MOCK_USERS = [
-    { id: '1', username: 'john_doe', name: 'John Doe', avatar: 'https://picsum.photos/seed/john/50/50.jpg' },
-    { id: '2', username: 'jane_smith', name: 'Jane Smith', avatar: 'https://picsum.photos/seed/jane/50/50.jpg' },
-    { id: '3', username: 'mike_wilson', name: 'Mike Wilson', avatar: 'https://picsum.photos/seed/mike/50/50.jpg' },
-    { id: '4', username: 'sarah_jones', name: 'Sarah Jones', avatar: 'https://picsum.photos/seed/sarah/50/50.jpg' },
-    { id: '5', username: 'david_brown', name: 'David Brown', avatar: 'https://picsum.photos/seed/david/50/50.jpg' },
-];
+// Define Parent type based on actual structure if possible
+type Parent = { id: string; username: string; name: string; avatar?: string };
 
 const GOALS = [
     'Career Advancement', 'Personal Growth', 'Skill Development', 'Hobby',
@@ -37,30 +36,38 @@ const GOALS = [
 
 export default function OnboardingStep3() {
     const router = useRouter();
+    const colorScheme = useColorScheme();
+    const theme = Colors[colorScheme || 'light'];
+    const { formData, setStep3Data } = useOnboardingStore();
     const toast = useToast();
-    
-    const [parentEmail, setParentEmail] = useState<string>('');
-    const [searchQuery, setSearchQuery] = useState<string>('');
-    const [searchResults, setSearchResults] = useState<typeof MOCK_USERS>([]);
-    const [selectedParent, setSelectedParent] = useState<typeof MOCK_USERS[0] | null>(null);
+
     const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+    const [customGoalInput, setCustomGoalInput] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
     const [customGoals, setCustomGoals] = useState<string[]>([]);
-    const [customGoalInput, setCustomGoalInput] = useState<string>('');
-    const [showCustomInput, setShowCustomInput] = useState<boolean>(false);
-    const [notifications, setNotifications] = useState<boolean>(true);
-    const [newsletter, setNewsletter] = useState<boolean>(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Parent[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
+    const [newsletter, setNewsletter] = useState(false);
+    const [notifications, setNotifications] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
 
     // Search functionality with debouncing
     useEffect(() => {
-        const timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(async () => {
             if (searchQuery.trim()) {
-                const filtered = MOCK_USERS.filter(
-                    user => 
-                        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        user.username.toLowerCase().includes(searchQuery.toLowerCase())
-                );
-                setSearchResults(filtered);
+                setIsSearching(true);
+                try {
+                    const result = await searchParents(searchQuery);
+                    // Map result data to our Parent structure if needed
+                    setSearchResults(result.data as Parent[]);
+                } catch (err) {
+                    console.error('Search error:', err);
+                } finally {
+                    setIsSearching(false);
+                }
             } else {
                 setSearchResults([]);
             }
@@ -69,8 +76,8 @@ export default function OnboardingStep3() {
         return () => clearTimeout(timeoutId);
     }, [searchQuery]);
 
-    const handleSendRequest = useCallback((parent: typeof MOCK_USERS[0]) => {
-        toast.success('Request Sent', `Invitation sent to ${parent.name}`);
+    const handleSendRequest = useCallback((parent: Parent) => {
+        toast.success('Parent Selected', `${parent.name} has been selected`);
         setSelectedParent(parent);
         setSearchQuery('');
         setSearchResults([]);
@@ -92,17 +99,12 @@ export default function OnboardingStep3() {
 
     const toggleGoal = (goal: string) => {
         if (goal === 'Others') {
-            // Toggle the Others selection and show/hide custom input
-            if (selectedGoals.includes('Others')) {
-                setSelectedGoals(selectedGoals.filter(g => g !== 'Others'));
-                setShowCustomInput(false);
+            setShowCustomInput(!showCustomInput);
+            if (!selectedGoals.includes('Others')) {
+                setSelectedGoals([...selectedGoals, 'Others']);
             } else {
-                if (selectedGoals.length < 3) {
-                    setSelectedGoals([...selectedGoals, 'Others']);
-                    setShowCustomInput(true);
-                } else {
-                    toast.error('Limit Reached', 'You can select up to 3 goals');
-                }
+                setSelectedGoals(selectedGoals.filter(g => g !== 'Others'));
+                setCustomGoals([]);
             }
         } else {
             // Handle regular goals
@@ -118,19 +120,46 @@ export default function OnboardingStep3() {
         }
     };
 
-    const handleComplete = () => {
-        if (!selectedParent) {
-            toast.error('Required', 'Please search and select a parent');
-            return;
-        }
+    const handleComplete = async () => {
         if (selectedGoals.length === 0) {
             toast.error('Required', 'Please select at least one goal');
             return;
         }
 
-        // Store all onboarding data locally (you can use AsyncStorage or context provider)
-        // For now, just navigate to home page
-        router.replace('/');
+        const finalGoals = [...selectedGoals.filter(g => g !== 'Others'), ...customGoals];
+        const parentIds = selectedParent ? [selectedParent.id] : undefined;
+
+        // Prepare full data for submission
+        const completeData = {
+            ...formData,
+            goals: finalGoals,
+            parentIds: parentIds,
+            newsletterEnabled: newsletter,
+            preferences: {
+                ...formData.preferences,
+                notifications: notifications,
+            }
+        } as ProfileCompletionBody;
+
+        setIsLoading(true);
+        try {
+            await submitOnboarding(completeData);
+
+            // Update store
+            setStep3Data({
+                goals: finalGoals,
+                parentIds: parentIds,
+                newsletterEnabled: newsletter,
+            });
+
+            toast.success('Success', 'Profile setup complete!');
+            router.replace('/home' as Href);
+        } catch (err: any) {
+            console.error('Onboarding submission error:', err);
+            toast.error('Submission Failed', err.message || 'Something went wrong');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -139,13 +168,13 @@ export default function OnboardingStep3() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
-            
-            <ScrollView 
+
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Back Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => router.back()}
                 >
@@ -162,7 +191,7 @@ export default function OnboardingStep3() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Search Parent</Text>
                     <Text style={styles.sectionSubtitle}>Search for parent or guardian by name or username</Text>
-                    
+
                     <View style={styles.searchInputContainer}>
                         <Ionicons name="search" size={20} color={grayColors[500]} style={styles.searchIcon} />
                         <TextInput
@@ -173,7 +202,7 @@ export default function OnboardingStep3() {
                             onChangeText={setSearchQuery}
                         />
                     </View>
-                    
+
                     {/* Selected Parent Display */}
                     {selectedParent && (
                         <View style={styles.selectedParentContainer}>
@@ -184,7 +213,7 @@ export default function OnboardingStep3() {
                                     <Text style={styles.selectedParentName}>{selectedParent.name}</Text>
                                     <Text style={styles.selectedParentUsername}>@{selectedParent.username}</Text>
                                 </View>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.removeButton}
                                     onPress={() => setSelectedParent(null)}
                                 >
@@ -193,7 +222,7 @@ export default function OnboardingStep3() {
                             </View>
                         </View>
                     )}
-                    
+
                     {/* Search Results */}
                     {searchResults.length > 0 && (
                         <View style={styles.searchResultsContainer}>
@@ -221,7 +250,7 @@ export default function OnboardingStep3() {
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Your Goals</Text>
                     <Text style={styles.sectionSubtitle}>What do you want to achieve? (Select up to 3)</Text>
-                    
+
                     <View style={styles.goalsGrid}>
                         {GOALS.map((goal) => (
                             <TouchableOpacity
@@ -261,7 +290,7 @@ export default function OnboardingStep3() {
                             </TouchableOpacity>
                         ))}
                     </View>
-                    
+
                     {/* Custom Goal Input */}
                     {showCustomInput && customGoals.length < 1 && (
                         <View style={styles.customGoalInputContainer}>
@@ -289,7 +318,7 @@ export default function OnboardingStep3() {
                 {/* Preferences Section */}
                 <View style={styles.sectionContainer}>
                     <Text style={styles.sectionTitle}>Preferences</Text>
-                    
+
                     <View style={styles.preferenceItem}>
                         <View style={styles.preferenceInfo}>
                             <Text style={styles.preferenceItemTitle}>Push Notifications</Text>
@@ -324,13 +353,20 @@ export default function OnboardingStep3() {
                     style={styles.completeButton}
                     onPress={handleComplete}
                     activeOpacity={0.8}
+                    disabled={isLoading}
                 >
-                    <Text style={styles.completeButtonText}>Complete Setup</Text>
-                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                    {isLoading ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                        <>
+                            <Text style={styles.completeButtonText}>Complete Setup</Text>
+                            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                        </>
+                    )}
                 </TouchableOpacity>
             </ScrollView>
 
-                    </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
     );
 }
 

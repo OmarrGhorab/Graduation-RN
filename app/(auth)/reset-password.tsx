@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Dimensions,
@@ -12,10 +12,13 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    useColorScheme
+    useColorScheme,
+    ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
+import { resetPassword } from '@/services/AuthService';
+import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,16 +26,52 @@ export default function ResetPasswordScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    
+    const { email, otp } = useLocalSearchParams<{ email: string; otp: string }>();
+    const { success, error } = useToast();
+
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleConfirm = () => {
-        console.log('Reset Password:', password);
-        // Navigate to success screen
-        router.push('/reset-success');
+    const handleConfirm = async () => {
+        if (!password || !confirmPassword) {
+            error('Required', 'Please fill in all fields');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            error('Mismatch', 'Passwords do not match');
+            return;
+        }
+
+        if (password.length < 6) {
+            error('Invalid', 'Password must be at least 6 characters');
+            return;
+        }
+
+        if (!email || !otp) {
+            error('Error', 'Missing session information. Please try again.');
+            router.replace('/forgot-password');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await resetPassword({
+                email,
+                otp,
+                newPassword: password
+            });
+            success('Success', 'Your password has been reset successfully');
+            router.replace('/signin');
+        } catch (err: any) {
+            console.error('Reset password error:', err);
+            error('Reset Failed', err.message || 'Failed to reset password');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleBack = () => {
@@ -40,13 +79,13 @@ export default function ResetPasswordScreen() {
     };
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                
+
                 {/* Header with Back Button */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -54,9 +93,9 @@ export default function ResetPasswordScreen() {
                     </TouchableOpacity>
                 </View>
 
-                 {/* Image */}
-                 <View style={styles.imageContainer}>
-                     <Image
+                {/* Image */}
+                <View style={styles.imageContainer}>
+                    <Image
                         source={require('@/assets/images/logo-green.png')}
                         style={styles.illustration}
                         resizeMode="contain"
@@ -114,11 +153,20 @@ export default function ResetPasswordScreen() {
 
                     {/* Confirm Button */}
                     <TouchableOpacity
-                        style={[styles.confirmButton, { backgroundColor: cskColors[500] }]}
+                        style={[
+                            styles.confirmButton,
+                            { backgroundColor: cskColors[500] },
+                            isLoading && styles.confirmButtonDisabled
+                        ]}
                         onPress={handleConfirm}
                         activeOpacity={0.8}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.confirmButtonText}>Confirm</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.confirmButtonText}>Confirm</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -160,7 +208,7 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '700',
         marginBottom: 12,
-        fontFamily: 'System', 
+        fontFamily: 'System',
     },
     form: {
         width: '100%',
@@ -181,6 +229,14 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '500',
         textTransform: 'uppercase',
+    },
+    input: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        fontSize: 16,
+        height: 50,
     },
     passwordContainer: {
         flexDirection: 'row',
@@ -216,5 +272,8 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    confirmButtonDisabled: {
+        opacity: 0.7,
     },
 });

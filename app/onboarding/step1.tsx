@@ -18,7 +18,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-
+import { useOnboardingStore } from '@/libs/onboarding';
 const { width } = Dimensions.get('window');
 
 const COUNTRIES = [
@@ -55,7 +55,7 @@ const THEMES = [
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
-    
+
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
     const [profileImg, setProfileImg] = useState<string>('');
     const [gender, setGender] = useState<any | null>(null);
@@ -74,7 +74,7 @@ export default function OnboardingStep1() {
     useEffect(() => {
         if (countrySearch) {
             setFilteredCountries(
-                COUNTRIES.filter(c => 
+                COUNTRIES.filter(c =>
                     c.toLowerCase().includes(countrySearch.toLowerCase())
                 )
             );
@@ -83,19 +83,23 @@ export default function OnboardingStep1() {
         }
     }, [countrySearch]);
 
-
     const handleImagePick = async () => {
         setShowImageOptions(false);
         try {
-            // Lazy load expo-image-picker to avoid native module errors
             if (Platform.OS === 'web') {
                 Alert.alert('Not Available', 'Image picker is not available on web');
                 return;
             }
 
-            // @ts-ignore - expo-image-picker is dynamically imported
-            const ImagePicker = await import('expo-image-picker');
-            
+            let ImagePicker;
+            try {
+                ImagePicker = require('expo-image-picker');
+            } catch (e) {
+                console.error('Failed to require expo-image-picker', e);
+                Alert.alert('Configuration Error', 'Image Picker module not found. Please rebuild your app.');
+                return;
+            }
+
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Permission Denied', 'We need camera roll permissions to select a profile image');
@@ -115,7 +119,11 @@ export default function OnboardingStep1() {
             }
         } catch (error: any) {
             console.error('Error picking image:', error);
-            Alert.alert('Error', error.message || 'Failed to pick image');
+            if (error.message && error.message.includes('ExponentImagePicker')) {
+                Alert.alert('Development Build Update Required', 'The Image Picker native module is missing. Please stop the server and run "npx expo run:android" to rebuild your app.');
+            } else {
+                Alert.alert('Error', error.message || 'Failed to pick image');
+            }
         }
     };
 
@@ -127,7 +135,7 @@ export default function OnboardingStep1() {
     const handleDateChange = (type: 'day' | 'month' | 'year', value: number) => {
         const currentDate = dateOfBirth || new Date(2000, 0, 1);
         let newDate = new Date(currentDate);
-        
+
         if (type === 'day') {
             newDate.setDate(value);
         } else if (type === 'month') {
@@ -145,12 +153,12 @@ export default function OnboardingStep1() {
                 newDate.setDate(daysInMonth);
             }
         }
-        
+
         // Ensure date is not in the future
         if (newDate > new Date()) {
             newDate = new Date();
         }
-        
+
         setDateOfBirth(newDate);
     };
 
@@ -199,8 +207,19 @@ export default function OnboardingStep1() {
             return;
         }
 
-        // Store data locally (you can use AsyncStorage or context provider)
-        // For now, just navigate to next step
+        // Save data to store
+        useOnboardingStore.getState().setStep1Data({
+            dateOfBirth: dateOfBirth.toISOString(),
+            gender: gender as 'MALE' | 'FEMALE' | 'OTHER',
+            country,
+            profileImg: profileImg || undefined,
+            preferences: {
+                language,
+                themePreference: theme === 'system' ? 'light' : theme as 'light' | 'dark',
+                notifications: true, // Default to true
+            }
+        });
+
         router.push('/onboarding/step2');
     };
 
@@ -210,13 +229,13 @@ export default function OnboardingStep1() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
-            
-            <ScrollView 
+
+            <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Back Button */}
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.backButton}
                     onPress={() => router.back()}
                 >
@@ -225,13 +244,13 @@ export default function OnboardingStep1() {
 
                 {/* Profile Image */}
                 <View style={styles.profileImageContainer}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.profileImageWrapper}
                         onPress={() => setShowImageOptions(true)}
                     >
                         {profileImg ? (
-                            <Image 
-                                source={{ uri: profileImg }} 
+                            <Image
+                                source={{ uri: profileImg }}
                                 style={styles.profileImage}
                             />
                         ) : (
@@ -569,14 +588,14 @@ export default function OnboardingStep1() {
                 animationType="fade"
                 onRequestClose={() => setShowImageOptions(false)}
             >
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.modalOverlay}
                     activeOpacity={1}
                     onPress={() => setShowImageOptions(false)}
                 >
                     <View style={styles.imageOptionsContainer}>
                         <View style={styles.imageOptionsContent}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.imageOptionButton}
                                 onPress={handleImagePick}
                             >
@@ -586,7 +605,7 @@ export default function OnboardingStep1() {
                                 </Text>
                             </TouchableOpacity>
                             {profileImg && (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={[styles.imageOptionButton, styles.deleteButton]}
                                     onPress={handleDeleteImage}
                                 >
@@ -594,7 +613,7 @@ export default function OnboardingStep1() {
                                     <Text style={[styles.imageOptionText, styles.deleteText]}>Delete Photo</Text>
                                 </TouchableOpacity>
                             )}
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.imageOptionButton, styles.cancelButton]}
                                 onPress={() => setShowImageOptions(false)}
                             >
@@ -630,11 +649,11 @@ export default function OnboardingStep1() {
                                 }}
                             >
                                 <View style={styles.themeOption}>
-                                    <Ionicons 
-                                        name={themeOption.icon as any} 
-                                        size={20} 
-                                        color={Colors.light.text} 
-                                        style={styles.themeIcon} 
+                                    <Ionicons
+                                        name={themeOption.icon as any}
+                                        size={20}
+                                        color={Colors.light.text}
+                                        style={styles.themeIcon}
                                     />
                                     <Text style={styles.modalOptionText}>{themeOption.label}</Text>
                                 </View>
