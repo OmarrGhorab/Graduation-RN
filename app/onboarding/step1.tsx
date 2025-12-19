@@ -19,6 +19,8 @@ import {
     View,
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
+import { useThemeStore } from '@/libs/theme';
+import { useColorScheme } from 'react-native';
 const { width } = Dimensions.get('window');
 
 const COUNTRIES = [
@@ -55,13 +57,21 @@ const THEMES = [
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
+    const systemColorScheme = useColorScheme();
+    const { themeMode, setThemeMode } = useThemeStore();
+
+    // Get the effective theme based on user preference
+    const currentTheme = themeMode === 'system'
+        ? (systemColorScheme === 'dark' ? 'dark' : 'light')
+        : themeMode;
+    const themeColors = Colors[currentTheme as 'light' | 'dark'];
 
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
     const [profileImg, setProfileImg] = useState<string>('');
     const [gender, setGender] = useState<any | null>(null);
     const [country, setCountry] = useState<string>('');
     const [language, setLanguage] = useState<string>('english');
-    const [theme, setTheme] = useState<string>('system');
+    const [theme, setTheme] = useState<string>(themeMode);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -225,10 +235,10 @@ export default function OnboardingStep1() {
 
     return (
         <KeyboardAvoidingView
-            style={styles.container}
+            style={[styles.container, { backgroundColor: themeColors.background }]}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
+            <StatusBar barStyle={currentTheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={themeColors.background} />
 
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
@@ -278,7 +288,7 @@ export default function OnboardingStep1() {
                         <Text style={[styles.inputText, !dateOfBirth && styles.placeholder]}>
                             {dateOfBirth ? formatDate(dateOfBirth) : 'dd/mm/yyyy'}
                         </Text>
-                        <Ionicons name="calendar-outline" size={20} color={Colors.light.text} />
+                        <Ionicons name="calendar-outline" size={20} color={themeColors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -292,7 +302,7 @@ export default function OnboardingStep1() {
                         <Text style={[styles.inputText, !gender && styles.placeholder]}>
                             {gender || 'Select Gender'}
                         </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                        <Ionicons name="chevron-down" size={20} color={themeColors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -306,7 +316,7 @@ export default function OnboardingStep1() {
                         <Text style={[styles.inputText, !country && styles.placeholder]}>
                             {country || 'Select Country'}
                         </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                        <Ionicons name="chevron-down" size={20} color={themeColors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -320,7 +330,7 @@ export default function OnboardingStep1() {
                         <Text style={[styles.inputText, !language && styles.placeholder]}>
                             {language ? LANGUAGES.find(l => l.id === language)?.label : 'Select Language'}
                         </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                        <Ionicons name="chevron-down" size={20} color={themeColors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -334,7 +344,7 @@ export default function OnboardingStep1() {
                         <Text style={[styles.inputText, !theme && styles.placeholder]}>
                             {theme ? THEMES.find(t => t.id === theme)?.label : 'Select Theme'}
                         </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.light.text} />
+                        <Ionicons name="chevron-down" size={20} color={themeColors.text} />
                     </TouchableOpacity>
                 </View>
 
@@ -445,7 +455,7 @@ export default function OnboardingStep1() {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Select Gender</Text>
                             <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                                <Ionicons name="close" size={24} color={themeColors.text} />
                             </TouchableOpacity>
                         </View>
                         <TouchableOpacity
@@ -512,7 +522,7 @@ export default function OnboardingStep1() {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Select Country</Text>
                             <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                                <Ionicons name="close" size={24} color={themeColors.text} />
                             </TouchableOpacity>
                         </View>
                         <View style={styles.searchContainer}>
@@ -559,7 +569,7 @@ export default function OnboardingStep1() {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Select Language</Text>
                             <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                                <Ionicons name="close" size={24} color={themeColors.text} />
                             </TouchableOpacity>
                         </View>
                         {LANGUAGES.map((lang) => (
@@ -636,7 +646,7 @@ export default function OnboardingStep1() {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Select Theme</Text>
                             <TouchableOpacity onPress={() => setShowThemePicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
+                                <Ionicons name="close" size={24} color={themeColors.text} />
                             </TouchableOpacity>
                         </View>
                         {THEMES.map((themeOption) => (
@@ -645,6 +655,8 @@ export default function OnboardingStep1() {
                                 style={styles.modalOption}
                                 onPress={() => {
                                     setTheme(themeOption.id);
+                                    // Immediately apply theme to the app
+                                    setThemeMode(themeOption.id as 'light' | 'dark' | 'system');
                                     setShowThemePicker(false);
                                 }}
                             >
