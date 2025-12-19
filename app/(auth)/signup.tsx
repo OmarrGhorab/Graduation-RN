@@ -83,7 +83,7 @@ export default function SignUpScreen() {
 
     const handleSuggestionClick = (suggestion: string) => {
         setUsername(suggestion);
-        setSuggestions([]);
+        // Keep suggestions visible so user can switch between them
     };
 
     const handleGoogleSignIn = async () => {
@@ -167,17 +167,28 @@ export default function SignUpScreen() {
                     {/* Suggestions */}
                     {suggestions.length > 0 && (
                         <View style={styles.suggestionsContainer}>
-                            <Text style={styles.suggestionsLabel}>Username taken. Try one of these:</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsScroll}>
-                                {suggestions.map((suggestion, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.suggestionChip}
-                                        onPress={() => handleSuggestionClick(suggestion)}
-                                    >
-                                        <Text style={styles.suggestionText}>{suggestion}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            <Text style={styles.suggestionsLabel}>Try these available usernames:</Text>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.suggestionsScroll}
+                            >
+                                {suggestions.map((suggestion, index) => {
+                                    const isSelected = username === suggestion;
+                                    return (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={[
+                                                styles.suggestionChip,
+                                                isSelected && styles.suggestionChipSelected
+                                            ]}
+                                            onPress={() => handleSuggestionClick(suggestion)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={styles.suggestionText}>@{suggestion}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
                             </ScrollView>
                         </View>
                     )}
@@ -414,29 +425,38 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     suggestionsContainer: {
-        marginBottom: 20,
-        marginTop: -10,
+        marginBottom: 16,
+        marginTop: -8,
     },
     suggestionsLabel: {
-        fontSize: 14,
-        color: '#FF4444',
-        marginBottom: 8,
+        fontSize: 13,
+        color: '#666',
+        marginBottom: 10,
         fontWeight: '500',
     },
     suggestionsScroll: {
-        flexDirection: 'row',
+        paddingVertical: 2,
     },
     suggestionChip: {
-        backgroundColor: cskColors[50], // Light version of primary color
-        borderWidth: 1,
-        borderColor: cskColors[200],
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        marginRight: 8,
+        backgroundColor: cskColors[500],
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        marginRight: 10,
+        shadowColor: cskColors[500],
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    suggestionChipSelected: {
+        backgroundColor: cskColors[700],
+        transform: [{ scale: 1.05 }],
+        shadowOpacity: 0.3,
+        elevation: 4,
     },
     suggestionText: {
-        color: cskColors[500],
+        color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '600',
     },
