@@ -14,6 +14,7 @@ import {
 import { Colors, Fonts, primaryGradient } from '@/constants/theme';
 import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
+import { getUserProfile } from '@/services/AuthService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +27,21 @@ export default function WelcomeScreen() {
     const spinValue = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
+        // Start profile refresh in background if authenticated
+        const checkStatus = async () => {
+            const { isAuthenticated } = useAuthStore.getState();
+            if (isAuthenticated) {
+                try {
+                    console.log('[Splash] Refreshing profile/token...');
+                    await getUserProfile();
+                } catch (error) {
+                    console.warn('[Splash] Background profile refresh failed:', error);
+                }
+            }
+        };
+
+        checkStatus();
+
         // Fade in and scale animation for logo
         Animated.parallel([
             Animated.timing(fadeAnim, {
@@ -63,7 +79,7 @@ export default function WelcomeScreen() {
         // Check status and navigate after 3 seconds
         const timer = setTimeout(async () => {
             const { isAuthenticated, user } = useAuthStore.getState();
-            console.log('[Splash] Auth Status:', { isAuthenticated, onboardingCompleted: user?.onboardingCompleted });
+            console.log('[Splash] Final Auth Status:', { isAuthenticated, onboardingCompleted: user?.onboardingCompleted });
 
             if (isAuthenticated) {
                 // If logged in, check if profile is complete

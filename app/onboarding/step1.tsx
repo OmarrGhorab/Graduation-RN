@@ -275,6 +275,7 @@ export default function OnboardingStep1() {
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             >
                 {/* Back Button */}
                 <TouchableOpacity

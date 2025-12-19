@@ -31,6 +31,22 @@ import {
     RefreshTokenResponse,
 } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
+import { DeviceService } from './DeviceService';
+
+// Helper to get standard API headers
+const getApiHeaders = async (token?: string | null) => {
+    const deviceHeaders = await DeviceService.getDeviceHeaders();
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...deviceHeaders,
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+};
 
 // Types
 export interface AuthResponse {
@@ -169,24 +185,18 @@ export const authenticateWithBackend = async (idToken: string): Promise<AuthResp
 };
 
 // Helper functions for token management
-const getAuthToken = async () => useAuthStore.getState().accessToken;
-const getRefreshToken = async () => useAuthStore.getState().refreshToken;
-const storeAuthToken = async (token: string) => {
-    const { user, refreshToken } = useAuthStore.getState();
-    if (user && refreshToken) {
-        useAuthStore.getState().setAuth(user, token, refreshToken);
+const getAuthToken = () => useAuthStore.getState().accessToken;
+const getRefreshToken = () => useAuthStore.getState().refreshToken;
+
+const updateTokens = (accessToken: string, refreshToken: string) => {
+    const { user } = useAuthStore.getState();
+    if (user) {
+        useAuthStore.getState().setAuth(user, accessToken, refreshToken);
     } else {
-        useAuthStore.getState().setTokens(token, refreshToken || '');
+        useAuthStore.getState().setTokens(accessToken, refreshToken);
     }
 };
-const storeRefreshToken = async (token: string) => {
-    const { user, accessToken } = useAuthStore.getState();
-    if (user && accessToken) {
-        useAuthStore.getState().setAuth(user, accessToken, token);
-    } else {
-        useAuthStore.getState().setTokens(accessToken || '', token);
-    }
-};
+
 const clearAuthToken = async () => useAuthStore.getState().logout();
 
 // Simple atob polyfill for React Native if needed
@@ -215,17 +225,34 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
     try {
         console.log('[Auth] Logging in with URL:', `${BASE_URL}/api/v1/auth/login`);
 
+        // Get device info
+        const deviceName = DeviceService.getDeviceName();
+        const userAgent = DeviceService.getUserAgent();
+        const ipAddress = await DeviceService.getIpAddress();
+
+        console.log('[Auth] Login Headers:', {
+            'Content-Type': 'application/json',
+            'User-Agent': userAgent,
+            'X-Forwarded-For': ipAddress
+        });
+        console.log('[Auth] Login Body:', {
+            emailOrUsername: data.emailOrUsername,
+            deviceName: deviceName
+        });
+
         const response = await fetch(
             `${BASE_URL}/api/v1/auth/login`,
             {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'User-Agent': userAgent,
+                    'X-Forwarded-For': ipAddress
                 },
                 body: JSON.stringify({
                     emailOrUsername: data.emailOrUsername,
                     password: data.password,
-                    // deviceName: Platform.OS, // Optional: add if needed
+                    deviceName: deviceName,
                 }),
             }
         );
@@ -249,6 +276,8 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
         // Store tokens on successful login
         if (responseData.user && responseData.accessToken && responseData.refreshToken) {
             useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
+            // Sync FCM token
+            registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
         }
 
         return responseData as LoginSuccessResponse;
@@ -305,6 +334,8 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
         // Only set auth if we have tokens (some registrations might require verification first)
         if (responseData.user && responseData.accessToken && responseData.refreshToken) {
             useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
+            // Sync FCM token
+            registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
         }
 
         return responseData;
@@ -332,6 +363,9 @@ export async function logout(): Promise<void> {
         const refreshToken = await getRefreshToken();
 
         if (token || refreshToken) {
+            // Unregister FCM token first (fire and forget)
+            unregisterFCMToken().catch(err => console.log('[Auth] FCM unregister warning:', err));
+
             // Call backend logout API
             console.log('[Auth] Logging out with URL:', `${BASE_URL}/api/v1/auth/logout`);
 
@@ -772,6 +806,7 @@ export async function requestParentLink(data: ParentLinkRequest): Promise<Parent
         );
 
         const responseData = await response.json();
+        console.log('[Auth] Parent link response:', responseData);
 
         if (!response.ok) {
             const error: any = new Error(responseData.message || responseData.error || 'Parent link request failed');
@@ -819,15 +854,17 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
         const responseData = await response.json();
 
         if (!response.ok) {
+            console.error('[Auth] Token refresh failed with status:', response.status, responseData);
             const error: any = new Error(responseData.message || responseData.error || 'Token refresh failed');
             error.status = response.status;
             error.responseData = responseData;
             throw error;
         }
 
-        // Store new tokens
-        await storeAuthToken(responseData.accessToken);
-        await storeRefreshToken(responseData.refreshToken);
+        console.log('[Auth] Token refresh successful');
+
+        // Store new tokens in one go
+        updateTokens(responseData.accessToken, responseData.refreshToken);
 
         return responseData;
     } catch (error: any) {
@@ -846,12 +883,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
 
 /**
  * Get valid access token, refreshing if necessary
+ * Handles concurrent refresh requests by using a shared promise
  * @returns Valid access token or null if refresh fails
  */
+let refreshingPromise: Promise<string | null> | null = null;
+
 export async function getValidAccessToken(): Promise<string | null> {
     try {
-        const token = await getAuthToken();
-        const refreshToken = await getRefreshToken();
+        const token = getAuthToken();
+        const refreshToken = getRefreshToken();
 
         if (!token || !refreshToken) {
             return null;
@@ -861,6 +901,8 @@ export async function getValidAccessToken(): Promise<string | null> {
         try {
             // Using our atob polyfill
             const base64Url = token.split('.')[1];
+            if (!base64Url) throw new Error('Invalid token format');
+
             const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             const payload = JSON.parse(atob(base64));
 
@@ -871,16 +913,50 @@ export async function getValidAccessToken(): Promise<string | null> {
             // If token expires in less than 1 minute, refresh it
             if (timeUntilExpiry < 60000) {
                 console.log('[Auth] Access token expired or expiring soon, refreshing...');
-                const refreshResponse = await refreshAccessToken(refreshToken);
-                return refreshResponse.accessToken;
+
+                // Help prevent multiple concurrent refresh requests
+                if (refreshingPromise) {
+                    console.log('[Auth] Refresh already in progress, waiting...');
+                    return refreshingPromise;
+                }
+
+                refreshingPromise = (async () => {
+                    try {
+                        const refreshResponse = await refreshAccessToken(refreshToken);
+                        return refreshResponse.accessToken;
+                    } catch (err) {
+                        console.error('[Auth] Refresh promise failed:', err);
+                        await clearAuthToken();
+                        return null;
+                    } finally {
+                        refreshingPromise = null;
+                    }
+                })();
+
+                return refreshingPromise;
             }
 
             return token;
         } catch (decodeError) {
             // If we can't decode the token, try to refresh it
             console.log('[Auth] Could not decode token, attempting refresh...');
-            const refreshResponse = await refreshAccessToken(refreshToken);
-            return refreshResponse.accessToken;
+
+            if (refreshingPromise) return refreshingPromise;
+
+            refreshingPromise = (async () => {
+                try {
+                    const refreshResponse = await refreshAccessToken(refreshToken);
+                    return refreshResponse.accessToken;
+                } catch (err) {
+                    console.error('[Auth] Refresh promise failed (decode error path):', err);
+                    await clearAuthToken();
+                    return null;
+                } finally {
+                    refreshingPromise = null;
+                }
+            })();
+
+            return refreshingPromise;
         }
     } catch (error) {
         console.error('[Auth] Failed to get valid access token:', error);
@@ -907,10 +983,7 @@ export async function getUserProfile(): Promise<any> {
             `${BASE_URL}/api/v1/auth/myprofile`,
             {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
+                headers: await getApiHeaders(token),
             }
         );
 
@@ -943,6 +1016,109 @@ export async function getUserProfile(): Promise<any> {
     }
 }
 
+/**
+ * Register FCM Token
+ * Endpoint: /api/v1/notifications/register-token
+ */
+
+export async function registerFCMToken(): Promise<void> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) return;
+
+        const pushToken = await DeviceService.getPushToken();
+
+        // Log device info regardless of token presence for debugging
+        const platform = DeviceService.getPlatform();
+        const userAgent = DeviceService.getUserAgent();
+        const deviceName = DeviceService.getDeviceName();
+
+        console.log('[Auth] Device Info Detected:', {
+            platform,
+            deviceName,
+            userAgent,
+            hasPushToken: !!pushToken
+        });
+
+        if (!pushToken) {
+            console.log('[Auth] No FCM token available to register');
+            return;
+        }
+
+        console.log('[Auth] Registering FCM token...');
+
+        console.log('[Auth] FCM Registration Body:', {
+            token: pushToken,
+            platform,
+            deviceId: deviceName
+        });
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/notifications/register-token`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'User-Agent': userAgent
+                },
+                body: JSON.stringify({
+                    token: pushToken,
+                    platform: platform,
+                    deviceId: deviceName
+                })
+            }
+        );
+
+        if (response.ok) {
+            console.log('[Auth] FCM token registered successfully');
+        } else {
+            if (response.status !== 404) {
+                console.warn('[Auth] Failed to register FCM token, status:', response.status);
+            }
+        }
+    } catch (error) {
+        console.warn('[Auth] Error registering FCM token:', error);
+    }
+}
+
+/**
+ * Unregister FCM Token
+ * Endpoint: /api/v1/notifications/unregister-token
+ */
+export async function unregisterFCMToken(): Promise<void> {
+    try {
+        const token = await getValidAccessToken();
+        const pushToken = await DeviceService.getPushToken();
+
+        if (!token || !pushToken) return;
+
+        console.log('[Auth] Unregistering FCM token...');
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/notifications/unregister-token`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    token: pushToken
+                })
+            }
+        );
+
+        if (response.ok) {
+            console.log('[Auth] FCM token unregistered successfully');
+        } else {
+            console.warn('[Auth] Failed to unregister FCM token, status:', response.status);
+        }
+    } catch (error) {
+        console.warn('[Auth] Error unregistering FCM token:', error);
+    }
+}
+
 // Combined: Google Sign-In + Backend Authentication
 export const googleSignIn = async (options?: {
     showAlerts?: boolean;
@@ -971,12 +1147,33 @@ export const googleSignIn = async (options?: {
 
     // Step 2: Authenticate with backend using Google ID token
     try {
+        console.log('[Auth] Authenticating Google Token with URL:', `${BASE_URL}/api/v1/auth/google/mobile`);
+
+        // Get device info
+        const deviceName = DeviceService.getDeviceName();
+        const userAgent = DeviceService.getUserAgent();
+        const ipAddress = await DeviceService.getIpAddress();
+
+        console.log('[Auth] Google Login Headers:', {
+            'Content-Type': 'application/json',
+            'User-Agent': userAgent,
+            'X-Forwarded-For': ipAddress
+        });
+        console.log('[Auth] Google Login Body:', {
+            deviceName: deviceName
+        });
+
         const response = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'User-Agent': userAgent,
+                'X-Forwarded-For': ipAddress
             },
-            body: JSON.stringify({ idToken: googleResult.idToken }),
+            body: JSON.stringify({
+                idToken: googleResult.idToken,
+                deviceName: deviceName
+            }),
         });
 
         const responseData = await response.json();
@@ -1004,6 +1201,8 @@ export const googleSignIn = async (options?: {
         const data = result.data;
         if (data.user && data.accessToken) {
             useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
+            // Sync FCM token
+            registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
         }
 
         onSuccess?.(data);

@@ -5,8 +5,8 @@ export const UserSchema = z.object({
     name: z.string().nullable(),
     username: z.string().nullable(),
     email: z.string().email(),
-    verified: z.boolean().default(false),
-    onboardingCompleted: z.boolean().default(false),
+    verified: z.coerce.boolean().default(false),
+    onboardingCompleted: z.coerce.boolean().default(false),
     profileImg: z.string().nullable().optional(),
     role: z.string().nullable().optional(),
 });

@@ -20,7 +20,7 @@ import {
     useColorScheme,
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
-import { submitOnboarding, searchParents } from '@/services/AuthService';
+import { submitOnboarding, searchParents, requestParentLink } from '@/services/AuthService';
 import { completeOnboarding } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
 import { ProfileCompletionBody } from '@/types/auth';
@@ -58,31 +58,35 @@ export default function OnboardingStep3() {
 
     // Search functionality with debouncing
     useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+        }
+
+        // IMPORTANT: Set searching to true immediately to avoid flickering "No users found"
+        setIsSearching(true);
+
         const timeoutId = setTimeout(async () => {
-            if (searchQuery.trim()) {
-                setIsSearching(true);
-                try {
-                    const result = await searchParents(searchQuery);
-                    // Map result data to our Parent structure if needed
-                    setSearchResults(result.data as Parent[]);
-                } catch (err) {
-                    console.error('Search error:', err);
-                } finally {
-                    setIsSearching(false);
-                }
-            } else {
+            try {
+                const result = await searchParents(searchQuery);
+                setSearchResults(result.data as Parent[]);
+            } catch (err) {
+                console.error('Search error:', err);
                 setSearchResults([]);
+            } finally {
+                setIsSearching(false);
             }
-        }, 300); // 300ms debounce
+        }, 300); // Debounce for smoother UX
 
         return () => clearTimeout(timeoutId);
     }, [searchQuery]);
 
     const handleSendRequest = useCallback((parent: Parent) => {
-        toast.success('Parent Selected', `${parent.name} has been selected`);
         setSelectedParent(parent);
         setSearchQuery('');
         setSearchResults([]);
+        toast.success('Parent Selected', `${parent.name} has been selected`);
     }, [toast]);
 
     const addCustomGoal = useCallback(() => {
@@ -182,6 +186,7 @@ export default function OnboardingStep3() {
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
             >
                 {/* Back Button */}
                 <TouchableOpacity
@@ -211,6 +216,17 @@ export default function OnboardingStep3() {
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setSearchQuery('');
+                                    setSearchResults([]);
+                                }}
+                                style={styles.clearButton}
+                            >
+                                <Ionicons name="close-circle" size={20} color={grayColors[400]} />
+                            </TouchableOpacity>
+                        )}
                     </View>
 
                     {/* Selected Parent Display */}
@@ -239,32 +255,48 @@ export default function OnboardingStep3() {
                         </View>
                     )}
 
-                    {/* Search Results */}
-                    {searchResults.length > 0 && (
-                        <View style={styles.searchResultsContainer}>
-                            {searchResults.map((user) => (
-                                <View key={user.id} style={styles.searchResultItem}>
-                                    {user.profileImg ? (
-                                        <Image source={{ uri: user.profileImg }} style={styles.resultAvatar} />
-                                    ) : (
-                                        <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
-                                            <Ionicons name="person" size={20} color={grayColors[400]} />
-                                        </View>
-                                    )}
-                                    <View style={styles.resultDetails}>
-                                        <Text style={styles.resultName}>{user.name}</Text>
-                                        <Text style={styles.resultUsername}>@{user.username}</Text>
-                                    </View>
-                                    <TouchableOpacity
-                                        style={styles.requestButton}
-                                        onPress={() => handleSendRequest(user)}
-                                    >
-                                        <Ionicons name="person-add" size={16} color="#FFFFFF" />
-                                        <Text style={styles.requestButtonText}>Send</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
+                    {/* Search Results / Loading / Empty State */}
+                    {isSearching ? (
+                        <View style={styles.searchingLoader}>
+                            <ActivityIndicator size="small" color={cskColors[500]} />
+                            <Text style={styles.searchingText}>Searching...</Text>
                         </View>
+                    ) : (
+                        <>
+                            {searchResults.length > 0 ? (
+                                <View style={styles.searchResultsContainer}>
+                                    {searchResults.map((user) => (
+                                        <View key={user.id} style={styles.searchResultItem}>
+                                            {user.profileImg ? (
+                                                <Image source={{ uri: user.profileImg }} style={styles.resultAvatar} />
+                                            ) : (
+                                                <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
+                                                    <Ionicons name="person" size={20} color={grayColors[400]} />
+                                                </View>
+                                            )}
+                                            <View style={styles.resultDetails}>
+                                                <Text style={styles.resultName}>{user.name}</Text>
+                                                <Text style={styles.resultUsername}>@{user.username}</Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.requestButton}
+                                                onPress={() => handleSendRequest(user)}
+                                            >
+                                                <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+                                                <Text style={styles.requestButtonText}>Select</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            ) : (
+                                !isSearching && searchQuery.trim().length > 0 && (
+                                    <View style={styles.emptySearchContainer}>
+                                        <Ionicons name="search-outline" size={40} color={grayColors[300]} />
+                                        <Text style={styles.emptySearchText}>No users found for "{searchQuery}"</Text>
+                                    </View>
+                                )
+                            )}
+                        </>
                     )}
                 </View>
 
@@ -450,6 +482,9 @@ const styles = StyleSheet.create({
     searchIcon: {
         marginRight: 12,
     },
+    clearButton: {
+        padding: 4,
+    },
     searchInput: {
         flex: 1,
         fontSize: 16,
@@ -515,6 +550,32 @@ const styles = StyleSheet.create({
         backgroundColor: grayColors[100],
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    searchingLoader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 20,
+        gap: 10,
+    },
+    searchingText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: grayColors[500],
+    },
+    emptySearchContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 30,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        marginTop: 10,
+    },
+    emptySearchText: {
+        marginTop: 10,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: grayColors[400],
     },
     resultDetails: {
         flex: 1,
