@@ -13,7 +13,7 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <ToastProvider>
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Welcome"/>
+          <Stack.Screen name="index" />
         </Stack>
         <StatusBar style="auto" />
       </ToastProvider>

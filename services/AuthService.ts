@@ -73,6 +73,13 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
         // Check if device supports Google Play Services
         await GoogleSignin.hasPlayServices();
 
+        // FORCE account selection dialog
+        try {
+            await GoogleSignin.signOut();
+        } catch (e) {
+            // Not signed in
+        }
+
         // Sign in and get user info with ID token
         const response = await GoogleSignin.signIn();
 
@@ -638,6 +645,57 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
 }
 
 /**
+ * Delete profile image
+ */
+export async function deleteProfileImage(): Promise<{ success: boolean; message: string }> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Auth] Deleting profile image with URL:', `${BASE_URL}/api/v1/auth/account/profile-image`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/account/profile-image`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Failed to delete profile image');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Update local user in store
+        const { user, updateUser } = useAuthStore.getState();
+        if (user) {
+            updateUser({ ...user, profileImg: null });
+        }
+
+        return { success: true, message: responseData.message || 'Profile image deleted' };
+    } catch (error: any) {
+        console.error('[Auth] Profile image deletion failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
+        }
+
+        throw error;
+    }
+}
+
+
+/**
  * Search for parents to link
  * @param query - Search query string
  * @param page - Page number (default: 1)
@@ -960,9 +1018,10 @@ export const googleSignIn = async (options?: {
     }
 };
 
-// Sign out from Google
+// Sign out from Google completely to force account picker next time
 export const signOutGoogle = async (): Promise<void> => {
     try {
+        await GoogleSignin.revokeAccess();
         await GoogleSignin.signOut();
     } catch (error) {
         console.error('Google Sign-Out error:', error);

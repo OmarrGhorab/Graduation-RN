@@ -1,5 +1,8 @@
 // API Configuration
-export const BASE_URL = 'http://10.0.2.2:3000'; // Android emulator uses 10.0.2.2 to reach host's localhost
+// For physical devices, use your computer's local IP address
+// To find it: Run 'ipconfig' in terminal and look for IPv4 Address (usually starts with 192.168.x.x)
+export const BASE_URL = 'http://192.168.1.13:3000'; // Your computer's local IP address
+// For Android emulator, use: 'http://10.0.2.2:3000'
 
 // Google OAuth Client IDs
 // Get these from Google Cloud Console: https://console.cloud.google.com/apis/credentials

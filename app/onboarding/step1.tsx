@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Image,
     KeyboardAvoidingView,
@@ -20,7 +21,10 @@ import {
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
 import { useThemeStore } from '@/libs/theme';
+import { useAuthStore } from '@/libs/auth';
 import { useColorScheme } from 'react-native';
+import { deleteProfileImage } from '@/services/AuthService';
+import * as ImagePicker from 'expo-image-picker';
 const { width } = Dimensions.get('window');
 
 const COUNTRIES = [
@@ -59,6 +63,7 @@ export default function OnboardingStep1() {
     const toast = useToast();
     const systemColorScheme = useColorScheme();
     const { themeMode, setThemeMode } = useThemeStore();
+    const { user } = useAuthStore();
 
     // Get the effective theme based on user preference
     const currentTheme = themeMode === 'system'
@@ -67,11 +72,18 @@ export default function OnboardingStep1() {
     const themeColors = Colors[currentTheme as 'light' | 'dark'];
 
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-    const [profileImg, setProfileImg] = useState<string>('');
+    const [profileImg, setProfileImg] = useState<string>(user?.profileImg || '');
     const [gender, setGender] = useState<any | null>(null);
     const [country, setCountry] = useState<string>('');
     const [language, setLanguage] = useState<string>('english');
     const [theme, setTheme] = useState<string>(themeMode);
+
+    // Update profile image if user changes (e.g. after Google login)
+    useEffect(() => {
+        if (user?.profileImg && !profileImg) {
+            setProfileImg(user.profileImg);
+        }
+    }, [user?.profileImg]);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
     const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -121,11 +133,17 @@ export default function OnboardingStep1() {
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
+                base64: true,
             });
 
             if (!result.canceled && result.assets[0]) {
-                const imageUri = result.assets[0].uri;
-                setProfileImg(imageUri);
+                const asset = result.assets[0];
+                if (asset.base64) {
+                    const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+                    setProfileImg(base64Image);
+                } else {
+                    setProfileImg(asset.uri);
+                }
             }
         } catch (error: any) {
             console.error('Error picking image:', error);
@@ -137,9 +155,23 @@ export default function OnboardingStep1() {
         }
     };
 
-    const handleDeleteImage = () => {
-        setShowImageOptions(false);
-        setProfileImg('');
+    const [isImgLoading, setIsImgLoading] = useState(false);
+
+    const handleDeleteImage = async () => {
+        try {
+            setShowImageOptions(false);
+            setIsImgLoading(true);
+            const result = await deleteProfileImage();
+            if (result.success) {
+                setProfileImg('');
+                toast.success('Deleted', 'Profile image removed successfully');
+            }
+        } catch (error: any) {
+            console.error('Delete image error:', error);
+            toast.error('Error', error.message || 'Failed to delete image');
+        } finally {
+            setIsImgLoading(false);
+        }
     };
 
     const handleDateChange = (type: 'day' | 'month' | 'year', value: number) => {
@@ -256,9 +288,14 @@ export default function OnboardingStep1() {
                 <View style={styles.profileImageContainer}>
                     <TouchableOpacity
                         style={styles.profileImageWrapper}
-                        onPress={() => setShowImageOptions(true)}
+                        onPress={() => !isImgLoading && setShowImageOptions(true)}
+                        disabled={isImgLoading}
                     >
-                        {profileImg ? (
+                        {isImgLoading ? (
+                            <View style={styles.profileImagePlaceholder}>
+                                <ActivityIndicator size="large" color={cskColors[500]} />
+                            </View>
+                        ) : profileImg ? (
                             <Image
                                 source={{ uri: profileImg }}
                                 style={styles.profileImage}

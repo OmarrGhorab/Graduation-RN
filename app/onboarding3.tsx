@@ -11,6 +11,7 @@ import {
     useColorScheme
 } from 'react-native';
 import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { completeOnboarding } from '@/services/OnboardingService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,16 +20,18 @@ export default function Onboarding3Screen() {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
 
-    const handleHalfScreenPress = () => {
+    const handleHalfScreenPress = async () => {
+        // Mark intro onboarding as completed
+        await completeOnboarding();
         // Navigate to login screen
-        router.push('/login');
+        router.replace('/login');
         console.log('Login')
     };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-            
+
             {/* Main Content */}
             <View style={styles.content}>
                 {/* Illustration */}
@@ -38,13 +41,13 @@ export default function Onboarding3Screen() {
                     resizeMode="cover"
                 />
             </View>
-            
+
             {/* Text Content - Centered */}
             <View style={styles.textContainer}>
                 <Text style={styles.title}>best platform for both</Text>
                 <Text style={styles.subtitle}>teachers & Learners</Text>
             </View>
-            
+
             {/* Progress Indicator - Bottom Right */}
             <View style={styles.progressContainer}>
                 <Image
@@ -53,7 +56,7 @@ export default function Onboarding3Screen() {
                     resizeMode="contain"
                 />
             </View>
-            
+
             {/* Invisible touchable area on right half */}
             <TouchableOpacity
                 style={styles.rightHalfTouch}

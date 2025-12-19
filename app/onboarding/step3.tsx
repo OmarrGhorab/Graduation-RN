@@ -21,12 +21,14 @@ import {
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
 import { submitOnboarding, searchParents } from '@/services/AuthService';
+import { completeOnboarding } from '@/services/OnboardingService';
+import { useAuthStore } from '@/libs/auth';
 import { ProfileCompletionBody } from '@/types/auth';
 
 const { width } = Dimensions.get('window');
 
 // Define Parent type based on actual structure if possible
-type Parent = { id: string; username: string; name: string; avatar?: string };
+type Parent = { id: string; username: string; name: string; profileImg?: string };
 
 const GOALS = [
     'Career Advancement', 'Personal Growth', 'Skill Development', 'Hobby',
@@ -143,9 +145,17 @@ export default function OnboardingStep3() {
 
         setIsLoading(true);
         try {
-            await submitOnboarding(completeData);
+            const response = await submitOnboarding(completeData);
 
-            // Update store
+            // CRITICAL: Update the auth store so index.tsx knows onboarding is done
+            if (response.success && response.user) {
+                useAuthStore.getState().updateUser(response.user);
+            }
+
+            // Mark app onboarding as completed in local storage (intro bypass)
+            await completeOnboarding();
+
+            // Update local onboarding store (UI purposes)
             setStep3Data({
                 goals: finalGoals,
                 parentIds: parentIds,
@@ -208,7 +218,13 @@ export default function OnboardingStep3() {
                         <View style={styles.selectedParentContainer}>
                             <Text style={styles.selectedParentLabel}>Selected Parent:</Text>
                             <View style={styles.selectedParentInfo}>
-                                <Image source={{ uri: selectedParent.avatar }} style={styles.selectedParentAvatar} />
+                                {selectedParent.profileImg ? (
+                                    <Image source={{ uri: selectedParent.profileImg }} style={styles.selectedParentAvatar} />
+                                ) : (
+                                    <View style={[styles.selectedParentAvatar, styles.avatarPlaceholder]}>
+                                        <Ionicons name="person" size={20} color={grayColors[400]} />
+                                    </View>
+                                )}
                                 <View style={styles.selectedParentDetails}>
                                     <Text style={styles.selectedParentName}>{selectedParent.name}</Text>
                                     <Text style={styles.selectedParentUsername}>@{selectedParent.username}</Text>
@@ -228,7 +244,13 @@ export default function OnboardingStep3() {
                         <View style={styles.searchResultsContainer}>
                             {searchResults.map((user) => (
                                 <View key={user.id} style={styles.searchResultItem}>
-                                    <Image source={{ uri: user.avatar }} style={styles.resultAvatar} />
+                                    {user.profileImg ? (
+                                        <Image source={{ uri: user.profileImg }} style={styles.resultAvatar} />
+                                    ) : (
+                                        <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
+                                            <Ionicons name="person" size={20} color={grayColors[400]} />
+                                        </View>
+                                    )}
                                     <View style={styles.resultDetails}>
                                         <Text style={styles.resultName}>{user.name}</Text>
                                         <Text style={styles.resultUsername}>@{user.username}</Text>
@@ -488,6 +510,11 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         marginRight: 12,
+    },
+    avatarPlaceholder: {
+        backgroundColor: grayColors[100],
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     resultDetails: {
         flex: 1,

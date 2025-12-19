@@ -63,22 +63,29 @@ export default function WelcomeScreen() {
         // Check status and navigate after 3 seconds
         const timer = setTimeout(async () => {
             const { isAuthenticated, user } = useAuthStore.getState();
+            console.log('[Splash] Auth Status:', { isAuthenticated, onboardingCompleted: user?.onboardingCompleted });
 
             if (isAuthenticated) {
+                // If logged in, check if profile is complete
                 if (user?.onboardingCompleted) {
-                    router.replace('/home' as Href); // Navigate to main app
+                    console.log('[Splash] Navigating to Home');
+                    router.replace('/home' as Href);
                 } else {
+                    console.log('[Splash] Navigating to Profile Onboarding');
                     router.replace('/onboarding/step1' as Href);
                 }
             } else {
+                // If not logged in, check if they've seen the intro
                 const isCompleted = await isOnboardingCompleted();
+                console.log('[Splash] Intro Completed:', isCompleted);
+
                 if (isCompleted) {
+                    console.log('[Splash] Navigating to Login');
                     router.replace('/login');
                 } else {
+                    console.log('[Splash] Starting Intro Onboarding');
                     const currentStep = await getCurrentOnboardingStep();
-                    if (currentStep === 1) {
-                        router.replace('/onboarding');
-                    } else if (currentStep === 2) {
+                    if (currentStep === 2) {
                         router.replace('/onboarding2');
                     } else if (currentStep === 3) {
                         router.replace('/onboarding3');

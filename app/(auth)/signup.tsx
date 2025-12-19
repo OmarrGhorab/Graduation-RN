@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
 import { googleSignIn, configureGoogleSignIn, register } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
-import { RegisterRequest } from '@/types/auth';
+import { RegisterRequest, LoginResponse } from '@/types/auth';
 
 const { width, height } = Dimensions.get('window');
 
