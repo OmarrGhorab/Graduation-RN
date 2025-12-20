@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,8 +9,16 @@ import {
     Pressable,
     Image,
     ActivityIndicator,
-    Alert,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
+import Animated, { 
+    useSharedValue, 
+    useAnimatedStyle, 
+    withTiming, 
+    withSequence,
+    runOnJS,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fonts, cskColors, grayColors } from '@/constants/theme';
@@ -74,6 +82,36 @@ export default function NotificationModal({
     const insets = useSafeAreaInsets();
     const unreadCount = notifications.filter((n) => !n.read).length;
     const [respondingIds, setRespondingIds] = useState<Set<string>>(new Set());
+    
+    // Toast state for iOS
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error'>('success');
+    const toastOpacity = useSharedValue(0);
+    const toastTranslateY = useSharedValue(-20);
+
+    const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(message, ToastAndroid.SHORT);
+        } else {
+            setToastMessage(message);
+            setToastType(type);
+            toastOpacity.value = withSequence(
+                withTiming(1, { duration: 200 }),
+                withTiming(1, { duration: 2000 }),
+                withTiming(0, { duration: 200 })
+            );
+            toastTranslateY.value = withSequence(
+                withTiming(0, { duration: 200 }),
+                withTiming(0, { duration: 2000 }),
+                withTiming(-20, { duration: 200 })
+            );
+        }
+    }, []);
+
+    const toastAnimatedStyle = useAnimatedStyle(() => ({
+        opacity: toastOpacity.value,
+        transform: [{ translateY: toastTranslateY.value }],
+    }));
 
     const handleParentLinkAction = async (
         notificationId: string,
@@ -84,16 +122,16 @@ export default function NotificationModal({
         
         try {
             await respondToParentLinkRequest(requestId, action);
-            Alert.alert(
-                'Success',
+            showToast(
                 action === 'accept' 
                     ? 'Parent link request accepted!' 
-                    : 'Parent link request declined.'
+                    : 'Parent link request declined.',
+                'success'
             );
             onMarkAsRead(notificationId);
             onParentLinkRespond?.(notificationId, requestId, action);
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to respond to request');
+            showToast(error.message || 'Failed to respond to request', 'error');
         } finally {
             setRespondingIds((prev) => {
                 const newSet = new Set(prev);
@@ -195,13 +233,34 @@ export default function NotificationModal({
                     {/* Handle bar */}
                     <View style={styles.handleBar} />
 
+                    {/* Toast for iOS */}
+                    {Platform.OS === 'ios' && (
+                        <Animated.View 
+                            style={[
+                                styles.toast, 
+                                toastType === 'error' ? styles.toastError : styles.toastSuccess,
+                                toastAnimatedStyle
+                            ]}
+                            pointerEvents="none"
+                        >
+                            <Ionicons 
+                                name={toastType === 'success' ? 'checkmark-circle' : 'alert-circle'} 
+                                size={18} 
+                                color="#FFFFFF" 
+                            />
+                            <Text style={styles.toastText}>{toastMessage}</Text>
+                        </Animated.View>
+                    )}
+
                     {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.headerLeft}>
                             <Text style={styles.headerTitle}>Notifications</Text>
                             {unreadCount > 0 && (
                                 <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{unreadCount}</Text>
+                                    <Text style={styles.badgeText}>
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </Text>
                                 </View>
                             )}
                         </View>
@@ -297,14 +356,18 @@ const styles = StyleSheet.create({
     },
     badge: {
         backgroundColor: cskColors[500],
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 12,
+        minWidth: 22,
+        height: 22,
+        borderRadius: 11,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 6,
     },
     badgeText: {
         fontSize: 12,
         fontFamily: Fonts.semiBold,
         color: '#FFFFFF',
+        textAlign: 'center',
     },
     headerRight: {
         flexDirection: 'row',
@@ -471,5 +534,35 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontFamily: Fonts.semiBold,
         color: grayColors[700],
+    },
+    toast: {
+        position: 'absolute',
+        top: 60,
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        gap: 8,
+        zIndex: 1000,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    toastSuccess: {
+        backgroundColor: cskColors[500],
+    },
+    toastError: {
+        backgroundColor: '#EF4444',
+    },
+    toastText: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: '#FFFFFF',
     },
 });
