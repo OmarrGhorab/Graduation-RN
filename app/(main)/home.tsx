@@ -137,9 +137,10 @@ export default function MainHomeScreen() {
         }
     };
 
-    const handleSettingsPress = () => {
-        // Navigate to settings
-        console.log('Settings pressed');
+    const handleSearchSubmit = (query: string) => {
+        // Handle search - navigate to search results or filter content
+        console.log('Search query:', query);
+        // router.push(`/search?q=${encodeURIComponent(query)}`);
     };
 
     const renderSubject = ({ item }: { item: typeof subjects[0] }) => (
@@ -263,7 +264,7 @@ export default function MainHomeScreen() {
             {/* Header positioned absolutely on top */}
             <HomeHeader
                 onNotificationPress={handleNotificationPress}
-                onSettingsPress={handleSettingsPress}
+                onSearchSubmit={handleSearchSubmit}
                 notificationCount={unreadCount}
                 scrollY={scrollY}
             />

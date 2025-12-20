@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,25 +8,55 @@ import Animated, {
     interpolate, 
     Extrapolation,
     SharedValue,
+    useSharedValue,
+    withTiming,
+    withSpring,
 } from 'react-native-reanimated';
 import { useAuthStore } from '@/libs/auth';
 import { Fonts, grayColors } from '@/constants/theme';
 
 interface HomeHeaderProps {
     onNotificationPress?: () => void;
-    onSettingsPress?: () => void;
+    onSearchSubmit?: (query: string) => void;
     notificationCount?: number;
     scrollY?: SharedValue<number>;
 }
 
-export default function HomeHeader({ onNotificationPress, onSettingsPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onSearchSubmit, notificationCount = 0, scrollY }: HomeHeaderProps) {
     const { user } = useAuthStore();
     const insets = useSafeAreaInsets();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const inputRef = useRef<TextInput>(null);
 
     const displayName = user?.name || user?.username || 'User';
     const profileImage = user?.profileImg;
 
-    const headerHeight = insets.top + 12 + 80; // top padding + content height
+    const headerHeight = insets.top + 12 + 80;
+    
+    // Animation for search bar
+    const searchAnim = useSharedValue(0);
+
+    const openSearch = () => {
+        setIsSearchOpen(true);
+        searchAnim.value = withTiming(1, { duration: 200 });
+        setTimeout(() => inputRef.current?.focus(), 50);
+    };
+
+    const closeSearch = () => {
+        searchAnim.value = withTiming(0, { duration: 200 });
+        setTimeout(() => {
+            setIsSearchOpen(false);
+            setSearchQuery('');
+        }, 200);
+        inputRef.current?.blur();
+    };
+
+    const handleSearchSubmit = () => {
+        if (searchQuery.trim()) {
+            onSearchSubmit?.(searchQuery.trim());
+        }
+    };
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
@@ -34,7 +64,7 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
         const translateY = interpolate(
             scrollY.value,
             [0, headerHeight],
-            [0, -headerHeight],
+            [0, -headerHeight - 60],
             Extrapolation.CLAMP
         );
 
@@ -51,6 +81,12 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
         };
     });
 
+    const searchBarAnimatedStyle = useAnimatedStyle(() => ({
+        height: interpolate(searchAnim.value, [0, 1], [0, 52]),
+        opacity: searchAnim.value,
+        marginTop: interpolate(searchAnim.value, [0, 1], [0, 12]),
+    }));
+
     return (
         <Animated.View style={[styles.wrapper, { paddingTop: insets.top + 12 }, animatedStyle]}>
             <LinearGradient
@@ -60,8 +96,8 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
             >
-                <View style={styles.content}>
-                    {/* Profile Section */}
+                {/* Top Row - Profile & Actions */}
+                <View style={styles.topRow}>
                     <View style={styles.profileSection}>
                         <View style={styles.avatarContainer}>
                             {profileImage ? (
@@ -80,7 +116,6 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
                         </View>
                     </View>
 
-                    {/* Actions Section */}
                     <View style={styles.actionsSection}>
                         <TouchableOpacity
                             style={styles.iconButton}
@@ -97,14 +132,40 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
                             )}
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={styles.iconButton}
-                            onPress={onSettingsPress}
+                            style={[styles.iconButton, isSearchOpen && styles.iconButtonActive]}
+                            onPress={isSearchOpen ? closeSearch : openSearch}
                             activeOpacity={0.7}
                         >
-                            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+                            <Ionicons 
+                                name={isSearchOpen ? "close" : "search-outline"} 
+                                size={24} 
+                                color="#FFFFFF" 
+                            />
                         </TouchableOpacity>
                     </View>
                 </View>
+
+                {/* Search Bar - Slides down below profile */}
+                <Animated.View style={[styles.searchBarWrapper, searchBarAnimatedStyle]}>
+                    <View style={styles.searchInputContainer}>
+                        <Ionicons name="search" size={20} color={grayColors[400]} />
+                        <TextInput
+                            ref={inputRef}
+                            style={styles.searchInput}
+                            placeholder="Search course here...."
+                            placeholderTextColor={grayColors[400]}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            onSubmitEditing={handleSearchSubmit}
+                            returnKeyType="search"
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <Ionicons name="close-circle" size={20} color={grayColors[400]} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </Animated.View>
             </LinearGradient>
         </Animated.View>
     );
@@ -129,7 +190,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 4,
     },
-    content: {
+    topRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -191,6 +252,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    iconButtonActive: {
+        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    },
     badge: {
         position: 'absolute',
         top: 4,
@@ -207,5 +271,24 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: Fonts.bold,
         color: '#FFFFFF',
+    },
+    searchBarWrapper: {
+        overflow: 'hidden',
+    },
+    searchInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        height: 52,
+        gap: 12,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        color: grayColors[900],
+        paddingVertical: 0,
     },
 });
