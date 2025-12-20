@@ -1,26 +1,259 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { useAuthStore } from '@/libs/auth';
+import React, { useEffect, useCallback } from 'react';
+import {
+    StyleSheet,
+    View,
+    Text,
+    ScrollView,
+    TouchableOpacity,
+    Image,
+    FlatList,
+    StatusBar,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import { cskColors } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { cskColors, grayColors, Fonts, warningColors } from '@/constants/theme';
+import HomeHeader from '@/components/HomeHeader';
+import NotificationModal from '@/components/NotificationModal';
+import { useNotificationStore } from '@/libs/notifications-store';
+import {
+    getNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+} from '@/services/NotificationService';
+
+// Mock data - replace with real data from your API
+const subjects = [
+    { id: '1', name: 'Mathematics', icon: 'Σ' },
+    { id: '2', name: 'Physics', icon: '⚛' },
+    { id: '3', name: 'Chemistry', icon: '🧪' },
+];
+
+const teachers = [
+    { id: '1', name: 'Ahmed Al-H...', subject: 'Mathematics', image: null },
+    { id: '2', name: 'Mohamed Ha...', subject: 'Physics', image: null },
+    { id: '3', name: 'Mohamed Ha...', subject: 'Arabic', image: null },
+    { id: '4', name: 'Mohamed Ha...', subject: 'English', image: null },
+];
+
+const schedule = [
+    {
+        id: '1',
+        title: 'Mathematics',
+        lessons: 28,
+        rating: 4.9,
+        duration: '6h 30min',
+        teacher: 'Mr. Ahmed Al-Hassan',
+        image: null,
+        color: '#E8F5E9',
+    },
+    {
+        id: '2',
+        title: 'Physics',
+        lessons: 46,
+        rating: 4.6,
+        duration: '8h 28min',
+        teacher: 'Mr. Ahmed Al-Hassan',
+        image: null,
+        color: cskColors[500],
+        isHighlighted: true,
+    },
+];
 
 export default function MainHomeScreen() {
-    const { user, logout } = useAuthStore();
     const router = useRouter();
+    const [showNotifications, setShowNotifications] = React.useState(false);
+    
+    // Use notification store
+    const {
+        notifications,
+        unreadCount,
+        isLoading,
+        setNotifications,
+        markAsRead,
+        markAllAsRead,
+        setLoading,
+    } = useNotificationStore();
 
-    const handleLogout = () => {
-        logout();
-        router.replace('/login');
+    const fetchNotifications = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await getNotifications();
+            setNotifications(response.data);
+        } catch (error) {
+            console.error('Failed to fetch notifications:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [setNotifications, setLoading]);
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [fetchNotifications]);
+
+    const handleNotificationPress = () => {
+        setShowNotifications(true);
     };
+
+    const handleMarkAsRead = async (id: string) => {
+        try {
+            // Optimistically update UI
+            markAsRead(id);
+            // Then sync with server
+            await markNotificationAsRead(id);
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+            // Optionally: revert optimistic update or refetch
+        }
+    };
+
+    const handleMarkAllAsRead = async () => {
+        try {
+            // Optimistically update UI
+            markAllAsRead();
+            // Then sync with server
+            await markAllNotificationsAsRead();
+        } catch (error) {
+            console.error('Failed to mark all notifications as read:', error);
+            // Optionally: revert optimistic update or refetch
+        }
+    };
+
+    const handleSettingsPress = () => {
+        // Navigate to settings
+        console.log('Settings pressed');
+    };
+
+    const renderSubject = ({ item }: { item: typeof subjects[0] }) => (
+        <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7}>
+            <Text style={styles.subjectIcon}>{item.icon}</Text>
+            <Text style={styles.subjectName}>{item.name}</Text>
+        </TouchableOpacity>
+    );
+
+    const renderTeacher = ({ item }: { item: typeof teachers[0] }) => (
+        <TouchableOpacity style={styles.teacherCard} activeOpacity={0.7}>
+            <View style={styles.teacherAvatar}>
+                {item.image ? (
+                    <Image source={{ uri: item.image }} style={styles.teacherImage} />
+                ) : (
+                    <View style={styles.teacherPlaceholder}>
+                        <Ionicons name="person" size={24} color={grayColors[400]} />
+                    </View>
+                )}
+            </View>
+            <Text style={styles.teacherName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.teacherSubject}>{item.subject}</Text>
+        </TouchableOpacity>
+    );
+
+    const renderScheduleItem = ({ item }: { item: typeof schedule[0] }) => (
+        <TouchableOpacity
+            style={[
+                styles.scheduleCard,
+                item.isHighlighted && styles.scheduleCardHighlighted,
+            ]}
+            activeOpacity={0.7}
+        >
+            <View style={[styles.scheduleImage, { backgroundColor: item.isHighlighted ? 'rgba(255,255,255,0.2)' : item.color }]}>
+                <Ionicons
+                    name={item.title === 'Mathematics' ? 'calculator' : 'flask'}
+                    size={40}
+                    color={item.isHighlighted ? '#FFFFFF' : cskColors[500]}
+                />
+            </View>
+            <View style={styles.scheduleContent}>
+                <Text style={[styles.scheduleTitle, item.isHighlighted && styles.textWhite]}>
+                    {item.title}
+                </Text>
+                <Text style={[styles.scheduleLessons, item.isHighlighted && styles.textWhiteLight]}>
+                    {item.lessons} lessons
+                </Text>
+                <View style={styles.scheduleRating}>
+                    <Ionicons name="star" size={14} color={warningColors[500]} />
+                    <Text style={[styles.ratingText, item.isHighlighted && styles.textWhite]}>
+                        {item.rating}
+                    </Text>
+                    <Text style={[styles.durationText, item.isHighlighted && styles.textWhiteLight]}>
+                        · {item.duration}
+                    </Text>
+                </View>
+                <View style={styles.teacherRow}>
+                    <Ionicons
+                        name="person-outline"
+                        size={14}
+                        color={item.isHighlighted ? '#FFFFFF' : grayColors[500]}
+                    />
+                    <Text style={[styles.teacherText, item.isHighlighted && styles.textWhiteLight]}>
+                        {item.teacher}
+                    </Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Welcome to Pathify!</Text>
-            <Text style={styles.subtitle}>Signed in as: {user?.email}</Text>
+            <StatusBar barStyle="light-content" backgroundColor={cskColors[500]} />
+            
+            <HomeHeader
+                onNotificationPress={handleNotificationPress}
+                onSettingsPress={handleSettingsPress}
+                notificationCount={unreadCount}
+            />
 
-            <TouchableOpacity style={styles.button} onPress={handleLogout}>
-                <Text style={styles.buttonText}>Logout</Text>
-            </TouchableOpacity>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* My Subjects Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>My Subjects</Text>
+                    <Text style={styles.sectionSubtitle}>Recommendations For You</Text>
+                    <FlatList
+                        data={subjects}
+                        renderItem={renderSubject}
+                        keyExtractor={(item) => item.id}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalList}
+                    />
+                </View>
+
+                {/* My Teachers Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>My Teachers</Text>
+                    <FlatList
+                        data={teachers}
+                        renderItem={renderTeacher}
+                        keyExtractor={(item) => item.id}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalList}
+                    />
+                </View>
+
+                {/* Your Schedule Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Your Schedule</Text>
+                    <Text style={styles.sectionSubtitle}>Next Lessons</Text>
+                    {schedule.map((item) => (
+                        <View key={item.id}>
+                            {renderScheduleItem({ item })}
+                        </View>
+                    ))}
+                </View>
+            </ScrollView>
+
+            <NotificationModal
+                visible={showNotifications}
+                onClose={() => setShowNotifications(false)}
+                notifications={notifications}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                loading={isLoading}
+                onRefresh={fetchNotifications}
+            />
         </View>
     );
 }
@@ -28,31 +261,158 @@ export default function MainHomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-        backgroundColor: '#fff',
+        backgroundColor: '#FFFFFF',
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingBottom: 24,
+    },
+    section: {
+        marginTop: 24,
+        paddingHorizontal: 16,
+    },
+    sectionTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
         color: cskColors[500],
+        marginBottom: 4,
+    },
+    sectionSubtitle: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginBottom: 16,
+    },
+    horizontalList: {
+        paddingRight: 16,
+    },
+    // Subject Card Styles
+    subjectCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginRight: 12,
+        borderWidth: 1,
+        borderColor: grayColors[200],
+        minWidth: 140,
+    },
+    subjectIcon: {
+        fontSize: 20,
+        marginRight: 8,
+    },
+    subjectName: {
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+        color: grayColors[900],
+    },
+    // Teacher Card Styles
+    teacherCard: {
+        alignItems: 'center',
+        marginRight: 16,
+        width: 80,
+    },
+    teacherAvatar: {
         marginBottom: 8,
     },
-    subtitle: {
-        fontSize: 16,
-        color: '#666',
-        marginBottom: 40,
+    teacherImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
     },
-    button: {
-        backgroundColor: '#ff4444',
-        paddingHorizontal: 32,
-        paddingVertical: 12,
-        borderRadius: 8,
+    teacherPlaceholder: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: grayColors[100],
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    buttonText: {
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 16,
+    teacherName: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: grayColors[900],
+        textAlign: 'center',
+    },
+    teacherSubject: {
+        fontSize: 11,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        textAlign: 'center',
+    },
+    // Schedule Card Styles
+    scheduleCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: grayColors[200],
+    },
+    scheduleCardHighlighted: {
+        backgroundColor: cskColors[500],
+        borderColor: cskColors[500],
+    },
+    scheduleImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    scheduleContent: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    scheduleTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        marginBottom: 4,
+    },
+    scheduleLessons: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginBottom: 8,
+    },
+    scheduleRating: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    ratingText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: grayColors[900],
+        marginLeft: 4,
+    },
+    durationText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[400],
+        marginLeft: 4,
+    },
+    teacherRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    teacherText: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginLeft: 4,
+    },
+    textWhite: {
+        color: '#FFFFFF',
+    },
+    textWhiteLight: {
+        color: 'rgba(255, 255, 255, 0.8)',
     },
 });
