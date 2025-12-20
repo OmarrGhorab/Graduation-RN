@@ -3,6 +3,12 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { 
+    useAnimatedStyle, 
+    interpolate, 
+    Extrapolation,
+    SharedValue,
+} from 'react-native-reanimated';
 import { useAuthStore } from '@/libs/auth';
 import { Fonts, grayColors } from '@/constants/theme';
 
@@ -10,17 +16,43 @@ interface HomeHeaderProps {
     onNotificationPress?: () => void;
     onSettingsPress?: () => void;
     notificationCount?: number;
+    scrollY?: SharedValue<number>;
 }
 
-export default function HomeHeader({ onNotificationPress, onSettingsPress, notificationCount = 0 }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onSettingsPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
     const { user } = useAuthStore();
     const insets = useSafeAreaInsets();
 
     const displayName = user?.name || user?.username || 'User';
     const profileImage = user?.profileImg;
 
+    const headerHeight = insets.top + 12 + 80; // top padding + content height
+
+    const animatedStyle = useAnimatedStyle(() => {
+        if (!scrollY) return {};
+        
+        const translateY = interpolate(
+            scrollY.value,
+            [0, headerHeight],
+            [0, -headerHeight],
+            Extrapolation.CLAMP
+        );
+
+        const opacity = interpolate(
+            scrollY.value,
+            [0, headerHeight * 0.5],
+            [1, 0],
+            Extrapolation.CLAMP
+        );
+
+        return {
+            transform: [{ translateY }],
+            opacity,
+        };
+    });
+
     return (
-        <View style={[styles.wrapper, { paddingTop: insets.top + 12 }]}>
+        <Animated.View style={[styles.wrapper, { paddingTop: insets.top + 12 }, animatedStyle]}>
             <LinearGradient
                 colors={['#0A8F51', '#097D46', '#075F36']}
                 locations={[0.3908, 0.6689, 0.9122]}
@@ -74,12 +106,17 @@ export default function HomeHeader({ onNotificationPress, onSettingsPress, notif
                     </View>
                 </View>
             </LinearGradient>
-        </View>
+        </Animated.View>
     );
 }
 
 const styles = StyleSheet.create({
     wrapper: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
         paddingHorizontal: 16,
     },
     container: {

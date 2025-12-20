@@ -3,12 +3,15 @@ import {
     StyleSheet,
     View,
     Text,
-    ScrollView,
     TouchableOpacity,
     Image,
     FlatList,
     StatusBar,
 } from 'react-native';
+import Animated, { 
+    useSharedValue, 
+    useAnimatedScrollHandler,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, grayColors, Fonts, warningColors } from '@/constants/theme';
@@ -62,6 +65,36 @@ const schedule = [
 export default function MainHomeScreen() {
     const router = useRouter();
     const [showNotifications, setShowNotifications] = React.useState(false);
+    
+    // Scroll tracking for header animation
+    const scrollY = useSharedValue(0);
+    const lastScrollY = useSharedValue(0);
+    const headerTranslateY = useSharedValue(0);
+
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            const currentScrollY = event.contentOffset.y;
+            const diff = currentScrollY - lastScrollY.value;
+            
+            // Only hide/show when scrolling, not at the top
+            if (currentScrollY > 0) {
+                // Scrolling down - hide header
+                if (diff > 0) {
+                    headerTranslateY.value = Math.min(headerTranslateY.value + diff, 150);
+                } 
+                // Scrolling up - show header
+                else {
+                    headerTranslateY.value = Math.max(headerTranslateY.value + diff, 0);
+                }
+            } else {
+                // At the top - always show header
+                headerTranslateY.value = 0;
+            }
+            
+            lastScrollY.value = currentScrollY;
+            scrollY.value = headerTranslateY.value;
+        },
+    });
     
     // Use notification store
     const {
@@ -194,17 +227,13 @@ export default function MainHomeScreen() {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor={cskColors[500]} />
-            
-            <HomeHeader
-                onNotificationPress={handleNotificationPress}
-                onSettingsPress={handleSettingsPress}
-                notificationCount={unreadCount}
-            />
 
-            <ScrollView
+            <Animated.ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                onScroll={scrollHandler}
+                scrollEventThrottle={16}
             >
                 {/* My Subjects Section */}
                 <View style={styles.section}>
@@ -243,7 +272,15 @@ export default function MainHomeScreen() {
                         </View>
                     ))}
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
+
+            {/* Header positioned absolutely on top */}
+            <HomeHeader
+                onNotificationPress={handleNotificationPress}
+                onSettingsPress={handleSettingsPress}
+                notificationCount={unreadCount}
+                scrollY={scrollY}
+            />
 
             <NotificationModal
                 visible={showNotifications}
@@ -267,6 +304,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
+        paddingTop: 140, // Space for the header
         paddingBottom: 24,
     },
     section: {
