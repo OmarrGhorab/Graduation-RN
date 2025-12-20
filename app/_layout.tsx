@@ -1,4 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
@@ -9,6 +10,15 @@ import { ToastProvider } from '@/components/toast';
 import { registerForPushNotificationsAsync } from '@/libs/notifications';
 import NotificationListener from '@/components/NotificationListener';
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 2,
+    },
+  },
+});
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -18,14 +28,16 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <ToastProvider>
-        <NotificationListener />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-        </Stack>
-        <StatusBar style="auto" />
-      </ToastProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ToastProvider>
+          <NotificationListener />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+          </Stack>
+          <StatusBar style="auto" />
+        </ToastProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }

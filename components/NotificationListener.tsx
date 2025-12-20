@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore, PushNotificationData } from '@/libs/notifications-store';
+import { NOTIFICATIONS_QUERY_KEY } from '@/hooks/useNotifications';
 
 /**
  * NotificationListener component
@@ -13,6 +15,7 @@ export default function NotificationListener() {
     const notificationListener = useRef<Notifications.Subscription | null>(null);
     const responseListener = useRef<Notifications.Subscription | null>(null);
     const addNotificationFromPush = useNotificationStore((state) => state.addNotificationFromPush);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         // Listen for incoming notifications when app is in foreground
@@ -37,8 +40,11 @@ export default function NotificationListener() {
                     createdAt: data.createdAt || new Date().toISOString(),
                 };
 
-                // Add to notification store
+                // Add to notification store (for backward compatibility)
                 addNotificationFromPush(pushData);
+                
+                // Invalidate React Query cache to refetch notifications
+                queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
                 
                 console.log('[NotificationListener] Added notification to store:', pushData);
             }
@@ -65,7 +71,7 @@ export default function NotificationListener() {
                 responseListener.current.remove();
             }
         };
-    }, [addNotificationFromPush]);
+    }, [addNotificationFromPush, queryClient]);
 
     // This component doesn't render anything
     return null;

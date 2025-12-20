@@ -33,6 +33,9 @@ interface NotificationModalProps {
     loading?: boolean;
     onRefresh?: () => void;
     onParentLinkRespond?: (notificationId: string, requestId: string, action: 'accept' | 'decline') => void;
+    onLoadMore?: () => void;
+    hasNextPage?: boolean;
+    isFetchingNextPage?: boolean;
 }
 
 const getNotificationIcon = (type: string) => {
@@ -78,6 +81,9 @@ export default function NotificationModal({
     loading = false,
     onRefresh,
     onParentLinkRespond,
+    onLoadMore,
+    hasNextPage,
+    isFetchingNextPage,
 }: NotificationModalProps) {
     const insets = useSafeAreaInsets();
     const unreadCount = notifications.filter((n) => !n.read).length;
@@ -220,6 +226,21 @@ export default function NotificationModal({
         );
     };
 
+    const renderFooter = () => {
+        if (!isFetchingNextPage) return null;
+        return (
+            <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={cskColors[500]} />
+            </View>
+        );
+    };
+
+    const handleEndReached = () => {
+        if (hasNextPage && !isFetchingNextPage && onLoadMore) {
+            onLoadMore();
+        }
+    };
+
     return (
         <Modal
             visible={visible}
@@ -294,6 +315,9 @@ export default function NotificationModal({
                             showsVerticalScrollIndicator={false}
                             onRefresh={onRefresh}
                             refreshing={loading}
+                            onEndReached={handleEndReached}
+                            onEndReachedThreshold={0.3}
+                            ListFooterComponent={renderFooter}
                         />
                     ) : (
                         <View style={styles.emptyState}>
@@ -564,5 +588,9 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: Fonts.medium,
         color: '#FFFFFF',
+    },
+    footerLoader: {
+        paddingVertical: 16,
+        alignItems: 'center',
     },
 });

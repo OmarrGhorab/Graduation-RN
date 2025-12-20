@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React from 'react';
 import {
     StyleSheet,
     View,
@@ -17,12 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { cskColors, grayColors, Fonts, warningColors } from '@/constants/theme';
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
-import { useNotificationStore } from '@/libs/notifications-store';
 import {
-    getNotifications,
-    markNotificationAsRead,
-    markAllNotificationsAsRead,
-} from '@/services/NotificationService';
+    useNotifications,
+    useMarkAsReadMutation,
+    useMarkAllAsReadMutation,
+    useRespondToParentLinkMutation,
+} from '@/hooks/useNotifications';
 
 // Mock data - replace with real data from your API
 const subjects = [
@@ -96,58 +96,44 @@ export default function MainHomeScreen() {
         },
     });
     
-    // Use notification store
+    // React Query hooks for notifications
     const {
         notifications,
         unreadCount,
         isLoading,
-        setNotifications,
-        markAsRead,
-        markAllAsRead,
-        setLoading,
-    } = useNotificationStore();
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+        refetch,
+    } = useNotifications();
 
-    const fetchNotifications = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await getNotifications();
-            setNotifications(response.data);
-        } catch (error) {
-            console.error('Failed to fetch notifications:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [setNotifications, setLoading]);
-
-    useEffect(() => {
-        fetchNotifications();
-    }, [fetchNotifications]);
+    const markAsReadMutation = useMarkAsReadMutation();
+    const markAllAsReadMutation = useMarkAllAsReadMutation();
+    const respondMutation = useRespondToParentLinkMutation();
 
     const handleNotificationPress = () => {
         setShowNotifications(true);
     };
 
-    const handleMarkAsRead = async (id: string) => {
-        try {
-            // Optimistically update UI
-            markAsRead(id);
-            // Then sync with server
-            await markNotificationAsRead(id);
-        } catch (error) {
-            console.error('Failed to mark notification as read:', error);
-            // Optionally: revert optimistic update or refetch
-        }
+    const handleMarkAsRead = (id: string) => {
+        markAsReadMutation.mutate(id);
     };
 
-    const handleMarkAllAsRead = async () => {
-        try {
-            // Optimistically update UI
-            markAllAsRead();
-            // Then sync with server
-            await markAllNotificationsAsRead();
-        } catch (error) {
-            console.error('Failed to mark all notifications as read:', error);
-            // Optionally: revert optimistic update or refetch
+    const handleMarkAllAsRead = () => {
+        markAllAsReadMutation.mutate();
+    };
+
+    const handleParentLinkRespond = (
+        _notificationId: string,
+        _requestId: string,
+        _action: 'accept' | 'decline'
+    ) => {
+        // Query is already invalidated in the mutation
+    };
+
+    const handleLoadMore = () => {
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
         }
     };
 
@@ -289,7 +275,11 @@ export default function MainHomeScreen() {
                 onMarkAsRead={handleMarkAsRead}
                 onMarkAllAsRead={handleMarkAllAsRead}
                 loading={isLoading}
-                onRefresh={fetchNotifications}
+                onRefresh={() => refetch()}
+                onParentLinkRespond={handleParentLinkRespond}
+                onLoadMore={handleLoadMore}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
             />
         </View>
     );
