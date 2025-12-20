@@ -50,7 +50,7 @@ export default function OnboardingStep3() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Parent[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [selectedParent, setSelectedParent] = useState<Parent | null>(null);
+    const [selectedParents, setSelectedParents] = useState<Parent[]>([]);
     const [newsletter, setNewsletter] = useState(false);
     const [notifications, setNotifications] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
@@ -83,11 +83,15 @@ export default function OnboardingStep3() {
     }, [searchQuery]);
 
     const handleSendRequest = useCallback((parent: Parent) => {
-        setSelectedParent(parent);
+        setSelectedParents(prev => [...prev, parent]);
         setSearchQuery('');
         setSearchResults([]);
-        toast.success('Parent Selected', `${parent.name} has been selected`);
+        toast.success('Parent Selected', `${parent.name} has been added`);
     }, [toast]);
+
+    const handleRemoveParent = useCallback((parentId: string) => {
+        setSelectedParents(prev => prev.filter(p => p.id !== parentId));
+    }, []);
 
     const addCustomGoal = useCallback(() => {
         if (customGoalInput.trim()) {
@@ -133,7 +137,7 @@ export default function OnboardingStep3() {
         }
 
         const finalGoals = [...selectedGoals.filter(g => g !== 'Others'), ...customGoals];
-        const parentIds = selectedParent ? [selectedParent.id] : undefined;
+        const parentIds = selectedParents.length > 0 ? selectedParents.map(p => p.id) : undefined;
 
         // Prepare full data for submission
         const completeData = {
@@ -229,29 +233,31 @@ export default function OnboardingStep3() {
                         )}
                     </View>
 
-                    {/* Selected Parent Display */}
-                    {selectedParent && (
-                        <View style={styles.selectedParentContainer}>
-                            <Text style={styles.selectedParentLabel}>Selected Parent:</Text>
-                            <View style={styles.selectedParentInfo}>
-                                {selectedParent.profileImg ? (
-                                    <Image source={{ uri: selectedParent.profileImg }} style={styles.selectedParentAvatar} />
-                                ) : (
-                                    <View style={[styles.selectedParentAvatar, styles.avatarPlaceholder]}>
-                                        <Ionicons name="person" size={20} color={grayColors[400]} />
+                    {/* Selected Parents Display */}
+                    {selectedParents.length > 0 && (
+                        <View style={styles.selectedParentsContainer}>
+                            <Text style={styles.selectedParentLabel}>Selected Parents ({selectedParents.length}):</Text>
+                            {selectedParents.map((parent) => (
+                                <View key={parent.id} style={styles.selectedParentInfo}>
+                                    {parent.profileImg ? (
+                                        <Image source={{ uri: parent.profileImg }} style={styles.selectedParentAvatar} />
+                                    ) : (
+                                        <View style={[styles.selectedParentAvatar, styles.avatarPlaceholder]}>
+                                            <Ionicons name="person" size={20} color={grayColors[400]} />
+                                        </View>
+                                    )}
+                                    <View style={styles.selectedParentDetails}>
+                                        <Text style={styles.selectedParentName}>{parent.name}</Text>
+                                        <Text style={styles.selectedParentUsername}>@{parent.username}</Text>
                                     </View>
-                                )}
-                                <View style={styles.selectedParentDetails}>
-                                    <Text style={styles.selectedParentName}>{selectedParent.name}</Text>
-                                    <Text style={styles.selectedParentUsername}>@{selectedParent.username}</Text>
+                                    <TouchableOpacity
+                                        style={styles.removeButton}
+                                        onPress={() => handleRemoveParent(parent.id)}
+                                    >
+                                        <Ionicons name="close-circle" size={22} color={grayColors[400]} />
+                                    </TouchableOpacity>
                                 </View>
-                                <TouchableOpacity
-                                    style={styles.removeButton}
-                                    onPress={() => setSelectedParent(null)}
-                                >
-                                    <Ionicons name="close" size={20} color={grayColors[500]} />
-                                </TouchableOpacity>
-                            </View>
+                            ))}
                         </View>
                     )}
 
@@ -263,39 +269,45 @@ export default function OnboardingStep3() {
                         </View>
                     ) : (
                         <>
-                            {searchResults.length > 0 ? (
-                                <View style={styles.searchResultsContainer}>
-                                    {searchResults.map((user) => (
-                                        <View key={user.id} style={styles.searchResultItem}>
-                                            {user.profileImg ? (
-                                                <Image source={{ uri: user.profileImg }} style={styles.resultAvatar} />
-                                            ) : (
-                                                <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
-                                                    <Ionicons name="person" size={20} color={grayColors[400]} />
+                            {(() => {
+                                // Filter out already selected parents
+                                const selectedIds = new Set(selectedParents.map(p => p.id));
+                                const filteredResults = searchResults.filter(user => !selectedIds.has(user.id));
+                                
+                                return filteredResults.length > 0 ? (
+                                    <View style={styles.searchResultsContainer}>
+                                        {filteredResults.map((user) => (
+                                            <View key={user.id} style={styles.searchResultItem}>
+                                                {user.profileImg ? (
+                                                    <Image source={{ uri: user.profileImg }} style={styles.resultAvatar} />
+                                                ) : (
+                                                    <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
+                                                        <Ionicons name="person" size={20} color={grayColors[400]} />
+                                                    </View>
+                                                )}
+                                                <View style={styles.resultDetails}>
+                                                    <Text style={styles.resultName}>{user.name}</Text>
+                                                    <Text style={styles.resultUsername}>@{user.username}</Text>
                                                 </View>
-                                            )}
-                                            <View style={styles.resultDetails}>
-                                                <Text style={styles.resultName}>{user.name}</Text>
-                                                <Text style={styles.resultUsername}>@{user.username}</Text>
+                                                <TouchableOpacity
+                                                    style={styles.requestButton}
+                                                    onPress={() => handleSendRequest(user)}
+                                                >
+                                                    <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+                                                    <Text style={styles.requestButtonText}>Select</Text>
+                                                </TouchableOpacity>
                                             </View>
-                                            <TouchableOpacity
-                                                style={styles.requestButton}
-                                                onPress={() => handleSendRequest(user)}
-                                            >
-                                                <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
-                                                <Text style={styles.requestButtonText}>Select</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
-                            ) : (
-                                !isSearching && searchQuery.trim().length > 0 && (
-                                    <View style={styles.emptySearchContainer}>
-                                        <Ionicons name="search-outline" size={40} color={grayColors[300]} />
-                                        <Text style={styles.emptySearchText}>No users found for "{searchQuery}"</Text>
+                                        ))}
                                     </View>
-                                )
-                            )}
+                                ) : (
+                                    !isSearching && searchQuery.trim().length > 0 && searchResults.length === 0 && (
+                                        <View style={styles.emptySearchContainer}>
+                                            <Ionicons name="search-outline" size={40} color={grayColors[300]} />
+                                            <Text style={styles.emptySearchText}>No users found for "{searchQuery}"</Text>
+                                        </View>
+                                    )
+                                );
+                            })()}
                         </>
                     )}
                 </View>
@@ -491,21 +503,25 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: Colors.light.text,
     },
-    selectedParentContainer: {
+    selectedParentsContainer: {
         backgroundColor: grayColors[50],
         borderRadius: 8,
         padding: 12,
         marginBottom: 16,
+        gap: 8,
     },
     selectedParentLabel: {
         fontSize: 12,
         fontFamily: Fonts.medium,
         color: grayColors[500],
-        marginBottom: 8,
+        marginBottom: 4,
     },
     selectedParentInfo: {
         flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 8,
+        padding: 8,
     },
     selectedParentAvatar: {
         width: 40,
