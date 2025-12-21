@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ToastProvider } from '@/components/toast';
 import { registerForPushNotificationsAsync } from '@/libs/notifications';
+import { DeviceService } from '@/services/DeviceService';
 import NotificationListener from '@/components/NotificationListener';
 
 const queryClient = new QueryClient({
@@ -23,6 +24,9 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
+    // Initialize device service (pre-fetches location and device info)
+    DeviceService.initialize();
+    
     // Register for push notifications on app start
     registerForPushNotificationsAsync();
   }, []);

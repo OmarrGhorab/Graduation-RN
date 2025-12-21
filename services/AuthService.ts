@@ -226,20 +226,11 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
     try {
         console.log('[Auth] Logging in with URL:', `${BASE_URL}/api/v1/auth/login`);
 
-        // Get device info
-        const deviceName = DeviceService.getDeviceName();
-        const userAgent = DeviceService.getUserAgent();
-        const ipAddress = await DeviceService.getIpAddress();
+        // Get device headers
+        const deviceHeaders = await DeviceService.getDeviceHeaders();
+        const deviceInfo = DeviceService.getDeviceInfo();
 
-        console.log('[Auth] Login Headers:', {
-            'Content-Type': 'application/json',
-            'User-Agent': userAgent,
-            'X-Forwarded-For': ipAddress
-        });
-        console.log('[Auth] Login Body:', {
-            emailOrUsername: data.emailOrUsername,
-            deviceName: deviceName
-        });
+        console.log('[Auth] Login Device Headers:', deviceHeaders);
 
         const response = await fetch(
             `${BASE_URL}/api/v1/auth/login`,
@@ -247,13 +238,12 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': userAgent,
-                    'X-Forwarded-For': ipAddress
+                    ...deviceHeaders,
                 },
                 body: JSON.stringify({
                     emailOrUsername: data.emailOrUsername,
                     password: data.password,
-                    deviceName: deviceName,
+                    deviceName: deviceInfo.deviceName, // Also send in body for backward compatibility
                 }),
             }
         );
@@ -1150,30 +1140,21 @@ export const googleSignIn = async (options?: {
     try {
         console.log('[Auth] Authenticating Google Token with URL:', `${BASE_URL}/api/v1/auth/google/mobile`);
 
-        // Get device info
-        const deviceName = DeviceService.getDeviceName();
-        const userAgent = DeviceService.getUserAgent();
-        const ipAddress = await DeviceService.getIpAddress();
+        // Get device headers
+        const deviceHeaders = await DeviceService.getDeviceHeaders();
+        const deviceInfo = DeviceService.getDeviceInfo();
 
-        console.log('[Auth] Google Login Headers:', {
-            'Content-Type': 'application/json',
-            'User-Agent': userAgent,
-            'X-Forwarded-For': ipAddress
-        });
-        console.log('[Auth] Google Login Body:', {
-            deviceName: deviceName
-        });
+        console.log('[Auth] Google Login Device Headers:', deviceHeaders);
 
         const response = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': userAgent,
-                'X-Forwarded-For': ipAddress
+                ...deviceHeaders,
             },
             body: JSON.stringify({
                 idToken: googleResult.idToken,
-                deviceName: deviceName
+                deviceName: deviceInfo.deviceName, // Also send in body for backward compatibility
             }),
         });
 

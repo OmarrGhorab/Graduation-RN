@@ -11,6 +11,7 @@ import {
     Modal,
     TextInput,
     Image,
+    BackHandler,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,16 +27,21 @@ import {
     disable2FA,
     regenerateBackupCodes,
     getSessions,
+    getSessionDetails,
     revokeSession,
     revokeAllSessions,
     getActivityLog,
     deactivateAccount,
     deleteAccount,
+    getDeviceIcon,
+    getPlatformDisplayName,
+    getStatusColor,
     TwoFactorStatus,
     TwoFactorEnableResponse,
     Session,
-    ActivityItem,
+    SessionDetails,
     ActivityResponse,
+    RecentActivityItem,
 } from '@/services/SecurityService';
 
 type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger';
@@ -61,9 +67,11 @@ export default function SettingsScreen() {
 
     // Sessions State
     const [sessions, setSessions] = useState<Session[]>([]);
+    const [selectedSession, setSelectedSession] = useState<SessionDetails | null>(null);
+    const [showSessionModal, setShowSessionModal] = useState(false);
+    const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
 
     // Activity State
-    const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [activityData, setActivityData] = useState<ActivityResponse | null>(null);
 
     // Danger Zone State
@@ -80,6 +88,19 @@ export default function SettingsScreen() {
         } else if (currentSection === 'activity') {
             fetchActivity();
         }
+    }, [currentSection]);
+
+    // Handle hardware back button
+    useEffect(() => {
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (currentSection !== 'main') {
+                setCurrentSection('main');
+                return true; // Prevent default behavior
+            }
+            return false; // Let default behavior happen (go back)
+        });
+
+        return () => backHandler.remove();
     }, [currentSection]);
 
     const fetch2FAStatus = async () => {
@@ -102,7 +123,7 @@ export default function SettingsScreen() {
         try {
             setIsLoading(true);
             const response = await getSessions();
-            setSessions(response.sessions);
+            setSessions(response.sessions || []);
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to fetch sessions');
         } finally {
@@ -115,7 +136,6 @@ export default function SettingsScreen() {
             setIsLoading(true);
             const response = await getActivityLog();
             setActivityData(response);
-            setActivities(response.activities || []);
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to fetch activity');
         } finally {
@@ -207,14 +227,29 @@ export default function SettingsScreen() {
 
     const handleRevokeSession = async (sessionId: string) => {
         try {
-            setIsLoading(true);
+            setLoadingSessionId(sessionId);
             await revokeSession(sessionId);
             setSessions(sessions.filter(s => s.id !== sessionId));
+            setShowSessionModal(false);
+            setSelectedSession(null);
             toast.success('Success', 'Session revoked');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to revoke session');
         } finally {
-            setIsLoading(false);
+            setLoadingSessionId(null);
+        }
+    };
+
+    const handleViewSessionDetails = async (sessionId: string) => {
+        try {
+            setLoadingSessionId(sessionId);
+            const details = await getSessionDetails(sessionId);
+            setSelectedSession(details);
+            setShowSessionModal(true);
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to load session details');
+        } finally {
+            setLoadingSessionId(null);
         }
     };
 
@@ -271,25 +306,11 @@ export default function SettingsScreen() {
         toast.success('Copied', 'Copied to clipboard');
     };
 
-    const getDeviceIcon = (type: string) => {
-        switch (type) {
-            case 'mobile': return 'phone-portrait-outline';
-            case 'tablet': return 'tablet-portrait-outline';
-            case 'desktop': return 'desktop-outline';
-            default: return 'hardware-chip-outline';
-        }
-    };
-
-    const getActivityIcon = (type: string) => {
-        switch (type) {
-            case 'login': return 'log-in-outline';
-            case 'logout': return 'log-out-outline';
-            case 'password_change': return 'key-outline';
-            case 'profile_update': return 'person-outline';
-            case '2fa_enabled': return 'shield-checkmark-outline';
-            case '2fa_disabled': return 'shield-outline';
-            case 'session_revoked': return 'close-circle-outline';
-            case 'device_verified': return 'checkmark-circle-outline';
+    const getActivityIcon = (status: string) => {
+        switch (status) {
+            case 'active': return 'checkmark-circle-outline';
+            case 'expired': return 'time-outline';
+            case 'revoked': return 'close-circle-outline';
             default: return 'ellipse-outline';
         }
     };
@@ -302,6 +323,21 @@ export default function SettingsScreen() {
             hour: '2-digit',
             minute: '2-digit',
         });
+    };
+
+    const formatRelativeTime = (dateString: string) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return formatDate(dateString);
     };
 
     const renderHeader = () => (
@@ -494,61 +530,288 @@ export default function SettingsScreen() {
                 </View>
             ) : (
                 <>
+                    {/* Sessions Summary */}
+                    <View style={styles.sessionsSummary}>
+                        <View style={styles.sessionsSummaryIcon}>
+                            <Ionicons name="shield-checkmark" size={28} color={cskColors[500]} />
+                        </View>
+                        <Text style={styles.sessionsSummaryTitle}>
+                            {sessions.filter(s => s.isActive).length} Active {sessions.filter(s => s.isActive).length === 1 ? 'Session' : 'Sessions'}
+                        </Text>
+                        <Text style={styles.sessionsSummaryText}>
+                            These devices are currently logged into your account
+                        </Text>
+                    </View>
+
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Active Sessions</Text>
+                        <Text style={styles.sectionTitle}>Your Devices</Text>
                         
                         {sessions.map((session) => (
-                            <View
+                            <TouchableOpacity
                                 key={session.id}
                                 style={[styles.sessionCard, session.isCurrent && styles.currentSession]}
+                                onPress={() => handleViewSessionDetails(session.id)}
+                                activeOpacity={0.7}
                             >
-                                <View style={styles.sessionIcon}>
+                                <View style={[styles.sessionIcon, session.isCurrent && styles.sessionIconCurrent]}>
                                     <Ionicons
-                                        name={getDeviceIcon(session.deviceType) as any}
+                                        name={getDeviceIcon(session.platform) as any}
                                         size={24}
                                         color={session.isCurrent ? cskColors[500] : grayColors[600]}
                                     />
                                 </View>
                                 <View style={styles.sessionInfo}>
                                     <View style={styles.sessionHeader}>
-                                        <Text style={styles.sessionDevice}>{session.deviceName}</Text>
+                                        <Text style={styles.sessionDevice} numberOfLines={1}>
+                                            {session.deviceName || 'Unknown Device'}
+                                        </Text>
                                         {session.isCurrent && (
                                             <View style={styles.currentBadge}>
-                                                <Text style={styles.currentBadgeText}>Current</Text>
+                                                <Text style={styles.currentBadgeText}>This device</Text>
                                             </View>
                                         )}
                                     </View>
-                                    {session.location && (
-                                        <Text style={styles.sessionLocation}>{session.location}</Text>
-                                    )}
-                                    <Text style={styles.sessionTime}>
-                                        Last active: {formatDate(session.lastActive)}
-                                    </Text>
+                                    <View style={styles.sessionDetails}>
+                                        <Text style={styles.sessionBrowser}>
+                                            {getPlatformDisplayName(session.platform)}
+                                        </Text>
+                                        {session.location && (
+                                            <View style={styles.sessionLocationRow}>
+                                                <Ionicons name="location-outline" size={12} color={grayColors[500]} />
+                                                <Text style={styles.sessionLocation}>{session.location}</Text>
+                                            </View>
+                                        )}
+                                        <Text style={styles.sessionTime}>
+                                            {session.isCurrent ? 'Active now' : formatRelativeTime(session.lastActivityAt)}
+                                        </Text>
+                                    </View>
                                 </View>
-                                {!session.isCurrent && (
-                                    <TouchableOpacity
-                                        style={styles.revokeButton}
-                                        onPress={() => handleRevokeSession(session.id)}
-                                        disabled={isLoading}
-                                    >
-                                        <Text style={styles.revokeButtonText}>Revoke</Text>
-                                    </TouchableOpacity>
+                                {loadingSessionId === session.id ? (
+                                    <ActivityIndicator size="small" color={cskColors[500]} />
+                                ) : (
+                                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
                                 )}
-                            </View>
+                            </TouchableOpacity>
                         ))}
                     </View>
 
                     {sessions.filter(s => !s.isCurrent).length > 0 && (
-                        <TouchableOpacity
-                            style={styles.dangerButton}
-                            onPress={handleRevokeAllSessions}
-                            disabled={isLoading}
-                        >
-                            <Text style={styles.dangerButtonText}>Revoke All Other Sessions</Text>
-                        </TouchableOpacity>
+                        <View style={styles.sessionsActions}>
+                            <TouchableOpacity
+                                style={styles.revokeAllButton}
+                                onPress={handleRevokeAllSessions}
+                                disabled={isLoading}
+                            >
+                                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                                <Text style={styles.revokeAllButtonText}>Sign out all other devices</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
+
+                    {/* Security Tips */}
+                    <View style={styles.securityTips}>
+                        <View style={styles.securityTipHeader}>
+                            <Ionicons name="bulb-outline" size={20} color={cskColors[500]} />
+                            <Text style={styles.securityTipTitle}>Security Tips</Text>
+                        </View>
+                        <Text style={styles.securityTipText}>
+                            • Sign out of devices you don't recognize{'\n'}
+                            • Enable two-factor authentication for extra security{'\n'}
+                            • Use unique passwords for each account
+                        </Text>
+                    </View>
                 </>
             )}
+
+            {/* Session Details Modal */}
+            <Modal
+                visible={showSessionModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => {
+                    setShowSessionModal(false);
+                    setSelectedSession(null);
+                }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.sessionModalContent}>
+                        <View style={styles.sessionModalHeader}>
+                            <Text style={styles.sessionModalTitle}>Session Details</Text>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setShowSessionModal(false);
+                                    setSelectedSession(null);
+                                }}
+                                style={styles.modalCloseButton}
+                            >
+                                <Ionicons name="close" size={24} color={grayColors[600]} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {selectedSession && (
+                            <ScrollView style={styles.sessionModalBody} showsVerticalScrollIndicator={false}>
+                                {/* Device Info */}
+                                <View style={styles.sessionModalSection}>
+                                    <View style={styles.sessionModalIconLarge}>
+                                        <Ionicons
+                                            name={getDeviceIcon(selectedSession.device.platform) as any}
+                                            size={40}
+                                            color={selectedSession.isCurrent ? cskColors[500] : grayColors[600]}
+                                        />
+                                    </View>
+                                    <Text style={styles.sessionModalDeviceName}>
+                                        {selectedSession.device.name || 'Unknown Device'}
+                                    </Text>
+                                    {selectedSession.isCurrent && (
+                                        <View style={[styles.currentBadge, { marginTop: 8 }]}>
+                                            <Text style={styles.currentBadgeText}>Current Session</Text>
+                                        </View>
+                                    )}
+                                    {selectedSession.device.isTrusted && (
+                                        <View style={[styles.trustedBadge, { marginTop: 8 }]}>
+                                            <Ionicons name="shield-checkmark" size={12} color={cskColors[600]} />
+                                            <Text style={styles.trustedBadgeText}>Trusted Device</Text>
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Details List */}
+                                <View style={styles.sessionDetailsList}>
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons name="phone-portrait-outline" size={18} color={grayColors[500]} />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>Platform</Text>
+                                            <Text style={styles.sessionDetailValue}>
+                                                {getPlatformDisplayName(selectedSession.device.platform)}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {selectedSession.device.browser && (
+                                        <View style={styles.sessionDetailRow}>
+                                            <View style={styles.sessionDetailIcon}>
+                                                <Ionicons name="globe-outline" size={18} color={grayColors[500]} />
+                                            </View>
+                                            <View style={styles.sessionDetailInfo}>
+                                                <Text style={styles.sessionDetailLabel}>Browser</Text>
+                                                <Text style={styles.sessionDetailValue}>{selectedSession.device.browser}</Text>
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    {selectedSession.device.os && (
+                                        <View style={styles.sessionDetailRow}>
+                                            <View style={styles.sessionDetailIcon}>
+                                                <Ionicons name="laptop-outline" size={18} color={grayColors[500]} />
+                                            </View>
+                                            <View style={styles.sessionDetailInfo}>
+                                                <Text style={styles.sessionDetailLabel}>Operating System</Text>
+                                                <Text style={styles.sessionDetailValue}>{selectedSession.device.os}</Text>
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons name="wifi-outline" size={18} color={grayColors[500]} />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>IP Address</Text>
+                                            <Text style={styles.sessionDetailValue}>{selectedSession.network.ipAddress}</Text>
+                                        </View>
+                                    </View>
+
+                                    {selectedSession.network.location && (
+                                        <View style={styles.sessionDetailRow}>
+                                            <View style={styles.sessionDetailIcon}>
+                                                <Ionicons name="location-outline" size={18} color={grayColors[500]} />
+                                            </View>
+                                            <View style={styles.sessionDetailInfo}>
+                                                <Text style={styles.sessionDetailLabel}>Location</Text>
+                                                <Text style={styles.sessionDetailValue}>{selectedSession.network.location}</Text>
+                                            </View>
+                                        </View>
+                                    )}
+
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons name="time-outline" size={18} color={grayColors[500]} />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>Last Activity</Text>
+                                            <Text style={styles.sessionDetailValue}>
+                                                {selectedSession.isCurrent ? 'Active now' : formatDate(selectedSession.timestamps.lastActivityAt)}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons name="calendar-outline" size={18} color={grayColors[500]} />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>Signed In</Text>
+                                            <Text style={styles.sessionDetailValue}>{formatDate(selectedSession.timestamps.createdAt)}</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons name="hourglass-outline" size={18} color={grayColors[500]} />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>Expires</Text>
+                                            <Text style={styles.sessionDetailValue}>{formatDate(selectedSession.timestamps.expiresAt)}</Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Status */}
+                                    <View style={styles.sessionDetailRow}>
+                                        <View style={styles.sessionDetailIcon}>
+                                            <Ionicons 
+                                                name={selectedSession.status.isActive ? "checkmark-circle" : "close-circle"} 
+                                                size={18} 
+                                                color={selectedSession.status.isActive ? '#10B981' : '#EF4444'} 
+                                            />
+                                        </View>
+                                        <View style={styles.sessionDetailInfo}>
+                                            <Text style={styles.sessionDetailLabel}>Status</Text>
+                                            <Text style={[
+                                                styles.sessionDetailValue,
+                                                { color: selectedSession.status.isActive ? '#10B981' : '#EF4444' }
+                                            ]}>
+                                                {selectedSession.status.isActive ? 'Active' : 
+                                                 selectedSession.status.isRevoked ? 'Revoked' : 
+                                                 selectedSession.status.isExpired ? 'Expired' : 'Inactive'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {/* Revoke Button */}
+                                {!selectedSession.isCurrent && selectedSession.status.isActive && (
+                                    <TouchableOpacity
+                                        style={styles.revokeSessionButton}
+                                        onPress={() => handleRevokeSession(selectedSession.id)}
+                                        disabled={loadingSessionId === selectedSession.id}
+                                    >
+                                        {loadingSessionId === selectedSession.id ? (
+                                            <ActivityIndicator color="#FFFFFF" />
+                                        ) : (
+                                            <>
+                                                <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
+                                                <Text style={styles.revokeSessionButtonText}>Sign out this device</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                )}
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 
@@ -565,30 +828,52 @@ export default function SettingsScreen() {
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={cskColors[500]} />
                 </View>
-            ) : (
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Account Activity</Text>
-                    
+            ) : activityData ? (
+                <>
+                    {/* Account Info */}
+                    <View style={styles.activitySummary}>
+                        <View style={styles.activitySummaryIcon}>
+                            <Ionicons name="person-circle" size={48} color={cskColors[500]} />
+                        </View>
+                        <Text style={styles.activitySummaryTitle}>Account Overview</Text>
+                        <Text style={styles.activitySummaryText}>
+                            Member since {formatDate(activityData.account.accountCreatedAt)}
+                        </Text>
+                    </View>
+
                     {/* Current Device Info */}
-                    {activityData?.currentDevice && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Current Device</Text>
                         <View style={styles.activityCard}>
                             <View style={styles.activityCardHeader}>
-                                <Ionicons name="phone-portrait-outline" size={24} color={cskColors[500]} />
-                                <Text style={styles.activityCardTitle}>Current Device</Text>
+                                <Ionicons 
+                                    name={getDeviceIcon(activityData.currentDevice.platform) as any} 
+                                    size={24} 
+                                    color={cskColors[500]} 
+                                />
+                                <Text style={styles.activityCardTitle}>
+                                    {activityData.currentDevice.deviceName}
+                                </Text>
                             </View>
                             <View style={styles.activityCardContent}>
                                 <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>Device</Text>
+                                    <Text style={styles.activityLabel}>Model</Text>
+                                    <Text style={styles.activityValue}>{activityData.currentDevice.deviceModel}</Text>
+                                </View>
+                                <View style={styles.activityRow}>
+                                    <Text style={styles.activityLabel}>Platform</Text>
                                     <Text style={styles.activityValue}>
-                                        {activityData.currentDevice.deviceName || 'Unknown Device'}
+                                        {getPlatformDisplayName(activityData.currentDevice.platform)}
                                     </Text>
                                 </View>
-                                {activityData.currentDevice.platform && (
-                                    <View style={styles.activityRow}>
-                                        <Text style={styles.activityLabel}>Platform</Text>
-                                        <Text style={styles.activityValue}>{activityData.currentDevice.platform}</Text>
-                                    </View>
-                                )}
+                                <View style={styles.activityRow}>
+                                    <Text style={styles.activityLabel}>OS</Text>
+                                    <Text style={styles.activityValue}>{activityData.currentDevice.os}</Text>
+                                </View>
+                                <View style={styles.activityRow}>
+                                    <Text style={styles.activityLabel}>App Version</Text>
+                                    <Text style={styles.activityValue}>{activityData.currentDevice.appVersion}</Text>
+                                </View>
                                 <View style={styles.activityRow}>
                                     <Text style={styles.activityLabel}>IP Address</Text>
                                     <Text style={styles.activityValue}>{activityData.currentDevice.ipAddress}</Text>
@@ -599,54 +884,144 @@ export default function SettingsScreen() {
                                         <Text style={styles.activityValue}>{activityData.currentDevice.location}</Text>
                                     </View>
                                 )}
+                                <View style={styles.activityRow}>
+                                    <Text style={styles.activityLabel}>Timezone</Text>
+                                    <Text style={styles.activityValue}>{activityData.currentDevice.timezone}</Text>
+                                </View>
                             </View>
                         </View>
-                    )}
+                    </View>
 
                     {/* Session Stats */}
-                    {activityData && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Sessions Overview</Text>
                         <View style={styles.statsRow}>
                             <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{activityData.totalActiveSessions}</Text>
+                                <Text style={styles.statNumber}>{activityData.sessions.totalActive}</Text>
                                 <Text style={styles.statLabel}>Active Sessions</Text>
                             </View>
                             <View style={styles.statCard}>
+                                <Text style={styles.statNumber}>{activityData.devices.total}</Text>
+                                <Text style={styles.statLabel}>Total Devices</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.statsRow, { marginTop: 12 }]}>
+                            <View style={styles.statCard}>
+                                <Text style={styles.statNumber}>{activityData.devices.trusted}</Text>
+                                <Text style={styles.statLabel}>Trusted Devices</Text>
+                            </View>
+                            <View style={styles.statCard}>
                                 <Text style={styles.statNumber}>
-                                    {activityData.lastActivityAt ? formatDate(activityData.lastActivityAt) : 'N/A'}
+                                    {formatRelativeTime(activityData.sessions.mostRecentActivity)}
                                 </Text>
                                 <Text style={styles.statLabel}>Last Activity</Text>
                             </View>
                         </View>
+                    </View>
+
+                    {/* Platform Breakdown */}
+                    {activityData.sessions.byPlatform && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Sessions by Platform</Text>
+                            <View style={styles.platformBreakdown}>
+                                {activityData.sessions.byPlatform.IOS && (
+                                    <View style={styles.platformItem}>
+                                        <Ionicons name="logo-apple" size={20} color={grayColors[600]} />
+                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.IOS}</Text>
+                                        <Text style={styles.platformLabel}>iOS</Text>
+                                    </View>
+                                )}
+                                {activityData.sessions.byPlatform.ANDROID && (
+                                    <View style={styles.platformItem}>
+                                        <Ionicons name="logo-android" size={20} color="#3DDC84" />
+                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.ANDROID}</Text>
+                                        <Text style={styles.platformLabel}>Android</Text>
+                                    </View>
+                                )}
+                                {activityData.sessions.byPlatform.WEB && (
+                                    <View style={styles.platformItem}>
+                                        <Ionicons name="globe-outline" size={20} color="#4285F4" />
+                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.WEB}</Text>
+                                        <Text style={styles.platformLabel}>Web</Text>
+                                    </View>
+                                )}
+                            </View>
+                        </View>
                     )}
 
-                    {/* Activity List (if available) */}
-                    {activities.length > 0 && (
-                        <>
-                            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Activity</Text>
-                            {activities.map((activity) => (
-                                <View key={activity.id} style={styles.activityItem}>
-                                    <View style={styles.activityIcon}>
-                                        <Ionicons
-                                            name={getActivityIcon(activity.type) as any}
-                                            size={20}
-                                            color={grayColors[600]}
-                                        />
-                                    </View>
-                                    <View style={styles.activityInfo}>
-                                        <Text style={styles.activityDescription}>{activity.description}</Text>
-                                        <View style={styles.activityMeta}>
+                    {/* Recent Activity */}
+                    {activityData.recentActivity && activityData.recentActivity.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Recent Activity</Text>
+                            {activityData.recentActivity.map((activity) => (
+                                <View key={activity.sessionId} style={styles.recentActivityItem}>
+                                    <View style={[
+                                        styles.activityStatusDot,
+                                        { backgroundColor: getStatusColor(activity.status) }
+                                    ]} />
+                                    <View style={styles.recentActivityInfo}>
+                                        <Text style={styles.recentActivityDevice}>{activity.deviceName}</Text>
+                                        <View style={styles.recentActivityMeta}>
+                                            <Text style={styles.recentActivityPlatform}>
+                                                {getPlatformDisplayName(activity.platform)}
+                                            </Text>
                                             {activity.location && (
-                                                <Text style={styles.activityLocation}>{activity.location}</Text>
+                                                <>
+                                                    <Text style={styles.recentActivityDot}>•</Text>
+                                                    <Text style={styles.recentActivityLocation}>{activity.location}</Text>
+                                                </>
                                             )}
-                                            <Text style={styles.activityTime}>{formatDate(activity.timestamp)}</Text>
                                         </View>
+                                        <Text style={styles.recentActivityTime}>
+                                            {formatRelativeTime(activity.lastActivityAt)}
+                                        </Text>
+                                    </View>
+                                    <View style={[
+                                        styles.activityStatusBadge,
+                                        { backgroundColor: getStatusColor(activity.status) + '20' }
+                                    ]}>
+                                        <Text style={[
+                                            styles.activityStatusText,
+                                            { color: getStatusColor(activity.status) }
+                                        ]}>
+                                            {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
+                                        </Text>
                                     </View>
                                 </View>
                             ))}
-                        </>
+                        </View>
                     )}
-                </View>
-            )}
+
+                    {/* Trusted Devices */}
+                    {activityData.devices.list && activityData.devices.list.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Your Devices</Text>
+                            {activityData.devices.list.map((device) => (
+                                <View key={device.id} style={styles.deviceItem}>
+                                    <View style={styles.deviceIconContainer}>
+                                        <Ionicons 
+                                            name={getDeviceIcon(device.platform) as any} 
+                                            size={22} 
+                                            color={device.isTrusted ? cskColors[500] : grayColors[500]} 
+                                        />
+                                    </View>
+                                    <View style={styles.deviceInfo}>
+                                        <Text style={styles.deviceName}>{device.name}</Text>
+                                        <Text style={styles.deviceMeta}>
+                                            {getPlatformDisplayName(device.platform)} • Last login {formatRelativeTime(device.lastLoginAt)}
+                                        </Text>
+                                    </View>
+                                    {device.isTrusted && (
+                                        <View style={styles.trustedBadgeSmall}>
+                                            <Ionicons name="shield-checkmark" size={14} color={cskColors[500]} />
+                                        </View>
+                                    )}
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                </>
+            ) : null}
         </ScrollView>
     );
 
@@ -1579,5 +1954,342 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[600],
         textAlign: 'center',
+    },
+    // Improved Sessions Styles
+    sessionsSummary: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        marginBottom: 8,
+    },
+    sessionsSummaryIcon: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: cskColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    sessionsSummaryTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        marginBottom: 4,
+    },
+    sessionsSummaryText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        textAlign: 'center',
+    },
+    sessionIconCurrent: {
+        backgroundColor: cskColors[50],
+    },
+    sessionDetails: {
+        marginTop: 4,
+    },
+    sessionBrowser: {
+        fontSize: 13,
+        fontFamily: Fonts.medium,
+        color: grayColors[600],
+    },
+    sessionLocationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
+    sessionsActions: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    revokeAllButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#FEE2E2',
+    },
+    revokeAllButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: '#EF4444',
+    },
+    securityTips: {
+        margin: 16,
+        padding: 16,
+        backgroundColor: cskColors[50],
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: cskColors[100],
+    },
+    securityTipHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    securityTipTitle: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: cskColors[700],
+    },
+    securityTipText: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[600],
+        lineHeight: 20,
+    },
+    // Session Modal Styles
+    sessionModalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        width: '100%',
+        maxHeight: '85%',
+        position: 'absolute',
+        bottom: 0,
+    },
+    sessionModalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: grayColors[100],
+    },
+    sessionModalTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+    },
+    modalCloseButton: {
+        padding: 4,
+    },
+    sessionModalBody: {
+        padding: 20,
+    },
+    sessionModalSection: {
+        alignItems: 'center',
+        paddingBottom: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: grayColors[100],
+        marginBottom: 20,
+    },
+    sessionModalIconLarge: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: grayColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    sessionModalDeviceName: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        textAlign: 'center',
+    },
+    sessionDetailsList: {
+        gap: 16,
+    },
+    sessionDetailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    sessionDetailIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: grayColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    sessionDetailInfo: {
+        flex: 1,
+    },
+    sessionDetailLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginBottom: 2,
+    },
+    sessionDetailValue: {
+        fontSize: 15,
+        fontFamily: Fonts.medium,
+        color: grayColors[900],
+    },
+    revokeSessionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 24,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#EF4444',
+    },
+    revokeSessionButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: '#FFFFFF',
+    },
+    // Trusted Badge
+    trustedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: cskColors[50],
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    trustedBadgeText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: cskColors[600],
+    },
+    trustedBadgeSmall: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: cskColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    // Activity Section Styles
+    activitySummary: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+    },
+    activitySummaryIcon: {
+        marginBottom: 12,
+    },
+    activitySummaryTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        marginBottom: 4,
+    },
+    activitySummaryText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+    },
+    platformBreakdown: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        padding: 16,
+    },
+    platformItem: {
+        alignItems: 'center',
+        gap: 4,
+    },
+    platformCount: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+    },
+    platformLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+    },
+    recentActivityItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    activityStatusDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginRight: 12,
+    },
+    recentActivityInfo: {
+        flex: 1,
+    },
+    recentActivityDevice: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[900],
+    },
+    recentActivityMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    recentActivityPlatform: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[600],
+    },
+    recentActivityDot: {
+        fontSize: 13,
+        color: grayColors[400],
+        marginHorizontal: 6,
+    },
+    recentActivityLocation: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[600],
+    },
+    recentActivityTime: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginTop: 2,
+    },
+    activityStatusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    activityStatusText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    deviceItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    deviceIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    deviceInfo: {
+        flex: 1,
+    },
+    deviceName: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[900],
+    },
+    deviceMeta: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginTop: 2,
     },
 });
