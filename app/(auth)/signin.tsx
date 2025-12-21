@@ -13,7 +13,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-    useColorScheme
+    useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
@@ -33,12 +33,23 @@ export default function SignInScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const { showToast, error, success } = useToast();
+    const { showToast, error } = useToast();
 
     // Configure Google Sign-In on component mount
     useEffect(() => {
         configureGoogleSignIn();
     }, []);
+
+    const navigateTo2FA = (authData: any) => {
+        router.push({
+            pathname: '/verify-2fa',
+            params: {
+                accessToken: authData.accessToken,
+                refreshToken: authData.refreshToken,
+                user: JSON.stringify(authData.user),
+            }
+        } as any);
+    };
 
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
@@ -57,6 +68,11 @@ export default function SignInScreen() {
                 console.log('Google Sign-In cancelled');
             },
         });
+
+        // Check if 2FA is required for Google sign-in
+        if (result.requires2FA && result.data) {
+            navigateTo2FA(result.data);
+        }
 
         setIsGoogleLoading(false);
     };
@@ -80,6 +96,12 @@ export default function SignInScreen() {
                 return;
             }
 
+            // Check if 2FA is required (twoFactorEnabled is inside user object)
+            if ('user' in result && (result.user as any)?.twoFactorEnabled) {
+                navigateTo2FA(result);
+                return;
+            }
+
             // At this point it's a LoginSuccessResponse
             const successData = result as LoginSuccessResponse;
             if (successData.user.onboardingCompleted) {
@@ -90,6 +112,12 @@ export default function SignInScreen() {
         } catch (err: any) {
             console.error('Login error:', err);
             const responseData = err.responseData;
+
+            // Check if 2FA is required from error response (twoFactorEnabled is inside user object)
+            if (responseData?.user?.twoFactorEnabled) {
+                navigateTo2FA(responseData);
+                return;
+            }
 
             if (responseData?.requiresDeviceVerification) {
                 showToast('info', 'New Device', 'Please verify this device using the code sent to your email.');
@@ -106,7 +134,6 @@ export default function SignInScreen() {
     };
 
     const handleSignUp = () => {
-        // Navigate to sign up
         router.push('/signup');
     };
 
@@ -274,7 +301,7 @@ const styles = StyleSheet.create({
     inputWrapper: {
         marginBottom: 20,
         position: 'relative',
-        paddingTop: 8, // Make space for the label
+        paddingTop: 8,
     },
     labelContainer: {
         position: 'absolute',

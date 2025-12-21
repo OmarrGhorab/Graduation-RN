@@ -9,6 +9,14 @@ export const UserSchema = z.object({
     onboardingCompleted: z.coerce.boolean().default(false),
     profileImg: z.string().nullable().optional(),
     role: z.string().nullable().optional(),
+    bio: z.string().nullable().optional(),
+    goals: z.array(z.string()).optional(),
+    interests: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+    })).optional(),
+    hasPassword: z.boolean().optional(),
+    twoFactorEnabled: z.boolean().optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;

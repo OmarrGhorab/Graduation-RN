@@ -51,8 +51,9 @@ const getApiHeaders = async (token?: string | null) => {
 // Types
 export interface AuthResponse {
     success: boolean;
-    data?: LoginResponse;
+    data?: LoginResponse | any;
     error?: string;
+    requires2FA?: boolean;
 }
 
 export interface GoogleSignInResult {
@@ -1199,6 +1200,17 @@ export const googleSignIn = async (options?: {
         }
 
         const data = result.data;
+        
+        // Check if 2FA is required (twoFactorEnabled is inside user object)
+        if (responseData.user?.twoFactorEnabled) {
+            // Return the response data for 2FA handling by the caller
+            return { 
+                success: true, 
+                data: responseData,
+                requires2FA: true 
+            };
+        }
+        
         if (data.user && data.accessToken) {
             useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
             // Sync FCM token

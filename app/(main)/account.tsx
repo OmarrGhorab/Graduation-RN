@@ -182,7 +182,7 @@ export default function AccountScreen() {
                     </TouchableOpacity>
 
                     {/* Settings */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/settings')}>
                         <View style={styles.menuIconContainer}>
                             <Ionicons name="settings-outline" size={22} color={grayColors[600]} />
                         </View>

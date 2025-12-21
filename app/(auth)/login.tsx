@@ -9,10 +9,11 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme
+    useColorScheme,
 } from 'react-native';
-import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { cskColors, Colors } from '@/constants/theme';
 import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
+import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
 
@@ -20,16 +21,28 @@ export default function LoginScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
+    const toast = useToast();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
     useEffect(() => {
         configureGoogleSignIn();
     }, []);
 
+    const navigateTo2FA = (authData: any) => {
+        router.push({
+            pathname: '/verify-2fa',
+            params: {
+                accessToken: authData.accessToken,
+                refreshToken: authData.refreshToken,
+                user: JSON.stringify(authData.user),
+            }
+        } as any);
+    };
+
     const handleGoogleSignIn = async () => {
         setIsGoogleLoading(true);
 
-        await googleSignIn({
+        const result = await googleSignIn({
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Google Sign-In successful:', data);
@@ -43,6 +56,11 @@ export default function LoginScreen() {
                 console.log('Google Sign-In cancelled');
             },
         });
+
+        // If 2FA is required, navigate to 2FA page
+        if (result.requires2FA && result.data) {
+            navigateTo2FA(result.data);
+        }
 
         setIsGoogleLoading(false);
     };

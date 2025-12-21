@@ -26,6 +26,13 @@ export default function EditProfileScreen() {
 
     const [name, setName] = useState(user?.name || '');
     const [username, setUsername] = useState(user?.username || '');
+    const [bio, setBio] = useState(user?.bio || '');
+    const [goals, setGoals] = useState<string[]>(user?.goals || []);
+    const [goalInput, setGoalInput] = useState('');
+    const [interests, setInterests] = useState<string[]>(
+        user?.interests?.map((i: { id: string; name: string }) => i.name) || []
+    );
+    const [interestInput, setInterestInput] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -40,6 +47,7 @@ export default function EditProfileScreen() {
     // Profile data from API
     const [canChangeUsername, setCanChangeUsername] = useState(true);
     const [nextUsernameChangeDate, setNextUsernameChangeDate] = useState<string | null>(null);
+    const [hasPassword, setHasPassword] = useState(true);
 
     // Fetch profile data on mount
     useEffect(() => {
@@ -54,8 +62,12 @@ export default function EditProfileScreen() {
             // Update local state with fresh data
             setName(response.user.name);
             setUsername(response.user.username);
+            setBio(response.user.bio || '');
+            setGoals(response.user.goals || []);
+            setInterests(response.user.interests?.map((i: { id: string; name: string }) => i.name) || []);
             setCanChangeUsername(response.canChangeUsername);
             setNextUsernameChangeDate(response.nextUsernameChangeDate);
+            setHasPassword(response.user.hasPassword ?? true);
             
             // Update auth store with fresh user data
             updateUser(response.user);
@@ -101,6 +113,37 @@ export default function EditProfileScreen() {
         }
     };
 
+    const handleAddGoal = () => {
+        if (!goalInput.trim()) return;
+        
+        if (goals.length >= 3) {
+            toast.warning('Limit Reached', 'You can only add up to 3 goals');
+            return;
+        }
+        
+        if (!goals.includes(goalInput.trim())) {
+            setGoals([...goals, goalInput.trim()]);
+            setGoalInput('');
+        }
+    };
+
+    const handleRemoveGoal = (index: number) => {
+        setGoals(goals.filter((_, i) => i !== index));
+    };
+
+    const handleAddInterest = () => {
+        if (!interestInput.trim()) return;
+        
+        if (!interests.includes(interestInput.trim())) {
+            setInterests([...interests, interestInput.trim()]);
+            setInterestInput('');
+        }
+    };
+
+    const handleRemoveInterest = (index: number) => {
+        setInterests(interests.filter((_, i) => i !== index));
+    };
+
     const handleSave = async () => {
         // Validation
         if (!name.trim()) {
@@ -118,12 +161,17 @@ export default function EditProfileScreen() {
             return;
         }
 
+        if (bio && bio.length > 200) {
+            toast.error('Error', 'Bio must be 200 characters or less');
+            return;
+        }
+
         if (newPassword && newPassword !== confirmPassword) {
             toast.error('Error', 'Passwords do not match');
             return;
         }
 
-        if (newPassword && !currentPassword) {
+        if (newPassword && hasPassword && !currentPassword) {
             toast.error('Error', 'Current password is required to change password');
             return;
         }
@@ -145,9 +193,25 @@ export default function EditProfileScreen() {
                 updateData.username = username;
             }
 
+            if (bio !== (user?.bio || '')) {
+                updateData.bio = bio;
+            }
+
+            const userGoals = user?.goals || [];
+            if (JSON.stringify(goals) !== JSON.stringify(userGoals)) {
+                updateData.goals = goals;
+            }
+
+            const userInterests = user?.interests?.map((i: { id: string; name: string }) => i.name) || [];
+            if (JSON.stringify(interests) !== JSON.stringify(userInterests)) {
+                updateData.interests = interests;
+            }
+
             if (newPassword) {
                 updateData.password = newPassword;
-                updateData.currentPassword = currentPassword;
+                if (hasPassword) {
+                    updateData.currentPassword = currentPassword;
+                }
             }
 
             if (Object.keys(updateData).length === 0) {
@@ -263,12 +327,101 @@ export default function EditProfileScreen() {
                     <Text style={styles.helperText}>Email cannot be changed</Text>
                 </View>
 
+                {/* Bio */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.labelRow}>
+                        <Text style={styles.label}>Bio</Text>
+                        <Text style={styles.charCount}>{bio.length}/200</Text>
+                    </View>
+                    <TextInput
+                        style={[styles.input, styles.textArea]}
+                        value={bio}
+                        onChangeText={setBio}
+                        placeholder="Tell us about yourself..."
+                        placeholderTextColor={grayColors[400]}
+                        multiline
+                        numberOfLines={4}
+                        maxLength={200}
+                    />
+                </View>
+
+                {/* Goals */}
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Goals (Max 3)</Text>
+                    <View style={styles.chipInputContainer}>
+                        <TextInput
+                            style={styles.chipInput}
+                            value={goalInput}
+                            onChangeText={setGoalInput}
+                            placeholder="Add a goal..."
+                            placeholderTextColor={grayColors[400]}
+                            onSubmitEditing={handleAddGoal}
+                            returnKeyType="done"
+                        />
+                        <TouchableOpacity
+                            style={[styles.addButton, goals.length >= 3 && styles.addButtonDisabled]}
+                            onPress={handleAddGoal}
+                            disabled={goals.length >= 3}
+                        >
+                            <Ionicons name="add" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+                    {goals.length > 0 && (
+                        <View style={styles.chipsContainer}>
+                            {goals.map((goal, index) => (
+                                <View key={index} style={styles.chip}>
+                                    <Text style={styles.chipText}>{goal}</Text>
+                                    <TouchableOpacity onPress={() => handleRemoveGoal(index)}>
+                                        <Ionicons name="close-circle" size={18} color={cskColors[600]} />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                </View>
+
+                {/* Interests */}
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Interests</Text>
+                    <View style={styles.chipInputContainer}>
+                        <TextInput
+                            style={styles.chipInput}
+                            value={interestInput}
+                            onChangeText={setInterestInput}
+                            placeholder="Add an interest..."
+                            placeholderTextColor={grayColors[400]}
+                            onSubmitEditing={handleAddInterest}
+                            returnKeyType="done"
+                        />
+                        <TouchableOpacity
+                            style={styles.addButton}
+                            onPress={handleAddInterest}
+                        >
+                            <Ionicons name="add" size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+                    {interests.length > 0 && (
+                        <View style={styles.chipsContainer}>
+                            {interests.map((interest, index) => (
+                                <View key={index} style={styles.chip}>
+                                    <Text style={styles.chipText}>{interest}</Text>
+                                    <TouchableOpacity onPress={() => handleRemoveInterest(index)}>
+                                        <Ionicons name="close-circle" size={18} color={cskColors[600]} />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+                </View>
+
                 {/* Change Password Section */}
                 <TouchableOpacity
                     style={styles.passwordToggle}
                     onPress={() => setShowPasswordSection(!showPasswordSection)}
                 >
-                    <Text style={styles.passwordToggleText}>Change Password</Text>
+                    <Text style={styles.passwordToggleText}>
+                        {hasPassword ? 'Change Password' : 'Set Password'}
+                    </Text>
                     <Ionicons
                         name={showPasswordSection ? 'chevron-up' : 'chevron-down'}
                         size={20}
@@ -278,17 +431,28 @@ export default function EditProfileScreen() {
 
                 {showPasswordSection && (
                     <>
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Current Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={currentPassword}
-                                onChangeText={setCurrentPassword}
-                                placeholder="Enter current password"
-                                placeholderTextColor={grayColors[400]}
-                                secureTextEntry
-                            />
-                        </View>
+                        {!hasPassword && (
+                            <View style={styles.infoBox}>
+                                <Ionicons name="information-circle" size={20} color={cskColors[500]} />
+                                <Text style={styles.infoText}>
+                                    You signed in with Google. Set a password to enable email login.
+                                </Text>
+                            </View>
+                        )}
+                        
+                        {hasPassword && (
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.label}>Current Password</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={currentPassword}
+                                    onChangeText={setCurrentPassword}
+                                    placeholder="Enter current password"
+                                    placeholderTextColor={grayColors[400]}
+                                    secureTextEntry
+                                />
+                            </View>
+                        )}
 
                         <View style={styles.inputContainer}>
                             <Text style={styles.label}>New Password</Text>
@@ -487,5 +651,80 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[500],
         marginTop: 12,
+    },
+    charCount: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+    },
+    textArea: {
+        height: 100,
+        textAlignVertical: 'top',
+        paddingTop: 14,
+    },
+    chipInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    chipInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: grayColors[200],
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: grayColors[900],
+    },
+    addButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: cskColors[500],
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    addButtonDisabled: {
+        opacity: 0.5,
+    },
+    chipsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 12,
+    },
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: cskColors[50],
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: cskColors[200],
+        gap: 6,
+    },
+    chipText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: cskColors[700],
+    },
+    infoBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: cskColors[50],
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 16,
+        gap: 8,
+    },
+    infoText: {
+        flex: 1,
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[700],
+        lineHeight: 18,
     },
 });

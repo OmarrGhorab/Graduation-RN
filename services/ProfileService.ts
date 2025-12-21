@@ -13,9 +13,11 @@ export interface UserProfile {
     role?: string;
     bio?: string;
     goals?: string[];
+    interests?: Array<{ id: string; name: string }>;
     newsletterEnabled?: boolean;
     lastUsernameChange?: string | null;
     createdAt?: string;
+    hasPassword?: boolean;
 }
 
 export interface GetProfileResponse {
@@ -29,6 +31,9 @@ export interface UpdateProfileRequest {
     username?: string;
     password?: string;
     currentPassword?: string;
+    bio?: string;
+    goals?: string[];
+    interests?: string[];
 }
 
 export interface UpdateProfileResponse {
