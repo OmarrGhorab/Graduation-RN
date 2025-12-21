@@ -4,6 +4,7 @@ import {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     respondToParentLinkRequest,
+    deleteNotification,
     ApiNotification,
 } from '@/services/NotificationService';
 
@@ -100,9 +101,92 @@ export function useRespondToParentLinkMutation() {
     return useMutation({
         mutationFn: ({ requestId, action }: { requestId: string; action: 'accept' | 'decline' }) =>
             respondToParentLinkRequest(requestId, action),
+        onMutate: async ({ requestId, action }) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+
+            // Snapshot previous value
+            const previousData = queryClient.getQueryData(NOTIFICATIONS_QUERY_KEY);
+
+            // Optimistically update the notification
+            queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, (old: any) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((n: ApiNotification) => {
+                            // Find the notification with matching requestId
+                            if (n.data.requestId === requestId && n.type === 'parent_link_request') {
+                                return {
+                                    ...n,
+                                    read: true,
+                                    type: action === 'accept' ? 'link_request_accepted' : 'link_request_declined',
+                                    data: {
+                                        ...n.data,
+                                        title: action === 'accept' 
+                                            ? 'Link Request Accepted' 
+                                            : 'Link Request Declined',
+                                        body: action === 'accept'
+                                            ? 'You accepted the link request'
+                                            : 'You declined the link request',
+                                        status: action === 'accept' ? 'ACCEPTED' : 'DECLINED',
+                                        respondedAt: new Date().toISOString(),
+                                    },
+                                };
+                            }
+                            return n;
+                        }),
+                    })),
+                };
+            });
+
+            return { previousData };
+        },
         onSuccess: () => {
             // Invalidate to refetch fresh data after responding
             queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+        },
+        onError: (_err, _vars, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, context.previousData);
+            }
+        },
+    });
+}
+
+export function useDeleteNotificationMutation() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (notificationId: string) => deleteNotification(notificationId),
+        onMutate: async (notificationId) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
+
+            // Snapshot previous value
+            const previousData = queryClient.getQueryData(NOTIFICATIONS_QUERY_KEY);
+
+            // Optimistically remove the notification
+            queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, (old: any) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.filter((n: ApiNotification) => n.id !== notificationId),
+                    })),
+                };
+            });
+
+            return { previousData };
+        },
+        onError: (_err, _notificationId, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, context.previousData);
+            }
         },
     });
 }

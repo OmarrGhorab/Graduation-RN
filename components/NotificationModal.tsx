@@ -32,10 +32,11 @@ interface NotificationModalProps {
     onMarkAllAsRead: () => void;
     loading?: boolean;
     onRefresh?: () => void;
-    onParentLinkRespond?: (notificationId: string, requestId: string, action: 'accept' | 'decline') => void;
+    onParentLinkRespond?: (notificationId: string, requestId: string, action: 'accept' | 'decline') => Promise<void>;
     onLoadMore?: () => void;
     hasNextPage?: boolean;
     isFetchingNextPage?: boolean;
+    onDeleteNotification?: (notificationId: string) => void;
 }
 
 const getNotificationIcon = (type: string) => {
@@ -84,6 +85,7 @@ export default function NotificationModal({
     onLoadMore,
     hasNextPage,
     isFetchingNextPage,
+    onDeleteNotification,
 }: NotificationModalProps) {
     const insets = useSafeAreaInsets();
     const unreadCount = notifications.filter((n) => !n.read).length;
@@ -127,7 +129,11 @@ export default function NotificationModal({
         setRespondingIds((prev) => new Set(prev).add(notificationId));
         
         try {
-            await respondToParentLinkRequest(requestId, action);
+            if (onParentLinkRespond) {
+                await onParentLinkRespond(notificationId, requestId, action);
+            } else {
+                await respondToParentLinkRequest(requestId, action);
+            }
             showToast(
                 action === 'accept' 
                     ? 'Parent link request accepted!' 
@@ -135,7 +141,6 @@ export default function NotificationModal({
                 'success'
             );
             onMarkAsRead(notificationId);
-            onParentLinkRespond?.(notificationId, requestId, action);
         } catch (error: any) {
             showToast(error.message || 'Failed to respond to request', 'error');
         } finally {
@@ -219,7 +224,18 @@ export default function NotificationModal({
                                 {item.type.replace(/_/g, ' ')}
                             </Text>
                         </View>
-                        <Text style={styles.notificationTime}>{time}</Text>
+                        <View style={styles.footerRight}>
+                            <Text style={styles.notificationTime}>{time}</Text>
+                            {onDeleteNotification && (
+                                <TouchableOpacity
+                                    onPress={() => onDeleteNotification(item.id)}
+                                    style={styles.deleteButton}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    <Ionicons name="trash-outline" size={16} color={grayColors[400]} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
                 </View>
             </Pressable>
@@ -477,6 +493,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+    },
+    footerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    deleteButton: {
+        padding: 4,
     },
     typeTag: {
         backgroundColor: grayColors[100],

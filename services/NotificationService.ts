@@ -184,6 +184,53 @@ export interface ParentLinkRespondResponse {
     message?: string;
 }
 
+export interface DeleteNotificationResponse {
+    success: boolean;
+    message?: string;
+}
+
+/**
+ * Delete a specific notification
+ * @param notificationId - ID of the notification to delete
+ */
+export async function deleteNotification(notificationId: string): Promise<DeleteNotificationResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Notifications] Deleting notification:', notificationId);
+
+        const response = await fetch(`${BASE_URL}/api/v1/notifications/${notificationId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || responseData.error || 'Failed to delete notification');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return { success: true, message: responseData.message };
+    } catch (error: any) {
+        console.error('[Notifications] Delete failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
+        }
+
+        throw error;
+    }
+}
+
 /**
  * Respond to a parent link request (accept or decline)
  * @param requestId - ID of the parent link request

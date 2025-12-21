@@ -22,6 +22,7 @@ import {
     useMarkAsReadMutation,
     useMarkAllAsReadMutation,
     useRespondToParentLinkMutation,
+    useDeleteNotificationMutation,
 } from '@/hooks/useNotifications';
 
 // Mock data - replace with real data from your API
@@ -110,6 +111,7 @@ export default function MainHomeScreen() {
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
     const respondMutation = useRespondToParentLinkMutation();
+    const deleteNotificationMutation = useDeleteNotificationMutation();
 
     const handleNotificationPress = () => {
         setShowNotifications(true);
@@ -123,12 +125,16 @@ export default function MainHomeScreen() {
         markAllAsReadMutation.mutate();
     };
 
-    const handleParentLinkRespond = (
+    const handleParentLinkRespond = async (
         _notificationId: string,
-        _requestId: string,
-        _action: 'accept' | 'decline'
+        requestId: string,
+        action: 'accept' | 'decline'
     ) => {
-        // Query is already invalidated in the mutation
+        await respondMutation.mutateAsync({ requestId, action });
+    };
+
+    const handleDeleteNotification = (notificationId: string) => {
+        deleteNotificationMutation.mutate(notificationId);
     };
 
     const handleLoadMore = () => {
@@ -281,6 +287,7 @@ export default function MainHomeScreen() {
                 onLoadMore={handleLoadMore}
                 hasNextPage={hasNextPage}
                 isFetchingNextPage={isFetchingNextPage}
+                onDeleteNotification={handleDeleteNotification}
             />
         </View>
     );
