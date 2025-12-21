@@ -1,4 +1,3 @@
-import { Alert } from 'react-native';
 import { useToast } from '@/components/toast';
 import { Colors, Fonts, cskColors, grayColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -109,7 +108,7 @@ export default function OnboardingStep1() {
         setShowImageOptions(false);
         try {
             if (Platform.OS === 'web') {
-                Alert.alert('Not Available', 'Image picker is not available on web');
+                toast.error('Not Available', 'Image picker is not available on web');
                 return;
             }
 
@@ -118,13 +117,13 @@ export default function OnboardingStep1() {
                 ImagePicker = require('expo-image-picker');
             } catch (e) {
                 console.error('Failed to require expo-image-picker', e);
-                Alert.alert('Configuration Error', 'Image Picker module not found. Please rebuild your app.');
+                toast.error('Configuration Error', 'Image Picker module not found. Please rebuild your app.');
                 return;
             }
 
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'We need camera roll permissions to select a profile image');
+                toast.error('Permission Denied', 'We need camera roll permissions to select a profile image');
                 return;
             }
 
@@ -148,9 +147,9 @@ export default function OnboardingStep1() {
         } catch (error: any) {
             console.error('Error picking image:', error);
             if (error.message && error.message.includes('ExponentImagePicker')) {
-                Alert.alert('Development Build Update Required', 'The Image Picker native module is missing. Please stop the server and run "npx expo run:android" to rebuild your app.');
+                toast.error('Development Build Update Required', 'The Image Picker native module is missing. Please stop the server and run "npx expo run:android" to rebuild your app.');
             } else {
-                Alert.alert('Error', error.message || 'Failed to pick image');
+                toast.error('Error', error.message || 'Failed to pick image');
             }
         }
     };

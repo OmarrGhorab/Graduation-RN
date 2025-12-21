@@ -1,56 +1,74 @@
 import { BASE_URL } from '@/constants/config';
-import { ProfileCompletionBody, ProfileCompletionBodySchema } from '@/types/auth';
-import { useAuthStore } from '@/libs/auth';
+import { getValidAccessToken } from './AuthService';
 
-export const submitProfileCompletion = async (body: ProfileCompletionBody) => {
+export interface UserProfile {
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+    profileImg?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    country?: string;
+    role?: string;
+    bio?: string;
+    goals?: string[];
+    newsletterEnabled?: boolean;
+    lastUsernameChange?: string | null;
+    createdAt?: string;
+}
+
+export interface GetProfileResponse {
+    user: UserProfile;
+    canChangeUsername: boolean;
+    nextUsernameChangeDate: string | null;
+}
+
+export interface UpdateProfileRequest {
+    name?: string;
+    username?: string;
+    password?: string;
+    currentPassword?: string;
+}
+
+export interface UpdateProfileResponse {
+    success: boolean;
+    message: string;
+    user: UserProfile;
+}
+
+export interface UploadProfileImageRequest {
+    profileImg: string;
+}
+
+export interface UploadProfileImageResponse {
+    success?: boolean;
+    message: string;
+    user: {
+        id: string;
+        username: string;
+        name: string;
+        email: string;
+        profileImg: string;
+    };
+}
+
+export interface UsernameCheckResponse {
+    available: boolean;
+    suggestions?: string[];
+}
+
+/**
+ * Get user profile
+ */
+export async function getProfile(): Promise<GetProfileResponse> {
     try {
-        const token = useAuthStore.getState().accessToken;
-
-        // Validate body
-        const validation = ProfileCompletionBodySchema.safeParse(body);
-        if (!validation.success) {
-            console.error('Validation Error:', validation.error);
-            return { success: false, error: 'Invalid profile data' };
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
         }
 
-        const response = await fetch(`${BASE_URL}/api/v1/onboarding`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify(body),
-        });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-            return {
-                success: false,
-                error: data.message || `Server error: ${response.status}`,
-            };
-        }
-
-        // Update store with completed status
-        useAuthStore.getState().updateUser({ onboardingCompleted: true });
-
-        return {
-            success: true,
-            data,
-        };
-    } catch (error) {
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to complete profile',
-        };
-    }
-};
-
-export const getMyProfile = async () => {
-    try {
-        const token = useAuthStore.getState().accessToken;
-
-        const response = await fetch(`${BASE_URL}/api/v1/auth/myprofile`, {
+        const response = await fetch(`${BASE_URL}/api/v1/profile`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -58,29 +76,126 @@ export const getMyProfile = async () => {
             },
         });
 
-        const data = await response.json().catch(() => ({}));
+        const responseData = await response.json();
 
         if (!response.ok) {
-            return {
-                success: false,
-                error: data.message || `Server error: ${response.status}`,
-            };
+            const error: any = new Error(responseData.message || 'Failed to fetch profile');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
         }
 
-        // Update the store with the latest user data
-        if (data.user) {
-            const refreshToken = useAuthStore.getState().refreshToken;
-            useAuthStore.getState().setAuth(data.user, token!, refreshToken!);
-        }
-
-        return {
-            success: true,
-            user: data.user,
-        };
-    } catch (error) {
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Failed to fetch profile',
-        };
+        return responseData;
+    } catch (error: any) {
+        console.error('[Profile] Fetch failed:', error);
+        throw error;
     }
-};
+}
+
+/**
+ * Update user profile
+ */
+export async function updateProfile(data: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Profile] Updating profile:', data);
+
+        const response = await fetch(`${BASE_URL}/api/v1/profile`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || 'Failed to update profile');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Profile] Update failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Upload profile image
+ */
+export async function uploadProfileImage(profileImg: string): Promise<UploadProfileImageResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Profile] Uploading profile image');
+
+        const response = await fetch(`${BASE_URL}/api/v1/profile/image`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ profileImg }),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || 'Failed to upload profile image');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Profile] Image upload failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Check username availability
+ */
+export async function checkUsername(username: string): Promise<UsernameCheckResponse> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        const response = await fetch(`${BASE_URL}/api/v1/profile/check-username?username=${encodeURIComponent(username)}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || 'Failed to check username');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Profile] Username check failed:', error);
+        throw error;
+    }
+}
