@@ -626,14 +626,14 @@ export default function SettingsScreen() {
             {/* Session Details Modal */}
             <Modal
                 visible={showSessionModal}
-                transparent
+                transparent={true}
                 animationType="slide"
                 onRequestClose={() => {
                     setShowSessionModal(false);
                     setSelectedSession(null);
                 }}
             >
-                <View style={styles.modalOverlay}>
+                <View style={styles.sessionModalOverlay}>
                     <View style={styles.sessionModalContent}>
                         <View style={styles.sessionModalHeader}>
                             <Text style={styles.sessionModalTitle}>Session Details</Text>
@@ -642,14 +642,16 @@ export default function SettingsScreen() {
                                     setShowSessionModal(false);
                                     setSelectedSession(null);
                                 }}
-                                style={styles.modalCloseButton}
                             >
                                 <Ionicons name="close" size={24} color={grayColors[600]} />
                             </TouchableOpacity>
                         </View>
 
                         {selectedSession && (
-                            <ScrollView style={styles.sessionModalBody} showsVerticalScrollIndicator={false}>
+                            <ScrollView 
+                                style={styles.sessionModalBody}
+                                showsVerticalScrollIndicator={false}
+                            >
                                 {/* Device Info */}
                                 <View style={styles.sessionModalSection}>
                                     <View style={styles.sessionModalIconLarge}>
@@ -2044,21 +2046,25 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     // Session Modal Styles
+    sessionModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
     sessionModalContent: {
         backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        width: '100%',
-        maxHeight: '85%',
-        position: 'absolute',
-        bottom: 0,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 20,
+        paddingBottom: 40,
+        maxHeight: '80%',
     },
     sessionModalHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 20,
-        paddingVertical: 16,
+        paddingBottom: 16,
         borderBottomWidth: 1,
         borderBottomColor: grayColors[100],
     },
@@ -2067,11 +2073,9 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         color: grayColors[900],
     },
-    modalCloseButton: {
-        padding: 4,
-    },
     sessionModalBody: {
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingTop: 20,
     },
     sessionModalSection: {
         alignItems: 'center',

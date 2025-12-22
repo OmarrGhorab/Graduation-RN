@@ -29,6 +29,7 @@ export interface LocationInfo {
 }
 
 export interface DeviceHeaders {
+    'User-Agent': string;
     'X-Device-Name': string;
     'X-Device-Model': string;
     'X-Device-OS-Version': string;
@@ -327,7 +328,9 @@ export const DeviceService = {
         const deviceInfo = DeviceService.getDeviceInfo();
         const appName = Application.applicationName || 'GraduationApp';
         
-        return `${appName}/${deviceInfo.appVersion} (${deviceInfo.platform}; ${deviceInfo.osVersion}; ${deviceInfo.deviceModel})`;
+        // Format: AppName/Version (DeviceName; Platform; OS; Model)
+        // Example: GraduationApp/1.0.0 (Omar's iPhone; ios; iOS 17.2; iPhone 15 Pro)
+        return `${appName}/${deviceInfo.appVersion} (${deviceInfo.deviceName}; ${deviceInfo.platform}; ${deviceInfo.osVersion}; ${deviceInfo.deviceModel})`;
     },
 
     /**
@@ -374,8 +377,10 @@ export const DeviceService = {
         const deviceInfo = DeviceService.getDeviceInfo();
         const locationInfo = await DeviceService.getLocation();
         const publicIp = await DeviceService.getPublicIpAddress();
+        const userAgent = DeviceService.getUserAgent();
 
         return {
+            'User-Agent': userAgent,
             'X-Device-Name': deviceInfo.deviceName,
             'X-Device-Model': deviceInfo.deviceModel,
             'X-Device-OS-Version': deviceInfo.osVersion,
@@ -392,8 +397,10 @@ export const DeviceService = {
      */
     getDeviceHeadersSync: (): Partial<DeviceHeaders> => {
         const deviceInfo = DeviceService.getDeviceInfo();
+        const userAgent = DeviceService.getUserAgent();
 
         return {
+            'User-Agent': userAgent,
             'X-Device-Name': deviceInfo.deviceName,
             'X-Device-Model': deviceInfo.deviceModel,
             'X-Device-OS-Version': deviceInfo.osVersion,
