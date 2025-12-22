@@ -2057,7 +2057,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 20,
         paddingTop: 20,
         paddingBottom: 40,
-        maxHeight: '80%',
+        maxHeight: '90%',
     },
     sessionModalHeader: {
         flexDirection: 'row',
@@ -2135,6 +2135,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         marginTop: 24,
+        marginBottom: 20,
         paddingVertical: 14,
         borderRadius: 12,
         backgroundColor: '#EF4444',
