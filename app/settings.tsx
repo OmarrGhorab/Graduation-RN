@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -44,15 +44,28 @@ import {
     ActivityResponse,
     RecentActivityItem,
 } from '@/services/SecurityService';
+import {
+    searchParents,
+    sendLinkRequest,
+    getLinkRequests,
+    respondToLinkRequest,
+    getLinkedAccounts,
+    sendUnlinkRequest,
+    getUnlinkRequests,
+    respondToUnlinkRequest,
+    ParentUser,
+    LinkRequest,
+    LinkedAccount,
+} from '@/services/ParentLinkService';
 import { usePreferences, useUpdatePreference } from '@/hooks/usePreferences';
 
-type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'preferences';
+type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'preferences' | 'parentLink';
 
 export default function SettingsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const toast = useToast();
-    const { logout } = useAuthStore();
+    const { logout, user } = useAuthStore();
     const themeMode = useThemeStore((state) => state.themeMode);
     const setThemeMode = useThemeStore((state) => state.setThemeMode);
 
@@ -92,6 +105,20 @@ export default function SettingsScreen() {
     const [showLanguageModal, setShowLanguageModal] = useState(false);
     const [showThemeModal, setShowThemeModal] = useState(false);
 
+    // Parent Link State
+    const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<LinkRequest[]>([]);
+    const [pendingUnlinkRequests, setPendingUnlinkRequests] = useState<LinkRequest[]>([]);
+    const [showSearchModal, setShowSearchModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<ParentUser[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+    const [showUnlinkModal, setShowUnlinkModal] = useState(false);
+    const [unlinkTargetParent, setUnlinkTargetParent] = useState<{ id: string; name: string } | null>(null);
+
+    const isParent = user?.role === 'PARENT';
+
     useEffect(() => {
         if (currentSection === 'security') {
             fetch2FAStatus();
@@ -99,6 +126,8 @@ export default function SettingsScreen() {
             fetchSessions();
         } else if (currentSection === 'activity') {
             fetchActivity();
+        } else if (currentSection === 'parentLink') {
+            fetchParentLinkData();
         }
     }, [currentSection]);
 
@@ -155,6 +184,145 @@ export default function SettingsScreen() {
         }
     };
 
+    const fetchParentLinkData = async () => {
+        try {
+            setIsLoading(true);
+            
+            // Fetch all data in parallel, handle individual failures gracefully
+            const [linkedRes, requestsRes, unlinkRes] = await Promise.allSettled([
+                getLinkedAccounts(),
+                getLinkRequests(),
+                getUnlinkRequests(),
+            ]);
+            
+            setLinkedAccounts(linkedRes.status === 'fulfilled' ? linkedRes.value.data || [] : []);
+            setPendingRequests(requestsRes.status === 'fulfilled' ? requestsRes.value.data || [] : []);
+            setPendingUnlinkRequests(unlinkRes.status === 'fulfilled' ? unlinkRes.value.data || [] : []);
+            
+            // Only show error if all requests failed
+            if (linkedRes.status === 'rejected' && requestsRes.status === 'rejected') {
+                console.log('[ParentLink] Failed to fetch data:', linkedRes.reason);
+            }
+        } catch (error: any) {
+            console.error('[ParentLink] Error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Debounce timer ref
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleSearchParents = useCallback(async (query: string) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
+        try {
+            setIsSearching(true);
+            const response = await searchParents(query.trim());
+            setSearchResults(response.data || []);
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to search');
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    }, []);
+
+    // Debounced search effect
+    useEffect(() => {
+        // Clear previous timeout
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        // Don't search if query is empty
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+        }
+
+        // Set loading state immediately for better UX
+        setIsSearching(true);
+
+        // Debounce the search
+        searchTimeoutRef.current = setTimeout(() => {
+            handleSearchParents(searchQuery);
+        }, 300);
+
+        // Cleanup
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchQuery, handleSearchParents]);
+
+    const handleSendLinkRequest = async (parentId: string) => {
+        try {
+            setProcessingRequestId(parentId);
+            await sendLinkRequest(parentId);
+            toast.success('Success', 'Link request sent');
+            setShowSearchModal(false);
+            setSearchQuery('');
+            setSearchResults([]);
+            fetchParentLinkData();
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to send request');
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
+
+    const handleRespondToRequest = async (requestId: string, action: 'accept' | 'decline') => {
+        try {
+            setProcessingRequestId(requestId);
+            await respondToLinkRequest(requestId, action);
+            toast.success('Success', `Request ${action}ed`);
+            fetchParentLinkData();
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to respond');
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
+
+    const handleShowUnlinkModal = (parentId: string, parentName: string) => {
+        setUnlinkTargetParent({ id: parentId, name: parentName });
+        setShowUnlinkModal(true);
+    };
+
+    const handleConfirmUnlink = async () => {
+        if (!unlinkTargetParent) return;
+        try {
+            setProcessingRequestId(unlinkTargetParent.id);
+            await sendUnlinkRequest(unlinkTargetParent.id);
+            toast.success('Success', 'Unlink request sent');
+            setShowUnlinkModal(false);
+            setUnlinkTargetParent(null);
+            fetchParentLinkData();
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to send unlink request');
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
+
+    const handleRespondToUnlinkRequest = async (requestId: string, action: 'accept' | 'decline') => {
+        try {
+            setProcessingRequestId(requestId);
+            await respondToUnlinkRequest(requestId, action);
+            toast.success('Success', `Unlink request ${action}ed`);
+            fetchParentLinkData();
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to respond');
+        } finally {
+            setProcessingRequestId(null);
+        }
+    };
+
     const handleUpdatePreference = (key: string, value: any) => {
         updatePreferenceMutation.mutate({ [key]: value });
     };
@@ -165,6 +333,8 @@ export default function SettingsScreen() {
             await fetchSessions();
         } else if (currentSection === 'activity') {
             await fetchActivity();
+        } else if (currentSection === 'parentLink') {
+            await fetchParentLinkData();
         }
         setRefreshing(false);
     }, [currentSection]);
@@ -370,6 +540,7 @@ export default function SettingsScreen() {
                 {currentSection === 'sessions' && 'Active Sessions'}
                 {currentSection === 'activity' && 'Activity Log'}
                 {currentSection === 'danger' && 'Account'}
+                {currentSection === 'parentLink' && 'Parent Link'}
             </Text>
             <View style={styles.placeholder} />
         </View>
@@ -425,6 +596,27 @@ export default function SettingsScreen() {
                     <View style={styles.menuTextContainer}>
                         <Text style={styles.menuText}>Activity Log</Text>
                         <Text style={styles.menuSubtext}>View your recent account activity</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
+                </TouchableOpacity>
+            </View>
+
+            {/* Parent Link Section */}
+            <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Family</Text>
+                
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setCurrentSection('parentLink')}
+                >
+                    <View style={styles.menuIconContainer}>
+                        <Ionicons name="people-outline" size={22} color={grayColors[600]} />
+                    </View>
+                    <View style={styles.menuTextContainer}>
+                        <Text style={styles.menuText}>Parent Link</Text>
+                        <Text style={styles.menuSubtext}>
+                            {isParent ? 'Manage linked children' : 'Link with your parent'}
+                        </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
                 </TouchableOpacity>
@@ -1091,6 +1283,353 @@ export default function SettingsScreen() {
         </ScrollView>
     );
 
+    const renderParentLinkSection = () => (
+        <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cskColors[500]]} />
+            }
+        >
+            {isLoading && linkedAccounts.length === 0 && pendingRequests.length === 0 ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={cskColors[500]} />
+                </View>
+            ) : (
+                <>
+                    {/* Header */}
+                    <View style={styles.parentLinkHeader}>
+                        <View style={styles.parentLinkHeaderIcon}>
+                            <Ionicons name="people" size={32} color={cskColors[500]} />
+                        </View>
+                        <Text style={styles.parentLinkHeaderTitle}>
+                            {isParent ? 'Linked Children' : 'Linked Parents'}
+                        </Text>
+                        <Text style={styles.parentLinkHeaderText}>
+                            {isParent 
+                                ? 'Manage your linked children accounts'
+                                : 'Connect with your parent to share your progress'}
+                        </Text>
+                    </View>
+
+                    {/* Linked Accounts */}
+                    {linkedAccounts.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>
+                                {isParent ? 'Your Children' : 'Your Parents'}
+                            </Text>
+                            {linkedAccounts.map((link) => {
+                                const account = isParent ? link.child : link.parent;
+                                return (
+                                    <View key={link.id} style={styles.linkedAccountCard}>
+                                        {account?.profileImg ? (
+                                            <Image source={{ uri: account.profileImg }} style={styles.linkedAccountAvatar} />
+                                        ) : (
+                                            <View style={styles.linkedAccountAvatarPlaceholder}>
+                                                <Text style={styles.linkedAccountAvatarText}>
+                                                    {account?.name?.charAt(0) || '?'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        <View style={styles.linkedAccountInfo}>
+                                            <Text style={styles.linkedAccountName}>{account?.name}</Text>
+                                            <Text style={styles.linkedAccountUsername}>@{account?.username}</Text>
+                                        </View>
+                                        {!isParent && (
+                                            <TouchableOpacity
+                                                style={styles.unlinkButton}
+                                                onPress={() => handleShowUnlinkModal(account?.id || '', account?.name || '')}
+                                                disabled={processingRequestId === account?.id}
+                                            >
+                                                {processingRequestId === account?.id ? (
+                                                    <ActivityIndicator size="small" color="#EF4444" />
+                                                ) : (
+                                                    <Ionicons name="unlink-outline" size={20} color="#EF4444" />
+                                                )}
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Pending Requests */}
+                    {pendingRequests.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>
+                                {isParent ? 'Incoming Requests' : 'Sent Requests'}
+                            </Text>
+                            {pendingRequests.map((request) => {
+                                const account = isParent ? request.child : request.parent;
+                                return (
+                                    <View key={request.id} style={styles.pendingRequestCard}>
+                                        {account?.profileImg ? (
+                                            <Image source={{ uri: account.profileImg }} style={styles.linkedAccountAvatar} />
+                                        ) : (
+                                            <View style={styles.linkedAccountAvatarPlaceholder}>
+                                                <Text style={styles.linkedAccountAvatarText}>
+                                                    {account?.name?.charAt(0) || '?'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        <View style={styles.linkedAccountInfo}>
+                                            <Text style={styles.linkedAccountName}>{account?.name}</Text>
+                                            <Text style={styles.linkedAccountUsername}>@{account?.username}</Text>
+                                            <Text style={styles.pendingRequestTime}>
+                                                {formatRelativeTime(request.createdAt)}
+                                            </Text>
+                                        </View>
+                                        {isParent ? (
+                                            <View style={styles.requestActions}>
+                                                <TouchableOpacity
+                                                    style={styles.acceptButton}
+                                                    onPress={() => handleRespondToRequest(request.id, 'accept')}
+                                                    disabled={processingRequestId === request.id}
+                                                >
+                                                    {processingRequestId === request.id ? (
+                                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                                    ) : (
+                                                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                                                    )}
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    style={styles.declineButton}
+                                                    onPress={() => handleRespondToRequest(request.id, 'decline')}
+                                                    disabled={processingRequestId === request.id}
+                                                >
+                                                    <Ionicons name="close" size={18} color="#EF4444" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.pendingBadge}>
+                                                <Text style={styles.pendingBadgeText}>Pending</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    )}
+
+                    {/* Pending Unlink Requests (Parent only) */}
+                    {isParent && pendingUnlinkRequests.length > 0 && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Unlink Requests</Text>
+                            {pendingUnlinkRequests.map((request) => (
+                                <View key={request.id} style={styles.pendingRequestCard}>
+                                    {request.child?.profileImg ? (
+                                        <Image source={{ uri: request.child.profileImg }} style={styles.linkedAccountAvatar} />
+                                    ) : (
+                                        <View style={styles.linkedAccountAvatarPlaceholder}>
+                                            <Text style={styles.linkedAccountAvatarText}>
+                                                {request.child?.name?.charAt(0) || '?'}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    <View style={styles.linkedAccountInfo}>
+                                        <Text style={styles.linkedAccountName}>{request.child?.name}</Text>
+                                        <Text style={styles.linkedAccountUsername}>wants to unlink</Text>
+                                    </View>
+                                    <View style={styles.requestActions}>
+                                        <TouchableOpacity
+                                            style={styles.acceptButton}
+                                            onPress={() => handleRespondToUnlinkRequest(request.id, 'accept')}
+                                            disabled={processingRequestId === request.id}
+                                        >
+                                            {processingRequestId === request.id ? (
+                                                <ActivityIndicator size="small" color="#FFFFFF" />
+                                            ) : (
+                                                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                                            )}
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            style={styles.declineButton}
+                                            onPress={() => handleRespondToUnlinkRequest(request.id, 'decline')}
+                                            disabled={processingRequestId === request.id}
+                                        >
+                                            <Ionicons name="close" size={18} color="#EF4444" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
+                    {/* Empty State */}
+                    {linkedAccounts.length === 0 && pendingRequests.length === 0 && (
+                        <View style={styles.emptyState}>
+                            <Ionicons name="people-outline" size={48} color={grayColors[300]} />
+                            <Text style={styles.emptyText}>
+                                {isParent ? 'No linked children yet' : 'No linked parents yet'}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Add Parent Button (Child only) */}
+                    {!isParent && (
+                        <View style={styles.section}>
+                            <TouchableOpacity
+                                style={styles.addParentButton}
+                                onPress={() => setShowSearchModal(true)}
+                            >
+                                <Ionicons name="add-circle-outline" size={22} color={cskColors[500]} />
+                                <Text style={styles.addParentButtonText}>Link with Parent</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </>
+            )}
+
+            {/* Search Parent Modal */}
+            <Modal
+                visible={showSearchModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => {
+                    setShowSearchModal(false);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                }}
+            >
+                <View style={styles.searchModalOverlay}>
+                    <View style={styles.searchModalContent}>
+                        <View style={styles.searchModalHeader}>
+                            <Text style={styles.searchModalTitle}>Find Parent</Text>
+                            <TouchableOpacity onPress={() => {
+                                setShowSearchModal(false);
+                                setSearchQuery('');
+                                setSearchResults([]);
+                            }}>
+                                <Ionicons name="close" size={24} color={grayColors[600]} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.searchInputContainer}>
+                            <Ionicons name="search" size={20} color={grayColors[400]} />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Search by name or username"
+                                placeholderTextColor={grayColors[400]}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                autoFocus
+                            />
+                            {searchQuery.length > 0 && !isSearching && (
+                                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                    <Ionicons name="close-circle" size={20} color={grayColors[400]} />
+                                </TouchableOpacity>
+                            )}
+                            {isSearching && <ActivityIndicator size="small" color={cskColors[500]} />}
+                        </View>
+
+                        <ScrollView style={styles.searchResults}>
+                            {isSearching ? (
+                                <View style={styles.searchLoadingContainer}>
+                                    <ActivityIndicator size="large" color={cskColors[500]} />
+                                    <Text style={styles.searchLoadingText}>Searching...</Text>
+                                </View>
+                            ) : searchResults.length > 0 ? (
+                                searchResults.map((parent) => (
+                                    <View key={parent.id} style={styles.searchResultItem}>
+                                        {parent.profileImg ? (
+                                            <Image source={{ uri: parent.profileImg }} style={styles.linkedAccountAvatar} />
+                                        ) : (
+                                            <View style={styles.linkedAccountAvatarPlaceholder}>
+                                                <Text style={styles.linkedAccountAvatarText}>
+                                                    {parent.name?.charAt(0) || '?'}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        <View style={styles.linkedAccountInfo}>
+                                            <Text style={styles.linkedAccountName}>{parent.name}</Text>
+                                            <Text style={styles.linkedAccountUsername}>@{parent.username}</Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={styles.sendRequestButton}
+                                            onPress={() => handleSendLinkRequest(parent.id)}
+                                            disabled={processingRequestId === parent.id}
+                                        >
+                                            {processingRequestId === parent.id ? (
+                                                <ActivityIndicator size="small" color="#FFFFFF" />
+                                            ) : (
+                                                <Text style={styles.sendRequestButtonText}>Link</Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                ))
+                            ) : searchQuery.trim() ? (
+                                <View style={styles.noResultsContainer}>
+                                    <Ionicons name="search-outline" size={48} color={grayColors[300]} />
+                                    <Text style={styles.noResultsText}>No parents found</Text>
+                                    <Text style={styles.noResultsSubtext}>Try a different name or username</Text>
+                                </View>
+                            ) : (
+                                <View style={styles.noResultsContainer}>
+                                    <Ionicons name="people-outline" size={48} color={grayColors[300]} />
+                                    <Text style={styles.noResultsText}>Search for a parent</Text>
+                                    <Text style={styles.noResultsSubtext}>Enter a name or username to find parents</Text>
+                                </View>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Unlink Confirmation Modal */}
+            <Modal
+                visible={showUnlinkModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowUnlinkModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.searchModalHeader}>
+                            <Text style={styles.modalTitle}>Confirm Unlink</Text>
+                            <TouchableOpacity onPress={() => setShowUnlinkModal(false)}>
+                                <Ionicons name="close" size={24} color={grayColors[600]} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {unlinkTargetParent && (
+                            <View style={styles.unlinkConfirmContent}>
+                                <Ionicons name="unlink" size={48} color="#EF4444" style={{ marginBottom: 16 }} />
+                                <Text style={styles.unlinkConfirmText}>
+                                    Are you sure you want to send an unlink request to{' '}
+                                    <Text style={styles.unlinkConfirmName}>{unlinkTargetParent.name}</Text>?
+                                </Text>
+                                <Text style={styles.unlinkConfirmSubtext}>
+                                    They will need to approve this request before the link is removed.
+                                </Text>
+
+                                <View style={styles.unlinkConfirmButtons}>
+                                    <TouchableOpacity
+                                        style={styles.unlinkCancelButton}
+                                        onPress={() => setShowUnlinkModal(false)}
+                                    >
+                                        <Text style={styles.unlinkCancelButtonText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.unlinkConfirmButton}
+                                        onPress={handleConfirmUnlink}
+                                        disabled={processingRequestId === unlinkTargetParent.id}
+                                    >
+                                        {processingRequestId === unlinkTargetParent.id ? (
+                                            <ActivityIndicator size="small" color="#FFFFFF" />
+                                        ) : (
+                                            <Text style={styles.unlinkConfirmButtonText}>Send Request</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+        </ScrollView>
+    );
+
     const renderDangerSection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
@@ -1531,6 +2070,7 @@ export default function SettingsScreen() {
             {currentSection === 'sessions' && renderSessionsSection()}
             {currentSection === 'activity' && renderActivitySection()}
             {currentSection === 'danger' && renderDangerSection()}
+            {currentSection === 'parentLink' && renderParentLinkSection()}
 
             {render2FAModal()}
             {renderDisable2FAModal()}
@@ -2499,5 +3039,289 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: Fonts.medium,
         color: grayColors[900],
+    },
+    // Parent Link Styles
+    parentLinkHeader: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+    },
+    parentLinkHeaderIcon: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: cskColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    parentLinkHeaderTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        marginBottom: 4,
+    },
+    parentLinkHeaderText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        textAlign: 'center',
+    },
+    linkedAccountCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    linkedAccountAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+    },
+    linkedAccountAvatarPlaceholder: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: cskColors[100],
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    linkedAccountAvatarText: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: cskColors[500],
+    },
+    linkedAccountInfo: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    linkedAccountName: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[900],
+    },
+    linkedAccountUsername: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+    },
+    unlinkButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FEE2E2',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pendingRequestCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: '#FEF3C7',
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    pendingRequestTime: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        color: grayColors[400],
+        marginTop: 2,
+    },
+    requestActions: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    acceptButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: cskColors[500],
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    declineButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FEE2E2',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pendingBadge: {
+        backgroundColor: '#FEF3C7',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F59E0B',
+    },
+    pendingBadgeText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#92400E',
+    },
+    addParentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: cskColors[500],
+        borderStyle: 'dashed',
+    },
+    addParentButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: cskColors[500],
+    },
+    searchModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    searchModalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 20,
+        paddingBottom: 40,
+        height: '70%',
+    },
+    searchModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: grayColors[100],
+    },
+    searchModalTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+    },
+    searchInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        margin: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        gap: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: grayColors[900],
+    },
+    searchResults: {
+        flex: 1,
+        paddingHorizontal: 16,
+    },
+    searchResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        backgroundColor: grayColors[50],
+        borderRadius: 12,
+        marginBottom: 8,
+    },
+    sendRequestButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: cskColors[500],
+        borderRadius: 8,
+    },
+    sendRequestButtonText: {
+        fontSize: 14,
+        fontFamily: Fonts.semiBold,
+        color: '#FFFFFF',
+    },
+    noResultsContainer: {
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    noResultsText: {
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[600],
+        marginTop: 12,
+    },
+    noResultsSubtext: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[400],
+        marginTop: 4,
+    },
+    searchLoadingContainer: {
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    searchLoadingText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        marginTop: 12,
+    },
+    unlinkConfirmContent: {
+        alignItems: 'center',
+        paddingVertical: 20,
+    },
+    unlinkConfirmText: {
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: grayColors[700],
+        textAlign: 'center',
+        marginBottom: 8,
+        lineHeight: 24,
+    },
+    unlinkConfirmName: {
+        fontFamily: Fonts.semiBold,
+        color: grayColors[900],
+    },
+    unlinkConfirmSubtext: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    unlinkConfirmButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    unlinkCancelButton: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        backgroundColor: grayColors[100],
+        alignItems: 'center',
+    },
+    unlinkCancelButtonText: {
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[700],
+    },
+    unlinkConfirmButton: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        backgroundColor: '#EF4444',
+        alignItems: 'center',
+    },
+    unlinkConfirmButtonText: {
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
+        color: '#FFFFFF',
     },
 });
