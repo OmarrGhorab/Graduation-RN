@@ -31,6 +31,7 @@ import {
     RefreshTokenResponse,
 } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
+import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { DeviceService } from './DeviceService';
 
 // Helper to get standard API headers
@@ -269,6 +270,13 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
             useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
             // Sync FCM token
             registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
+            
+            // Sync theme preference from user profile
+            if (responseData.user.preferences?.themePreference) {
+                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
+                console.log('[Auth] Syncing theme preference on login:', themePreference);
+                useThemeStore.getState().setThemeMode(themePreference);
+            }
         }
 
         return responseData as LoginSuccessResponse;
@@ -968,10 +976,10 @@ export async function getUserProfile(): Promise<any> {
             throw new Error('No authentication token found');
         }
 
-        console.log('[Auth] Fetching user profile with URL:', `${BASE_URL}/api/v1/auth/myprofile`);
+        console.log('[Auth] Fetching user profile with URL:', `${BASE_URL}/api/v1/profile`);
 
         const response = await fetch(
-            `${BASE_URL}/api/v1/auth/myprofile`,
+            `${BASE_URL}/api/v1/profile`,
             {
                 method: 'GET',
                 headers: await getApiHeaders(token),
@@ -990,6 +998,13 @@ export async function getUserProfile(): Promise<any> {
         // Update user data in store
         if (responseData.user) {
             useAuthStore.getState().updateUser(responseData.user);
+            
+            // Sync theme preference from user profile
+            if (responseData.user.preferences?.themePreference) {
+                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
+                console.log('[Auth] Syncing theme preference from profile:', themePreference);
+                useThemeStore.getState().setThemeMode(themePreference);
+            }
         }
 
         return responseData;
@@ -1196,6 +1211,13 @@ export const googleSignIn = async (options?: {
             useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
             // Sync FCM token
             registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
+            
+            // Sync theme preference from user profile (use responseData for raw response)
+            if (responseData.user?.preferences?.themePreference) {
+                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
+                console.log('[Auth] Syncing theme preference on Google login:', themePreference);
+                useThemeStore.getState().setThemeMode(themePreference);
+            }
         }
 
         onSuccess?.(data);

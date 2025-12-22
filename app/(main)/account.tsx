@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image, StatusBar, ScrollView, ActivityIndicator, Modal, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { useAuthStore } from '@/libs/auth';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { uploadProfileImage } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
+import { usePrefetchPreferences } from '@/hooks/usePreferences';
 
 export default function AccountScreen() {
     const { user, logout, updateUser } = useAuthStore();
@@ -17,9 +18,15 @@ export default function AccountScreen() {
     const toast = useToast();
     const [isUploading, setIsUploading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
+    const { prefetch: prefetchPreferences } = usePrefetchPreferences();
 
     const displayName = user?.name || user?.username || 'User';
     const profileImage = user?.profileImg;
+
+    // Prefetch preferences when account tab is viewed
+    useEffect(() => {
+        prefetchPreferences();
+    }, []);
 
     const handleLogout = () => {
         logout();

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '@/libs/auth';
+import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
 import {
@@ -43,14 +44,21 @@ import {
     ActivityResponse,
     RecentActivityItem,
 } from '@/services/SecurityService';
+import { usePreferences, useUpdatePreference } from '@/hooks/usePreferences';
 
-type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger';
+type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'preferences';
 
 export default function SettingsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const toast = useToast();
     const { logout } = useAuthStore();
+    const themeMode = useThemeStore((state) => state.themeMode);
+    const setThemeMode = useThemeStore((state) => state.setThemeMode);
+
+    // Use React Query for preferences
+    const { data: preferences, isLoading: isLoadingPreferences } = usePreferences();
+    const updatePreferenceMutation = useUpdatePreference();
 
     const [currentSection, setCurrentSection] = useState<SettingsSection>('main');
     const [isLoading, setIsLoading] = useState(false);
@@ -79,6 +87,10 @@ export default function SettingsScreen() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
     const [disablePassword, setDisablePassword] = useState('');
+
+    // Modal State for Preferences
+    const [showLanguageModal, setShowLanguageModal] = useState(false);
+    const [showThemeModal, setShowThemeModal] = useState(false);
 
     useEffect(() => {
         if (currentSection === 'security') {
@@ -141,6 +153,10 @@ export default function SettingsScreen() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleUpdatePreference = (key: string, value: any) => {
+        updatePreferenceMutation.mutate({ [key]: value });
     };
 
     const onRefresh = useCallback(async () => {
@@ -418,27 +434,75 @@ export default function SettingsScreen() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Preferences</Text>
                 
-                <TouchableOpacity style={styles.menuItem}>
+                {/* Modal Options */}
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setShowThemeModal(true)}
+                >
                     <View style={styles.menuIconContainer}>
-                        <Ionicons name="notifications-outline" size={22} color={grayColors[600]} />
+                        <Ionicons name="color-palette-outline" size={22} color={grayColors[600]} />
                     </View>
                     <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Notifications</Text>
-                        <Text style={styles.menuSubtext}>Manage notification preferences</Text>
+                        <Text style={styles.menuText}>Theme</Text>
+                        <Text style={styles.menuSubtext}>
+                            {preferences?.themePreference === 'dark' ? 'Dark' : 
+                             preferences?.themePreference === 'light' ? 'Light' : 'System'}
+                        </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.menuItem}>
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setShowLanguageModal(true)}
+                >
                     <View style={styles.menuIconContainer}>
                         <Ionicons name="language-outline" size={22} color={grayColors[600]} />
                     </View>
                     <View style={styles.menuTextContainer}>
                         <Text style={styles.menuText}>Language</Text>
-                        <Text style={styles.menuSubtext}>English</Text>
+                        <Text style={styles.menuSubtext}>
+                            {preferences?.language === 'ar' ? 'العربية' :
+                             preferences?.language === 'es' ? 'Español' :
+                             preferences?.language === 'fr' ? 'Français' :
+                             preferences?.language === 'de' ? 'Deutsch' : 'English'}
+                        </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
                 </TouchableOpacity>
+
+                {/* Toggle Options */}
+                <View style={styles.menuItem}>
+                    <View style={styles.menuIconContainer}>
+                        <Ionicons name="notifications-outline" size={22} color={grayColors[600]} />
+                    </View>
+                    <View style={styles.menuTextContainer}>
+                        <Text style={styles.menuText}>Notifications</Text>
+                        <Text style={styles.menuSubtext}>Receive push notifications</Text>
+                    </View>
+                    <Switch
+                        value={preferences?.notifications ?? true}
+                        onValueChange={(value) => handleUpdatePreference('notifications', value)}
+                        trackColor={{ false: grayColors[200], true: cskColors[400] }}
+                        thumbColor={preferences?.notifications ? cskColors[500] : grayColors[50]}
+                    />
+                </View>
+
+                <View style={styles.menuItem}>
+                    <View style={styles.menuIconContainer}>
+                        <Ionicons name="mail-outline" size={22} color={grayColors[600]} />
+                    </View>
+                    <View style={styles.menuTextContainer}>
+                        <Text style={styles.menuText}>Newsletter</Text>
+                        <Text style={styles.menuSubtext}>Receive email updates</Text>
+                    </View>
+                    <Switch
+                        value={preferences?.newsletterEnabled ?? false}
+                        onValueChange={(value) => handleUpdatePreference('newsletterEnabled', value)}
+                        trackColor={{ false: grayColors[200], true: cskColors[400] }}
+                        thumbColor={preferences?.newsletterEnabled ? cskColors[500] : grayColors[50]}
+                    />
+                </View>
             </View>
 
             {/* Danger Zone */}
@@ -1367,6 +1431,97 @@ export default function SettingsScreen() {
         </Modal>
     );
 
+    const renderLanguageModal = () => {
+        const languages = [
+            { code: 'en', name: 'English' },
+            { code: 'ar', name: 'العربية' },
+            { code: 'es', name: 'Español' },
+            { code: 'fr', name: 'Français' },
+            { code: 'de', name: 'Deutsch' },
+        ];
+
+        return (
+            <Modal
+                visible={showLanguageModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowLanguageModal(false)}
+            >
+                <View style={styles.pickerModalOverlay}>
+                    <View style={styles.pickerModalContent}>
+                        <View style={styles.pickerModalHeader}>
+                            <Text style={styles.pickerModalTitle}>Select Language</Text>
+                            <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
+                                <Ionicons name="close" size={24} color={grayColors[600]} />
+                            </TouchableOpacity>
+                        </View>
+                        {languages.map((lang) => (
+                            <TouchableOpacity
+                                key={lang.code}
+                                style={styles.pickerOption}
+                                onPress={() => {
+                                    handleUpdatePreference('language', lang.code);
+                                    setShowLanguageModal(false);
+                                }}
+                            >
+                                <Text style={styles.pickerOptionText}>{lang.name}</Text>
+                                {preferences?.language === lang.code && (
+                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
+    const renderThemeModal = () => {
+        const themes = [
+            { code: 'light', name: 'Light', icon: 'sunny-outline' },
+            { code: 'dark', name: 'Dark', icon: 'moon-outline' },
+            { code: 'system', name: 'System', icon: 'phone-portrait-outline' },
+        ];
+
+        return (
+            <Modal
+                visible={showThemeModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowThemeModal(false)}
+            >
+                <View style={styles.pickerModalOverlay}>
+                    <View style={styles.pickerModalContent}>
+                        <View style={styles.pickerModalHeader}>
+                            <Text style={styles.pickerModalTitle}>Select Theme</Text>
+                            <TouchableOpacity onPress={() => setShowThemeModal(false)}>
+                                <Ionicons name="close" size={24} color={grayColors[600]} />
+                            </TouchableOpacity>
+                        </View>
+                        {themes.map((theme) => (
+                            <TouchableOpacity
+                                key={theme.code}
+                                style={styles.pickerOption}
+                                onPress={() => {
+                                    handleUpdatePreference('themePreference', theme.code);
+                                    setShowThemeModal(false);
+                                }}
+                            >
+                                <View style={styles.pickerOptionLeft}>
+                                    <Ionicons name={theme.icon as any} size={20} color={grayColors[600]} />
+                                    <Text style={styles.pickerOptionText}>{theme.name}</Text>
+                                </View>
+                                {preferences?.themePreference === theme.code && (
+                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             {renderHeader()}
@@ -1381,6 +1536,8 @@ export default function SettingsScreen() {
             {renderDisable2FAModal()}
             {renderDeactivateModal()}
             {renderDeleteModal()}
+            {renderLanguageModal()}
+            {renderThemeModal()}
         </View>
     );
 }
@@ -2296,5 +2453,51 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[500],
         marginTop: 2,
+    },
+    // Picker Modal Styles
+    pickerModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    pickerModalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingTop: 20,
+        paddingBottom: 40,
+    },
+    pickerModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: grayColors[100],
+    },
+    pickerModalTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+    },
+    pickerOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: grayColors[100],
+    },
+    pickerOptionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    pickerOptionText: {
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+        color: grayColors[900],
     },
 });

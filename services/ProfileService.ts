@@ -65,6 +65,20 @@ export interface UsernameCheckResponse {
     suggestions?: string[];
 }
 
+export interface UserPreferences {
+    language: string;
+    themePreference: string;
+    notifications: boolean;
+    newsletterEnabled: boolean;
+}
+
+export interface UpdatePreferencesRequest {
+    language?: string;
+    themePreference?: string;
+    notifications?: boolean;
+    newsletterEnabled?: boolean;
+}
+
 /**
  * Get user profile
  */
@@ -241,6 +255,98 @@ export async function checkUsername(username: string): Promise<UsernameCheckResp
             throw new Error('Server error. Please try again later.');
         }
         
+        throw error;
+    }
+}
+
+/**
+ * Get user preferences from user profile
+ */
+export async function getPreferences(): Promise<UserPreferences> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        // Use profile endpoint which includes preferences
+        const response = await fetch(`${BASE_URL}/api/v1/profile`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned non-JSON response');
+        }
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || 'Failed to fetch preferences');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        // Extract preferences from user profile
+        const preferences: UserPreferences = {
+            language: responseData.user?.preferences?.language || 'en',
+            themePreference: responseData.user?.preferences?.themePreference || 'system',
+            notifications: responseData.user?.preferences?.notifications ?? true,
+            newsletterEnabled: responseData.user?.newsletterEnabled ?? false,
+        };
+
+        return preferences;
+    } catch (error: any) {
+        console.error('[Profile] Fetch preferences failed:', error);
+        throw error;
+    }
+}
+
+/**
+ * Update user preferences
+ */
+export async function updatePreferences(data: UpdatePreferencesRequest): Promise<{ message: string; preferences: UserPreferences }> {
+    try {
+        const token = await getValidAccessToken();
+        if (!token) {
+            throw new Error('No authentication token found');
+        }
+
+        console.log('[Profile] Updating preferences:', data);
+
+        const response = await fetch(`${BASE_URL}/api/v1/profile/preferences`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('[Profile] Server returned non-JSON response, status:', response.status);
+            throw new Error(`Server error (${response.status}): Endpoint may not exist`);
+        }
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            const error: any = new Error(responseData.message || 'Failed to update preferences');
+            error.status = response.status;
+            error.responseData = responseData;
+            throw error;
+        }
+
+        console.log('[Profile] Preferences updated successfully:', responseData);
+        return responseData;
+    } catch (error: any) {
+        console.error('[Profile] Update preferences failed:', error);
         throw error;
     }
 }

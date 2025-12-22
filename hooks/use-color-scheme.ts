@@ -7,7 +7,8 @@ import { useThemeStore } from '@/libs/theme';
  */
 export function useColorScheme() {
     const systemColorScheme = useSystemColorScheme();
-    const { themeMode } = useThemeStore();
+    // Use selector to properly subscribe to store changes
+    const themeMode = useThemeStore((state) => state.themeMode);
 
     // If theme mode is system, use system color scheme
     if (themeMode === 'system') {
