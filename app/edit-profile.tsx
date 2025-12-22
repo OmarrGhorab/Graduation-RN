@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,8 +42,10 @@ export default function EditProfileScreen() {
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
     const [isCheckingUsername, setIsCheckingUsername] = useState(false);
     const [usernameError, setUsernameError] = useState('');
+    const [usernameAvailable, setUsernameAvailable] = useState(false);
     const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
     const [showPasswordSection, setShowPasswordSection] = useState(false);
+    const [showUsernameWarning, setShowUsernameWarning] = useState(false);
 
     // Profile data from API
     const [canChangeUsername, setCanChangeUsername] = useState(true);
@@ -93,21 +96,32 @@ export default function EditProfileScreen() {
     }, [username]);
 
     const handleCheckUsername = async () => {
-        if (!username || username === user?.username) return;
+        if (!username || username === user?.username) {
+            setUsernameError('');
+            setUsernameAvailable(false);
+            setUsernameSuggestions([]);
+            return;
+        }
 
         try {
             setIsCheckingUsername(true);
             const result = await checkUsername(username);
             
             if (!result.available) {
-                setUsernameError('Username is already taken');
+                setUsernameError(result.message || 'Username is not available');
+                setUsernameAvailable(false);
                 setUsernameSuggestions(result.suggestions || []);
             } else {
                 setUsernameError('');
+                setUsernameAvailable(true);
                 setUsernameSuggestions([]);
             }
         } catch (error: any) {
             console.error('Username check error:', error);
+            // Don't show error toast for validation errors, just show in the field
+            setUsernameError(error.message || 'Failed to check username');
+            setUsernameAvailable(false);
+            setUsernameSuggestions([]);
         } finally {
             setIsCheckingUsername(false);
         }
@@ -176,6 +190,22 @@ export default function EditProfileScreen() {
             return;
         }
 
+        // Check if username is being changed and show warning
+        if (username !== user?.username) {
+            if (!canChangeUsername) {
+                toast.error('Error', `You can change your username again on ${nextUsernameChangeDate}`);
+                return;
+            }
+            // Show warning modal before proceeding
+            setShowUsernameWarning(true);
+            return;
+        }
+
+        // If no username change, proceed with save
+        await performSave();
+    };
+
+    const performSave = async () => {
         try {
             setIsLoading(true);
 
@@ -186,10 +216,6 @@ export default function EditProfileScreen() {
             }
 
             if (username !== user?.username) {
-                if (!canChangeUsername) {
-                    toast.error('Error', `You can change your username again on ${nextUsernameChangeDate}`);
-                    return;
-                }
                 updateData.username = username;
             }
 
@@ -283,14 +309,25 @@ export default function EditProfileScreen() {
                         {isCheckingUsername && (
                             <ActivityIndicator size="small" color={cskColors[500]} />
                         )}
+                        {!isCheckingUsername && usernameAvailable && username !== user?.username && (
+                            <View style={styles.availableBadge}>
+                                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                                <Text style={styles.availableText}>Available</Text>
+                            </View>
+                        )}
                     </View>
                     <TextInput
-                        style={[styles.input, usernameError && styles.inputError]}
+                        style={[
+                            styles.input,
+                            usernameError && styles.inputError,
+                            usernameAvailable && username !== user?.username && styles.inputSuccess,
+                        ]}
                         value={username}
                         onChangeText={setUsername}
                         placeholder="Enter username"
                         placeholderTextColor={grayColors[400]}
                         autoCapitalize="none"
+                        editable={canChangeUsername}
                     />
                     {usernameError && (
                         <Text style={styles.errorText}>{usernameError}</Text>
@@ -494,6 +531,43 @@ export default function EditProfileScreen() {
                 </TouchableOpacity>
             </ScrollView>
             )}
+
+            {/* Username Change Warning Modal */}
+            <Modal
+                visible={showUsernameWarning}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowUsernameWarning(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Ionicons name="warning" size={48} color="#F59E0B" />
+                        <Text style={styles.modalTitle}>Change Username?</Text>
+                        <Text style={styles.modalText}>
+                            You can only change your username once every 7 days. After changing it, you won't be able to change it again until the cooldown period ends.
+                        </Text>
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={styles.cancelButton}
+                                onPress={() => {
+                                    setShowUsernameWarning(false);
+                                }}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.confirmButton}
+                                onPress={() => {
+                                    setShowUsernameWarning(false);
+                                    performSave();
+                                }}
+                            >
+                                <Text style={styles.confirmButtonText}>Continue</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -557,6 +631,9 @@ const styles = StyleSheet.create({
     inputError: {
         borderColor: '#EF4444',
     },
+    inputSuccess: {
+        borderColor: '#10B981',
+    },
     disabledInput: {
         backgroundColor: grayColors[50],
     },
@@ -570,6 +647,16 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: '#EF4444',
         marginTop: 4,
+    },
+    availableBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    availableText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#10B981',
     },
     warningText: {
         fontSize: 12,
@@ -726,5 +813,65 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[700],
         lineHeight: 18,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 24,
+        width: '100%',
+        maxWidth: 360,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        color: grayColors[900],
+        marginTop: 16,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalText: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[600],
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: 20,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    cancelButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: grayColors[100],
+        alignItems: 'center',
+    },
+    cancelButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: grayColors[700],
+    },
+    confirmButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#F59E0B',
+        alignItems: 'center',
+    },
+    confirmButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+        color: '#FFFFFF',
     },
 });

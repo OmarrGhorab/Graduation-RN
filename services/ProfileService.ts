@@ -60,6 +60,8 @@ export interface UploadProfileImageResponse {
 
 export interface UsernameCheckResponse {
     available: boolean;
+    message?: string;
+    username?: string;
     suggestions?: string[];
 }
 
@@ -174,20 +176,52 @@ export async function uploadProfileImage(profileImg: string): Promise<UploadProf
 /**
  * Check username availability
  */
+/**
+ * Check username availability
+ * Public endpoint - no authentication required
+ */
 export async function checkUsername(username: string): Promise<UsernameCheckResponse> {
     try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
+        // Validate username format on client side first
+        if (!username || username.length < 3) {
+            return {
+                available: false,
+                message: 'Username must be at least 3 characters long',
+                suggestions: [],
+            };
+        }
+
+        if (username.length > 30) {
+            return {
+                available: false,
+                message: 'Username must be 30 characters or less',
+                suggestions: [],
+            };
+        }
+
+        // Check format (alphanumeric, underscore, hyphen only)
+        const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+        if (!usernameRegex.test(username)) {
+            return {
+                available: false,
+                message: 'Username can only contain letters, numbers, underscores, and hyphens',
+                suggestions: [],
+            };
         }
 
         const response = await fetch(`${BASE_URL}/api/v1/profile/check-username?username=${encodeURIComponent(username)}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
             },
         });
+
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('[Profile] Username check returned non-JSON response');
+            throw new Error('Server returned invalid response. Please try again later.');
+        }
 
         const responseData = await response.json();
 
@@ -201,6 +235,12 @@ export async function checkUsername(username: string): Promise<UsernameCheckResp
         return responseData;
     } catch (error: any) {
         console.error('[Profile] Username check failed:', error);
+        
+        // If it's a JSON parse error, provide a better message
+        if (error.name === 'SyntaxError') {
+            throw new Error('Server error. Please try again later.');
+        }
+        
         throw error;
     }
 }
