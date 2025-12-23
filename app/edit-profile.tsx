@@ -70,7 +70,11 @@ export default function EditProfileScreen() {
             setInterests(response.user.interests?.map((i: { id: string; name: string }) => i.name) || []);
             setCanChangeUsername(response.canChangeUsername);
             setNextUsernameChangeDate(response.nextUsernameChangeDate);
-            setHasPassword(response.user.hasPassword ?? true);
+            
+            // Check if user has password (for Google login users)
+            const userHasPassword = response.user.hasPassword ?? true;
+            console.log('User hasPassword:', userHasPassword, 'Raw value:', response.user.hasPassword);
+            setHasPassword(userHasPassword);
             
             // Update auth store with fresh user data
             updateUser(response.user);
@@ -186,6 +190,7 @@ export default function EditProfileScreen() {
         }
 
         if (newPassword && hasPassword && !currentPassword) {
+            console.log('Password validation failed - hasPassword:', hasPassword, 'currentPassword:', currentPassword);
             toast.error('Error', 'Current password is required to change password');
             return;
         }
@@ -235,9 +240,11 @@ export default function EditProfileScreen() {
 
             if (newPassword) {
                 updateData.password = newPassword;
-                if (hasPassword) {
+                // Only send currentPassword if user has an existing password
+                if (hasPassword && currentPassword) {
                     updateData.currentPassword = currentPassword;
                 }
+                console.log('Sending password update - hasPassword:', hasPassword, 'including currentPassword:', hasPassword && currentPassword);
             }
 
             if (Object.keys(updateData).length === 0) {
@@ -454,7 +461,10 @@ export default function EditProfileScreen() {
                 {/* Change Password Section */}
                 <TouchableOpacity
                     style={styles.passwordToggle}
-                    onPress={() => setShowPasswordSection(!showPasswordSection)}
+                    onPress={() => {
+                        console.log('Password section toggled. hasPassword:', hasPassword);
+                        setShowPasswordSection(!showPasswordSection);
+                    }}
                 >
                     <Text style={styles.passwordToggleText}>
                         {hasPassword ? 'Change Password' : 'Set Password'}
@@ -472,7 +482,7 @@ export default function EditProfileScreen() {
                             <View style={styles.infoBox}>
                                 <Ionicons name="information-circle" size={20} color={cskColors[500]} />
                                 <Text style={styles.infoText}>
-                                    You signed in with Google. Set a password to enable email login.
+                                    You signed in with Google. Set a password to enable email login. No current password required.
                                 </Text>
                             </View>
                         )}
