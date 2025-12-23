@@ -27,22 +27,7 @@ export default function WelcomeScreen() {
     const spinValue = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        // Start profile refresh in background if authenticated
-        const checkStatus = async () => {
-            const { isAuthenticated } = useAuthStore.getState();
-            if (isAuthenticated) {
-                try {
-                    console.log('[Splash] Refreshing profile/token...');
-                    await getUserProfile();
-                } catch (error) {
-                    console.warn('[Splash] Background profile refresh failed:', error);
-                }
-            }
-        };
-
-        checkStatus();
-
-        // Fade in and scale animation for logo
+        // Start animations
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -76,30 +61,16 @@ export default function WelcomeScreen() {
         );
         spinAnimation.start();
 
-        // Check status and navigate after 3 seconds
-        const timer = setTimeout(async () => {
-            const { isAuthenticated, user } = useAuthStore.getState();
-            console.log('[Splash] Final Auth Status:', { isAuthenticated, onboardingCompleted: user?.onboardingCompleted });
+        // Main navigation logic
+        const handleNavigation = async () => {
+            try {
+                // Step 1: Check if this is first time opening the app (intro onboarding)
+                const introCompleted = await isOnboardingCompleted();
+                console.log('[Splash] Intro Onboarding Completed:', introCompleted);
 
-            if (isAuthenticated) {
-                // If logged in, check if profile is complete
-                if (user?.onboardingCompleted) {
-                    console.log('[Splash] Navigating to Home');
-                    router.replace('/home' as Href);
-                } else {
-                    console.log('[Splash] Navigating to Profile Onboarding');
-                    router.replace('/onboarding/step1' as Href);
-                }
-            } else {
-                // If not logged in, check if they've seen the intro
-                const isCompleted = await isOnboardingCompleted();
-                console.log('[Splash] Intro Completed:', isCompleted);
-
-                if (isCompleted) {
-                    console.log('[Splash] Navigating to Login');
-                    router.replace('/login');
-                } else {
-                    console.log('[Splash] Starting Intro Onboarding');
+                if (!introCompleted) {
+                    // First time user - show intro onboarding screens
+                    console.log('[Splash] First time user - Starting Intro Onboarding');
                     const currentStep = await getCurrentOnboardingStep();
                     if (currentStep === 2) {
                         router.replace('/onboarding2');
@@ -108,8 +79,56 @@ export default function WelcomeScreen() {
                     } else {
                         router.replace('/onboarding');
                     }
+                    return;
                 }
+
+                // Step 2: Check if user is authenticated
+                const { isAuthenticated } = useAuthStore.getState();
+                console.log('[Splash] User Authenticated:', isAuthenticated);
+
+                if (!isAuthenticated) {
+                    // Not authenticated - go to login
+                    console.log('[Splash] Not authenticated - Navigating to Login');
+                    router.replace('/login');
+                    return;
+                }
+
+                // Step 3: User is authenticated - refresh profile and check onboarding status
+                console.log('[Splash] Authenticated user - Refreshing profile...');
+                try {
+                    const profileResponse = await getUserProfile();
+                    const user = profileResponse.user;
+                    
+                    console.log('[Splash] Profile refreshed:', {
+                        username: user.username,
+                        onboardingCompleted: user.onboardingCompleted
+                    });
+
+                    // Check if user completed profile onboarding
+                    if (user.onboardingCompleted) {
+                        console.log('[Splash] Profile onboarding completed - Navigating to Home');
+                        router.replace('/home' as Href);
+                    } else {
+                        console.log('[Splash] Profile onboarding not completed - Navigating to Profile Onboarding');
+                        router.replace('/onboarding/step1' as Href);
+                    }
+                } catch (error) {
+                    console.error('[Splash] Failed to refresh profile:', error);
+                    // If profile refresh fails, logout and go to login
+                    console.log('[Splash] Profile refresh failed - Logging out');
+                    useAuthStore.getState().logout();
+                    router.replace('/login');
+                }
+            } catch (error) {
+                console.error('[Splash] Navigation error:', error);
+                // Fallback to login on any error
+                router.replace('/login');
             }
+        };
+
+        // Wait for splash screen duration (3 seconds) then navigate
+        const timer = setTimeout(() => {
+            handleNavigation();
         }, 3000);
 
         return () => clearTimeout(timer);
