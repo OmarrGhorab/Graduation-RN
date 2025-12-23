@@ -19,6 +19,19 @@ import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { updateProfile, checkUsername, getProfile } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
 
+const INTERESTS = [
+    'Web Development', 'Mobile Development', 'Data Science', 'Machine Learning',
+    'Artificial Intelligence', 'Cloud Computing', 'DevOps', 'Cybersecurity',
+    'Blockchain', 'Game Development', 'UI/UX Design', 'Digital Marketing',
+    'Business', 'Finance', 'Photography', 'Music Production', 'Writing',
+    'Language Learning', 'Fitness', 'Nutrition', 'Psychology', 'Philosophy',
+];
+
+const GOALS = [
+    'Career Advancement', 'Personal Growth', 'Skill Development', 'Hobby',
+    'Start a Business', 'Get Certified', 'Teach Others', 'Stay Updated', 'Others',
+];
+
 export default function EditProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -28,15 +41,18 @@ export default function EditProfileScreen() {
     const [name, setName] = useState(user?.name || '');
     const [username, setUsername] = useState(user?.username || '');
     const [bio, setBio] = useState(user?.bio || '');
-    const [goals, setGoals] = useState<string[]>(user?.goals || []);
-    const [goalInput, setGoalInput] = useState('');
-    const [interests, setInterests] = useState<string[]>(
-        user?.interests?.map((i: { id: string; name: string }) => i.name) || []
-    );
-    const [interestInput, setInterestInput] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    
+    // Goals state
+    const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+    const [customGoals, setCustomGoals] = useState<string[]>([]);
+    const [customGoalInput, setCustomGoalInput] = useState('');
+    const [showCustomGoalInput, setShowCustomGoalInput] = useState(false);
+    
+    // Interests state
+    const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingProfile, setIsFetchingProfile] = useState(true);
@@ -44,7 +60,6 @@ export default function EditProfileScreen() {
     const [usernameError, setUsernameError] = useState('');
     const [usernameAvailable, setUsernameAvailable] = useState(false);
     const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
-    const [showPasswordSection, setShowPasswordSection] = useState(false);
     const [showUsernameWarning, setShowUsernameWarning] = useState(false);
 
     // Profile data from API
@@ -66,8 +81,19 @@ export default function EditProfileScreen() {
             setName(response.user.name);
             setUsername(response.user.username);
             setBio(response.user.bio || '');
-            setGoals(response.user.goals || []);
-            setInterests(response.user.interests?.map((i: { id: string; name: string }) => i.name) || []);
+            
+            // Process goals
+            const userGoals = response.user.goals || [];
+            const predefinedGoals = userGoals.filter((g: string) => GOALS.includes(g));
+            const customUserGoals = userGoals.filter((g: string) => !GOALS.includes(g));
+            setSelectedGoals(customUserGoals.length > 0 ? [...predefinedGoals, 'Others'] : predefinedGoals);
+            setCustomGoals(customUserGoals);
+            setShowCustomGoalInput(customUserGoals.length > 0);
+            
+            // Process interests
+            const userInterests = response.user.interests?.map((i: { id: string; name: string }) => i.name) || [];
+            setSelectedInterests(userInterests);
+            
             setCanChangeUsername(response.canChangeUsername);
             setNextUsernameChangeDate(response.nextUsernameChangeDate);
             
@@ -131,35 +157,51 @@ export default function EditProfileScreen() {
         }
     };
 
-    const handleAddGoal = () => {
-        if (!goalInput.trim()) return;
-        
-        if (goals.length >= 3) {
-            toast.warning('Limit Reached', 'You can only add up to 3 goals');
-            return;
-        }
-        
-        if (!goals.includes(goalInput.trim())) {
-            setGoals([...goals, goalInput.trim()]);
-            setGoalInput('');
-        }
-    };
-
-    const handleRemoveGoal = (index: number) => {
-        setGoals(goals.filter((_, i) => i !== index));
-    };
-
-    const handleAddInterest = () => {
-        if (!interestInput.trim()) return;
-        
-        if (!interests.includes(interestInput.trim())) {
-            setInterests([...interests, interestInput.trim()]);
-            setInterestInput('');
+    const toggleGoal = (goal: string) => {
+        if (goal === 'Others') {
+            setShowCustomGoalInput(!showCustomGoalInput);
+            if (!selectedGoals.includes('Others')) {
+                setSelectedGoals([...selectedGoals, 'Others']);
+            } else {
+                setSelectedGoals(selectedGoals.filter(g => g !== 'Others'));
+                setCustomGoals([]);
+            }
+        } else {
+            if (selectedGoals.includes(goal)) {
+                setSelectedGoals(selectedGoals.filter(g => g !== goal));
+            } else {
+                if (selectedGoals.length < 3) {
+                    setSelectedGoals([...selectedGoals, goal]);
+                } else {
+                    toast.warning('Limit Reached', 'You can select up to 3 goals');
+                }
+            }
         }
     };
 
-    const handleRemoveInterest = (index: number) => {
-        setInterests(interests.filter((_, i) => i !== index));
+    const addCustomGoal = () => {
+        if (customGoalInput.trim()) {
+            setCustomGoals([customGoalInput.trim()]);
+            setCustomGoalInput('');
+            setShowCustomGoalInput(false);
+        }
+    };
+
+    const removeCustomGoal = (goal: string) => {
+        setCustomGoals(customGoals.filter(g => g !== goal));
+        setSelectedGoals(selectedGoals.filter(g => g !== 'Others'));
+    };
+
+    const toggleInterest = (interest: string) => {
+        if (selectedInterests.includes(interest)) {
+            setSelectedInterests(selectedInterests.filter(i => i !== interest));
+        } else {
+            if (selectedInterests.length < 5) {
+                setSelectedInterests([...selectedInterests, interest]);
+            } else {
+                toast.warning('Limit Reached', 'You can select up to 5 interests');
+            }
+        }
     };
 
     const handleSave = async () => {
@@ -228,14 +270,16 @@ export default function EditProfileScreen() {
                 updateData.bio = bio;
             }
 
+            // Combine predefined and custom goals
+            const finalGoals = [...selectedGoals.filter(g => g !== 'Others'), ...customGoals];
             const userGoals = user?.goals || [];
-            if (JSON.stringify(goals) !== JSON.stringify(userGoals)) {
-                updateData.goals = goals;
+            if (JSON.stringify(finalGoals) !== JSON.stringify(userGoals)) {
+                updateData.goals = finalGoals;
             }
 
             const userInterests = user?.interests?.map((i: { id: string; name: string }) => i.name) || [];
-            if (JSON.stringify(interests) !== JSON.stringify(userInterests)) {
-                updateData.interests = interests;
+            if (JSON.stringify(selectedInterests) !== JSON.stringify(userInterests)) {
+                updateData.interests = selectedInterests;
             }
 
             if (newPassword) {
@@ -371,6 +415,54 @@ export default function EditProfileScreen() {
                     <Text style={styles.helperText}>Email cannot be changed</Text>
                 </View>
 
+                {/* Password Section */}
+                {!hasPassword && (
+                    <View style={styles.infoBox}>
+                        <Ionicons name="information-circle" size={20} color={cskColors[500]} />
+                        <Text style={styles.infoText}>
+                            You signed in with Google. Set a password to enable email login. No current password required.
+                        </Text>
+                    </View>
+                )}
+                
+                {hasPassword && (
+                    <View style={styles.inputContainer}>
+                        <Text style={styles.label}>Current Password</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={currentPassword}
+                            onChangeText={setCurrentPassword}
+                            placeholder="Enter current password"
+                            placeholderTextColor={grayColors[400]}
+                            secureTextEntry
+                        />
+                    </View>
+                )}
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>New Password</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="Enter new password"
+                        placeholderTextColor={grayColors[400]}
+                        secureTextEntry
+                    />
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.label}>Confirm New Password</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Confirm new password"
+                        placeholderTextColor={grayColors[400]}
+                        secureTextEntry
+                    />
+                </View>
+
                 {/* Bio */}
                 <View style={styles.inputContainer}>
                     <View style={styles.labelRow}>
@@ -391,141 +483,88 @@ export default function EditProfileScreen() {
 
                 {/* Goals */}
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Goals (Max 3)</Text>
-                    <View style={styles.chipInputContainer}>
-                        <TextInput
-                            style={styles.chipInput}
-                            value={goalInput}
-                            onChangeText={setGoalInput}
-                            placeholder="Add a goal..."
-                            placeholderTextColor={grayColors[400]}
-                            onSubmitEditing={handleAddGoal}
-                            returnKeyType="done"
-                        />
-                        <TouchableOpacity
-                            style={[styles.addButton, goals.length >= 3 && styles.addButtonDisabled]}
-                            onPress={handleAddGoal}
-                            disabled={goals.length >= 3}
-                        >
-                            <Ionicons name="add" size={20} color="#FFFFFF" />
-                        </TouchableOpacity>
+                    <Text style={styles.label}>Goals (Select up to 3)</Text>
+                    <View style={styles.chipsGrid}>
+                        {GOALS.map((goal) => (
+                            <TouchableOpacity
+                                key={goal}
+                                style={[
+                                    styles.selectableChip,
+                                    selectedGoals.includes(goal) && styles.selectableChipSelected,
+                                ]}
+                                onPress={() => toggleGoal(goal)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[
+                                    styles.selectableChipText,
+                                    selectedGoals.includes(goal) && styles.selectableChipTextSelected,
+                                ]}>
+                                    {goal}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                        {customGoals.map((goal, index) => (
+                            <TouchableOpacity
+                                key={`custom-${index}`}
+                                style={[styles.selectableChip, styles.customChipSelected]}
+                                onPress={() => removeCustomGoal(goal)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.selectableChipTextSelected}>
+                                    {goal}
+                                </Text>
+                                <Ionicons name="close" size={14} color="#FFFFFF" style={styles.customChipRemoveIcon} />
+                            </TouchableOpacity>
+                        ))}
                     </View>
-                    {goals.length > 0 && (
-                        <View style={styles.chipsContainer}>
-                            {goals.map((goal, index) => (
-                                <View key={index} style={styles.chip}>
-                                    <Text style={styles.chipText}>{goal}</Text>
-                                    <TouchableOpacity onPress={() => handleRemoveGoal(index)}>
-                                        <Ionicons name="close-circle" size={18} color={cskColors[600]} />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
+
+                    {showCustomGoalInput && customGoals.length < 1 && (
+                        <View style={styles.customInputContainer}>
+                            <TextInput
+                                style={styles.customInput}
+                                placeholder="Enter your custom goal..."
+                                placeholderTextColor={grayColors[400]}
+                                value={customGoalInput}
+                                onChangeText={setCustomGoalInput}
+                                onSubmitEditing={addCustomGoal}
+                                maxLength={30}
+                                autoFocus={true}
+                            />
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={addCustomGoal}
+                                disabled={!customGoalInput.trim()}
+                            >
+                                <Ionicons name="add" size={20} color="#FFFFFF" />
+                            </TouchableOpacity>
                         </View>
                     )}
                 </View>
 
                 {/* Interests */}
                 <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Interests</Text>
-                    <View style={styles.chipInputContainer}>
-                        <TextInput
-                            style={styles.chipInput}
-                            value={interestInput}
-                            onChangeText={setInterestInput}
-                            placeholder="Add an interest..."
-                            placeholderTextColor={grayColors[400]}
-                            onSubmitEditing={handleAddInterest}
-                            returnKeyType="done"
-                        />
-                        <TouchableOpacity
-                            style={styles.addButton}
-                            onPress={handleAddInterest}
-                        >
-                            <Ionicons name="add" size={20} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
-                    {interests.length > 0 && (
-                        <View style={styles.chipsContainer}>
-                            {interests.map((interest, index) => (
-                                <View key={index} style={styles.chip}>
-                                    <Text style={styles.chipText}>{interest}</Text>
-                                    <TouchableOpacity onPress={() => handleRemoveInterest(index)}>
-                                        <Ionicons name="close-circle" size={18} color={cskColors[600]} />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-                </View>
-
-                {/* Change Password Section */}
-                <TouchableOpacity
-                    style={styles.passwordToggle}
-                    onPress={() => {
-                        console.log('Password section toggled. hasPassword:', hasPassword);
-                        setShowPasswordSection(!showPasswordSection);
-                    }}
-                >
-                    <Text style={styles.passwordToggleText}>
-                        {hasPassword ? 'Change Password' : 'Set Password'}
-                    </Text>
-                    <Ionicons
-                        name={showPasswordSection ? 'chevron-up' : 'chevron-down'}
-                        size={20}
-                        color={grayColors[600]}
-                    />
-                </TouchableOpacity>
-
-                {showPasswordSection && (
-                    <>
-                        {!hasPassword && (
-                            <View style={styles.infoBox}>
-                                <Ionicons name="information-circle" size={20} color={cskColors[500]} />
-                                <Text style={styles.infoText}>
-                                    You signed in with Google. Set a password to enable email login. No current password required.
+                    <Text style={styles.label}>Interests (Select up to 5)</Text>
+                    <View style={styles.chipsGrid}>
+                        {INTERESTS.map((interest) => (
+                            <TouchableOpacity
+                                key={interest}
+                                style={[
+                                    styles.selectableChip,
+                                    selectedInterests.includes(interest) && styles.selectableChipSelected,
+                                ]}
+                                onPress={() => toggleInterest(interest)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[
+                                    styles.selectableChipText,
+                                    selectedInterests.includes(interest) && styles.selectableChipTextSelected,
+                                ]}>
+                                    {interest}
                                 </Text>
-                            </View>
-                        )}
-                        
-                        {hasPassword && (
-                            <View style={styles.inputContainer}>
-                                <Text style={styles.label}>Current Password</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={currentPassword}
-                                    onChangeText={setCurrentPassword}
-                                    placeholder="Enter current password"
-                                    placeholderTextColor={grayColors[400]}
-                                    secureTextEntry
-                                />
-                            </View>
-                        )}
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>New Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                                placeholder="Enter new password"
-                                placeholderTextColor={grayColors[400]}
-                                secureTextEntry
-                            />
-                        </View>
-
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.label}>Confirm New Password</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={confirmPassword}
-                                onChangeText={setConfirmPassword}
-                                placeholder="Confirm new password"
-                                placeholderTextColor={grayColors[400]}
-                                secureTextEntry
-                            />
-                        </View>
-                    </>
-                )}
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
 
                 {/* Save Button */}
                 <TouchableOpacity
@@ -707,21 +746,7 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
         color: cskColors[600],
     },
-    passwordToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 20,
-    },
-    passwordToggleText: {
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[700],
-    },
+
     saveButton: {
         backgroundColor: cskColors[500],
         borderRadius: 12,
@@ -759,12 +784,49 @@ const styles = StyleSheet.create({
         textAlignVertical: 'top',
         paddingTop: 14,
     },
-    chipInputContainer: {
+    chipsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginHorizontal: -6,
+    },
+    selectableChip: {
+        backgroundColor: grayColors[50],
+        borderWidth: 1,
+        borderColor: grayColors[200],
+        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        marginHorizontal: 6,
+        marginBottom: 12,
+    },
+    selectableChipSelected: {
+        backgroundColor: cskColors[500],
+        borderColor: cskColors[500],
+    },
+    selectableChipText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: grayColors[700],
+    },
+    selectableChipTextSelected: {
+        color: '#FFFFFF',
+    },
+    customChipSelected: {
+        backgroundColor: cskColors[500],
+        borderColor: cskColors[500],
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    customChipRemoveIcon: {
+        marginLeft: 4,
+    },
+    customInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        marginTop: 8,
     },
-    chipInput: {
+    customInput: {
         flex: 1,
         borderWidth: 1,
         borderColor: grayColors[200],
@@ -782,31 +844,6 @@ const styles = StyleSheet.create({
         backgroundColor: cskColors[500],
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    addButtonDisabled: {
-        opacity: 0.5,
-    },
-    chipsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginTop: 12,
-    },
-    chip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: cskColors[50],
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: cskColors[200],
-        gap: 6,
-    },
-    chipText: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: cskColors[700],
     },
     infoBox: {
         flexDirection: 'row',
