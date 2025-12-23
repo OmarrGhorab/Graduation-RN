@@ -10,6 +10,7 @@ import { ToastProvider } from '@/components/toast';
 import { registerForPushNotificationsAsync } from '@/libs/notifications';
 import { DeviceService } from '@/services/DeviceService';
 import NotificationListener from '@/components/NotificationListener';
+import { setQueryClientRef } from '@/libs/auth';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +20,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Set query client reference for auth store to clear cache on logout
+setQueryClientRef(queryClient);
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

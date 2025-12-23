@@ -14,6 +14,13 @@ interface AuthState {
     logout: () => void;
 }
 
+// Store reference to query client for cache clearing
+let queryClientRef: any = null;
+
+export const setQueryClientRef = (queryClient: any) => {
+    queryClientRef = queryClient;
+};
+
 export const useAuthStore = create<AuthState>()(
     persist(
         (set) => ({
@@ -27,7 +34,14 @@ export const useAuthStore = create<AuthState>()(
                 set((state) => ({
                     user: state.user ? { ...state.user, ...user } : null,
                 })),
-            logout: () => set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false }),
+            logout: () => {
+                // Clear React Query cache on logout
+                if (queryClientRef) {
+                    console.log('[Auth] Clearing React Query cache on logout');
+                    queryClientRef.clear();
+                }
+                set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+            },
         }),
         {
             name: 'auth-storage',

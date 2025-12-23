@@ -73,6 +73,13 @@ export default function SettingsScreen() {
     const { data: preferences, isLoading: isLoadingPreferences } = usePreferences();
     const updatePreferenceMutation = useUpdatePreference();
 
+    // Debug preferences
+    useEffect(() => {
+        if (preferences) {
+            console.log('[Settings] Current preferences:', preferences);
+        }
+    }, [preferences]);
+
     const [currentSection, setCurrentSection] = useState<SettingsSection>('main');
     const [isLoading, setIsLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -657,7 +664,8 @@ export default function SettingsScreen() {
                             {preferences?.language === 'ar' ? 'العربية' :
                              preferences?.language === 'es' ? 'Español' :
                              preferences?.language === 'fr' ? 'Français' :
-                             preferences?.language === 'de' ? 'Deutsch' : 'English'}
+                             preferences?.language === 'de' ? 'Deutsch' :
+                             preferences?.language === 'korean' ? '한국어' : 'English'}
                         </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
@@ -1977,6 +1985,7 @@ export default function SettingsScreen() {
             { code: 'es', name: 'Español' },
             { code: 'fr', name: 'Français' },
             { code: 'de', name: 'Deutsch' },
+            { code: 'korean', name: '한국어' },
         ];
 
         return (

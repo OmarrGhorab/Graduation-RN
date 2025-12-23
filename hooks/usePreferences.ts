@@ -15,16 +15,18 @@ export function usePreferences() {
     return useQuery({
         queryKey: PREFERENCES_QUERY_KEY,
         queryFn: async () => {
+            console.log('[Preferences] Fetching preferences from API...');
             const preferences = await getPreferences();
+            console.log('[Preferences] Received from API:', preferences);
             // Sync theme with theme store when preferences are fetched
             if (preferences.themePreference) {
                 setThemeMode(preferences.themePreference as ThemeMode);
             }
             return preferences;
         },
-        staleTime: 1000 * 60 * 10, // 10 minutes - data won't refetch if within this time
+        staleTime: 1000 * 60 * 5, // 5 minutes - reduced from 10
         gcTime: 1000 * 60 * 30, // 30 minutes cache
-        refetchOnMount: false, // Don't refetch when component mounts if data exists
+        refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
         refetchOnWindowFocus: false, // Don't refetch on window focus
         refetchOnReconnect: false, // Don't refetch on reconnect
     });
