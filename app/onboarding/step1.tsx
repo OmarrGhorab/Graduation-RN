@@ -2,7 +2,7 @@ import { useToast } from '@/components/toast';
 import { Colors, Fonts, cskColors, grayColors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -17,6 +17,8 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    TouchableWithoutFeedback,
+    FlatList,
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
 import { useThemeStore } from '@/libs/theme';
@@ -24,6 +26,8 @@ import { useAuthStore } from '@/libs/auth';
 import { useColorScheme } from 'react-native';
 import { deleteProfileImage } from '@/services/AuthService';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import BottomSheetModal from '@/components/BottomSheetModal';
 const { width } = Dimensions.get('window');
 
 const COUNTRIES = [
@@ -39,16 +43,16 @@ const COUNTRIES = [
 ];
 
 const LANGUAGES = [
-    { id: 'english', label: 'English' },
-    { id: 'arabic', label: 'Arabic' },
-    { id: 'spanish', label: 'Spanish' },
-    { id: 'french', label: 'French' },
-    { id: 'german', label: 'German' },
-    { id: 'chinese', label: 'Chinese' },
-    { id: 'japanese', label: 'Japanese' },
-    { id: 'korean', label: 'Korean' },
-    { id: 'portuguese', label: 'Portuguese' },
-    { id: 'russian', label: 'Russian' },
+    { id: 'en', label: 'English' },
+    { id: 'ar', label: 'العربية' },
+    { id: 'es', label: 'Español' },
+    { id: 'fr', label: 'Français' },
+    { id: 'de', label: 'Deutsch' },
+    { id: 'zh', label: '中文' },
+    { id: 'ja', label: '日本語' },
+    { id: 'ko', label: '한국어' },
+    { id: 'pt', label: 'Português' },
+    { id: 'ru', label: 'Русский' },
 ];
 
 const THEMES = [
@@ -63,6 +67,7 @@ export default function OnboardingStep1() {
     const systemColorScheme = useColorScheme();
     const { themeMode, setThemeMode } = useThemeStore();
     const { user } = useAuthStore();
+    const { formData, setStep1Data } = useOnboardingStore();
 
     // Get the effective theme based on user preference
     const currentTheme = themeMode === 'system'
@@ -70,12 +75,21 @@ export default function OnboardingStep1() {
         : themeMode;
     const themeColors = Colors[currentTheme as 'light' | 'dark'];
 
-    const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
-    const [profileImg, setProfileImg] = useState<string>(user?.profileImg || '');
-    const [gender, setGender] = useState<any | null>(null);
-    const [country, setCountry] = useState<string>('');
-    const [language, setLanguage] = useState<string>('english');
-    const [theme, setTheme] = useState<string>(themeMode);
+    // Initialize from Zustand store
+    const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
+        formData.dateOfBirth ? new Date(formData.dateOfBirth) : null
+    );
+    const [profileImg, setProfileImg] = useState<string>(
+        formData.profileImg || user?.profileImg || ''
+    );
+    const [gender, setGender] = useState<any | null>(formData.gender || null);
+    const [country, setCountry] = useState<string>(formData.country || '');
+    const [language, setLanguage] = useState<string>(
+        formData.preferences?.language || 'en'
+    );
+    const [theme, setTheme] = useState<string>(
+        formData.preferences?.themePreference || themeMode
+    );
 
     // Update profile image if user changes (e.g. after Google login)
     useEffect(() => {
@@ -91,6 +105,7 @@ export default function OnboardingStep1() {
     const [filteredCountries, setFilteredCountries] = useState<string[]>(COUNTRIES);
     const [countrySearch, setCountrySearch] = useState<string>('');
     const [showImageOptions, setShowImageOptions] = useState(false);
+    const [datePickerReady, setDatePickerReady] = useState(false);
 
     useEffect(() => {
         if (countrySearch) {
@@ -104,23 +119,20 @@ export default function OnboardingStep1() {
         }
     }, [countrySearch]);
 
+    // Delay rendering date picker content only on first open
+    useEffect(() => {
+        if (showDatePicker && !datePickerReady) {
+            const timer = setTimeout(() => {
+                setDatePickerReady(true);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [showDatePicker, datePickerReady]);
+
     const handleImagePick = async () => {
         setShowImageOptions(false);
+        
         try {
-            if (Platform.OS === 'web') {
-                toast.error('Not Available', 'Image picker is not available on web');
-                return;
-            }
-
-            let ImagePicker;
-            try {
-                ImagePicker = require('expo-image-picker');
-            } catch (e) {
-                console.error('Failed to require expo-image-picker', e);
-                toast.error('Configuration Error', 'Image Picker module not found. Please rebuild your app.');
-                return;
-            }
-
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
                 toast.error('Permission Denied', 'We need camera roll permissions to select a profile image');
@@ -132,25 +144,65 @@ export default function OnboardingStep1() {
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
-                base64: true,
             });
 
             if (!result.canceled && result.assets[0]) {
-                const asset = result.assets[0];
-                if (asset.base64) {
-                    const base64Image = `data:image/jpeg;base64,${asset.base64}`;
-                    setProfileImg(base64Image);
-                } else {
-                    setProfileImg(asset.uri);
-                }
+                await processImage(result.assets[0].uri);
             }
         } catch (error: any) {
             console.error('Error picking image:', error);
-            if (error.message && error.message.includes('ExponentImagePicker')) {
-                toast.error('Development Build Update Required', 'The Image Picker native module is missing. Please stop the server and run "npx expo run:android" to rebuild your app.');
-            } else {
-                toast.error('Error', error.message || 'Failed to pick image');
+            toast.error('Error', error.message || 'Failed to pick image');
+        }
+    };
+
+    const handleTakePhoto = async () => {
+        setShowImageOptions(false);
+        
+        try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+                toast.error('Permission Denied', 'We need camera permissions to take a photo');
+                return;
             }
+
+            const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                await processImage(result.assets[0].uri);
+            }
+        } catch (error: any) {
+            console.error('Error taking photo:', error);
+            toast.error('Error', error.message || 'Failed to take photo');
+        }
+    };
+
+    const processImage = async (uri: string) => {
+        try {
+            setIsImgLoading(true);
+
+            // Resize image to 400x400
+            const manipResult = await ImageManipulator.manipulateAsync(
+                uri,
+                [{ resize: { width: 400, height: 400 } }],
+                { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+            );
+
+            if (!manipResult.base64) {
+                throw new Error('Failed to convert image to base64');
+            }
+
+            const base64Image = `data:image/jpeg;base64,${manipResult.base64}`;
+            setProfileImg(base64Image);
+            toast.success('Success', 'Profile image selected');
+        } catch (error: any) {
+            console.error('Error processing image:', error);
+            toast.error('Error', error.message || 'Failed to process image');
+        } finally {
+            setIsImgLoading(false);
         }
     };
 
@@ -207,24 +259,32 @@ export default function OnboardingStep1() {
         return new Date(year, month, 0).getDate();
     };
 
-    const generateDays = (): number[] => {
-        const currentDate = dateOfBirth || new Date();
-        const daysInMonth = getDaysInMonth(
-            currentDate.getMonth() + 1,
-            currentDate.getFullYear()
-        );
-        return Array.from({ length: daysInMonth }, (_, i) => i + 1);
-    };
+    // Pre-generate all possible values once
+    const allDays = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), []);
+    
+    const months = useMemo(() => {
+        return Array.from({ length: 12 }, (_, i) => ({
+            value: i + 1,
+            label: new Date(2000, i, 1).toLocaleString('default', { month: 'short' })
+        }));
+    }, []);
 
-    const generateMonths = (): number[] => {
-        return Array.from({ length: 12 }, (_, i) => i + 1);
-    };
-
-    const generateYears = (): number[] => {
+    const years = useMemo(() => {
         const currentYear = new Date().getFullYear();
-        const startYear = currentYear - 100;
-        return Array.from({ length: 101 }, (_, i) => startYear + i).reverse();
-    };
+        const startYear = 1924;
+        const endYear = currentYear - 13;
+        return Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i).reverse();
+    }, []);
+
+    // Calculate visible days based on selected month/year
+    const visibleDays = useMemo(() => {
+        if (!dateOfBirth) return allDays;
+        const daysInMonth = getDaysInMonth(
+            dateOfBirth.getMonth() + 1,
+            dateOfBirth.getFullYear()
+        );
+        return allDays.slice(0, daysInMonth);
+    }, [dateOfBirth, allDays]);
 
     const formatDate = (date: Date | null): string => {
         if (!date) return '';
@@ -315,15 +375,10 @@ export default function OnboardingStep1() {
                     <Text style={styles.inputLabel}>Date Of Birth</Text>
                     <TouchableOpacity
                         style={styles.input}
-                        onPress={() => {
-                            if (!dateOfBirth) {
-                                setDateOfBirth(new Date(2000, 0, 1));
-                            }
-                            setShowDatePicker(true);
-                        }}
+                        onPress={() => setShowDatePicker(true)}
                     >
                         <Text style={[styles.inputText, !dateOfBirth && styles.placeholder]}>
-                            {dateOfBirth ? formatDate(dateOfBirth) : 'dd/mm/yyyy'}
+                            {dateOfBirth ? formatDate(dateOfBirth) : 'Select your date of birth'}
                         </Text>
                         <Ionicons name="calendar-outline" size={20} color={themeColors.text} />
                     </TouchableOpacity>
@@ -396,37 +451,69 @@ export default function OnboardingStep1() {
             </ScrollView>
 
             {/* Date Picker Modal */}
-            <Modal
+            <BottomSheetModal
                 visible={showDatePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowDatePicker(false)}
+                onClose={() => setShowDatePicker(false)}
+                height={450}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                                <Text style={styles.modalCancel}>Cancel</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>Select Date</Text>
-                            <TouchableOpacity onPress={() => {
-                                if (dateOfBirth) {
-                                    setShowDatePicker(false);
-                                }
-                            }}>
-                                <Text style={styles.modalDone}>Done</Text>
-                            </TouchableOpacity>
-                        </View>
+                <View style={styles.datePickerHeader}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                        <Text style={styles.datePickerCancel}>Cancel</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.datePickerTitle}>Select Date of Birth</Text>
+                    <TouchableOpacity 
+                        onPress={() => {
+                            if (dateOfBirth) {
+                                setShowDatePicker(false);
+                            } else {
+                                toast.warning('Select Date', 'Please select a date');
+                            }
+                        }}
+                    >
+                        <Text style={[styles.datePickerDone, !dateOfBirth && styles.datePickerDoneDisabled]}>
+                            Done
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+                
+                {!dateOfBirth && (
+                    <View style={styles.datePickerHint}>
+                        <Ionicons name="information-circle-outline" size={16} color={cskColors[500]} />
+                        <Text style={styles.datePickerHintText}>Scroll to select your birth date</Text>
+                    </View>
+                )}
+
+                {datePickerReady ? (
+                    <>
                         <View style={styles.datePickerContainer}>
-                            <ScrollView style={styles.datePickerColumn}>
-                                {generateDays().map((day) => (
+                            <FlatList
+                                style={styles.datePickerColumn}
+                                data={visibleDays}
+                                keyExtractor={(item) => `day-${item}`}
+                                showsVerticalScrollIndicator={false}
+                                initialNumToRender={10}
+                                maxToRenderPerBatch={10}
+                                windowSize={5}
+                                removeClippedSubviews={true}
+                                getItemLayout={(data, index) => ({
+                                    length: 44,
+                                    offset: 44 * index,
+                                    index,
+                                })}
+                                renderItem={({ item: day }) => (
                                     <TouchableOpacity
-                                        key={day}
                                         style={[
                                             styles.datePickerItem,
                                             dateOfBirth?.getDate() === day && styles.datePickerItemSelected,
                                         ]}
-                                        onPress={() => handleDateChange('day', day)}
+                                        onPress={() => {
+                                            if (!dateOfBirth) {
+                                                const currentYear = new Date().getFullYear() - 20;
+                                                setDateOfBirth(new Date(currentYear, 0, day));
+                                            } else {
+                                                handleDateChange('day', day);
+                                            }
+                                        }}
                                     >
                                         <Text style={[
                                             styles.datePickerItemText,
@@ -435,36 +522,75 @@ export default function OnboardingStep1() {
                                             {day}
                                         </Text>
                                     </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            <ScrollView style={styles.datePickerColumn}>
-                                {generateMonths().map((month) => (
+                                )}
+                            />
+                            
+                            <FlatList
+                                style={styles.datePickerColumn}
+                                data={months}
+                                keyExtractor={(item) => `month-${item.value}`}
+                                showsVerticalScrollIndicator={false}
+                                initialNumToRender={12}
+                                maxToRenderPerBatch={12}
+                                windowSize={3}
+                                removeClippedSubviews={true}
+                                getItemLayout={(data, index) => ({
+                                    length: 44,
+                                    offset: 44 * index,
+                                    index,
+                                })}
+                                renderItem={({ item: month }) => (
                                     <TouchableOpacity
-                                        key={month}
                                         style={[
                                             styles.datePickerItem,
-                                            dateOfBirth && dateOfBirth.getMonth() + 1 === month && styles.datePickerItemSelected,
+                                            dateOfBirth && dateOfBirth.getMonth() + 1 === month.value && styles.datePickerItemSelected,
                                         ]}
-                                        onPress={() => handleDateChange('month', month)}
+                                        onPress={() => {
+                                            if (!dateOfBirth) {
+                                                const currentYear = new Date().getFullYear() - 20;
+                                                setDateOfBirth(new Date(currentYear, month.value - 1, 1));
+                                            } else {
+                                                handleDateChange('month', month.value);
+                                            }
+                                        }}
                                     >
                                         <Text style={[
                                             styles.datePickerItemText,
-                                            dateOfBirth && dateOfBirth.getMonth() + 1 === month && styles.datePickerItemTextSelected,
+                                            dateOfBirth && dateOfBirth.getMonth() + 1 === month.value && styles.datePickerItemTextSelected,
                                         ]}>
-                                            {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'short' })}
+                                            {month.label}
                                         </Text>
                                     </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                            <ScrollView style={styles.datePickerColumn}>
-                                {generateYears().map((year) => (
+                                )}
+                            />
+                            
+                            <FlatList
+                                style={styles.datePickerColumn}
+                                data={years}
+                                keyExtractor={(item) => `year-${item}`}
+                                showsVerticalScrollIndicator={false}
+                                initialNumToRender={15}
+                                maxToRenderPerBatch={15}
+                                windowSize={5}
+                                removeClippedSubviews={true}
+                                getItemLayout={(data, index) => ({
+                                    length: 44,
+                                    offset: 44 * index,
+                                    index,
+                                })}
+                                renderItem={({ item: year }) => (
                                     <TouchableOpacity
-                                        key={year}
                                         style={[
                                             styles.datePickerItem,
                                             dateOfBirth?.getFullYear() === year && styles.datePickerItemSelected,
                                         ]}
-                                        onPress={() => handleDateChange('year', year)}
+                                        onPress={() => {
+                                            if (!dateOfBirth) {
+                                                setDateOfBirth(new Date(year, 0, 1));
+                                            } else {
+                                                handleDateChange('year', year);
+                                            }
+                                        }}
                                     >
                                         <Text style={[
                                             styles.datePickerItemText,
@@ -473,247 +599,236 @@ export default function OnboardingStep1() {
                                             {year}
                                         </Text>
                                     </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Gender Picker Modal */}
-            <Modal
-                visible={showGenderPicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowGenderPicker(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Gender</Text>
-                            <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
-                                <Ionicons name="close" size={24} color={themeColors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setGender('MALE');
-                                setShowGenderPicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Male</Text>
-                            {gender === 'MALE' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setGender('FEMALE');
-                                setShowGenderPicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Female</Text>
-                            {gender === 'FEMALE' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setGender('OTHER');
-                                setShowGenderPicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Other</Text>
-                            {gender === 'OTHER' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.modalOption}
-                            onPress={() => {
-                                setGender('PREFER_NOT_TO_SAY');
-                                setShowGenderPicker(false);
-                            }}
-                        >
-                            <Text style={styles.modalOptionText}>Prefer not to say</Text>
-                            {gender === 'PREFER_NOT_TO_SAY' && (
-                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Country Picker Modal */}
-            <Modal
-                visible={showCountryPicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowCountryPicker(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Country</Text>
-                            <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
-                                <Ionicons name="close" size={24} color={themeColors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={styles.searchContainer}>
-                            <Ionicons name="search" size={20} color={Colors.light.text} style={styles.searchIcon} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Search country..."
-                                value={countrySearch}
-                                onChangeText={setCountrySearch}
-                                placeholderTextColor={grayColors[500]}
+                                )}
                             />
                         </View>
-                        <ScrollView style={styles.countryList}>
-                            {filteredCountries.map((countryName) => (
-                                <TouchableOpacity
-                                    key={countryName}
-                                    style={styles.modalOption}
-                                    onPress={() => {
-                                        setCountry(countryName);
-                                        setShowCountryPicker(false);
-                                        setCountrySearch('');
-                                    }}
-                                >
-                                    <Text style={styles.modalOptionText}>{countryName}</Text>
-                                    {country === countryName && (
-                                        <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                        
+                        <View style={styles.datePickerLabels}>
+                            <Text style={styles.datePickerLabel}>Day</Text>
+                            <Text style={styles.datePickerLabel}>Month</Text>
+                            <Text style={styles.datePickerLabel}>Year</Text>
+                        </View>
+                    </>
+                ) : (
+                    <View style={styles.datePickerLoading}>
+                        <ActivityIndicator size="large" color={cskColors[500]} />
                     </View>
+                )}
+            </BottomSheetModal>
+
+            {/* Gender Picker Modal */}
+            <BottomSheetModal
+                visible={showGenderPicker}
+                onClose={() => setShowGenderPicker(false)}
+                height={350}
+            >
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Select Gender</Text>
                 </View>
-            </Modal>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    <TouchableOpacity
+                        style={styles.bottomSheetOption}
+                        onPress={() => {
+                            setGender('MALE');
+                            setShowGenderPicker(false);
+                        }}
+                    >
+                        <Text style={styles.bottomSheetOptionText}>Male</Text>
+                        {gender === 'MALE' && (
+                            <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.bottomSheetOption}
+                        onPress={() => {
+                            setGender('FEMALE');
+                            setShowGenderPicker(false);
+                        }}
+                    >
+                        <Text style={styles.bottomSheetOptionText}>Female</Text>
+                        {gender === 'FEMALE' && (
+                            <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.bottomSheetOption}
+                        onPress={() => {
+                            setGender('OTHER');
+                            setShowGenderPicker(false);
+                        }}
+                    >
+                        <Text style={styles.bottomSheetOptionText}>Other</Text>
+                        {gender === 'OTHER' && (
+                            <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.bottomSheetOption}
+                        onPress={() => {
+                            setGender('PREFER_NOT_TO_SAY');
+                            setShowGenderPicker(false);
+                        }}
+                    >
+                        <Text style={styles.bottomSheetOptionText}>Prefer not to say</Text>
+                        {gender === 'PREFER_NOT_TO_SAY' && (
+                            <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                        )}
+                    </TouchableOpacity>
+                </ScrollView>
+            </BottomSheetModal>
+
+            {/* Country Picker Modal */}
+            <BottomSheetModal
+                visible={showCountryPicker}
+                onClose={() => {
+                    setShowCountryPicker(false);
+                    setCountrySearch('');
+                }}
+                height={600}
+            >
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Select Country</Text>
+                </View>
+                <View style={styles.searchContainer}>
+                    <Ionicons name="search" size={20} color={Colors.light.text} style={styles.searchIcon} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search country..."
+                        value={countrySearch}
+                        onChangeText={setCountrySearch}
+                        placeholderTextColor={grayColors[500]}
+                    />
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {filteredCountries.map((countryName) => (
+                        <TouchableOpacity
+                            key={countryName}
+                            style={styles.bottomSheetOption}
+                            onPress={() => {
+                                setCountry(countryName);
+                                setShowCountryPicker(false);
+                                setCountrySearch('');
+                            }}
+                        >
+                            <Text style={styles.bottomSheetOptionText}>{countryName}</Text>
+                            {country === countryName && (
+                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </BottomSheetModal>
 
             {/* Language Picker Modal */}
-            <Modal
+            <BottomSheetModal
                 visible={showLanguagePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowLanguagePicker(false)}
+                onClose={() => setShowLanguagePicker(false)}
+                height={500}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Language</Text>
-                            <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
-                                <Ionicons name="close" size={24} color={themeColors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        {LANGUAGES.map((lang) => (
-                            <TouchableOpacity
-                                key={lang.id}
-                                style={styles.modalOption}
-                                onPress={() => {
-                                    setLanguage(lang.id);
-                                    setShowLanguagePicker(false);
-                                }}
-                            >
-                                <Text style={styles.modalOptionText}>{lang.label}</Text>
-                                {language === lang.id && (
-                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Select Language</Text>
                 </View>
-            </Modal>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {LANGUAGES.map((lang) => (
+                        <TouchableOpacity
+                            key={lang.id}
+                            style={styles.bottomSheetOption}
+                            onPress={() => {
+                                setLanguage(lang.id);
+                                setShowLanguagePicker(false);
+                            }}
+                        >
+                            <Text style={styles.bottomSheetOptionText}>{lang.label}</Text>
+                            {language === lang.id && (
+                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </BottomSheetModal>
 
             {/* Image Options Modal */}
-            <Modal
+            <BottomSheetModal
                 visible={showImageOptions}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowImageOptions(false)}
+                onClose={() => setShowImageOptions(false)}
+                height={profileImg ? 300 : 250}
             >
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Profile Photo</Text>
+                </View>
+                
                 <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setShowImageOptions(false)}
+                    style={styles.imageOptionButton}
+                    onPress={handleTakePhoto}
                 >
-                    <View style={styles.imageOptionsContainer}>
-                        <View style={styles.imageOptionsContent}>
-                            <TouchableOpacity
-                                style={styles.imageOptionButton}
-                                onPress={handleImagePick}
-                            >
-                                <Ionicons name="camera" size={24} color={cskColors[500]} />
-                                <Text style={styles.imageOptionText}>
-                                    {profileImg ? 'Change Photo' : 'Upload Photo'}
-                                </Text>
-                            </TouchableOpacity>
-                            {profileImg && (
-                                <TouchableOpacity
-                                    style={[styles.imageOptionButton, styles.deleteButton]}
-                                    onPress={handleDeleteImage}
-                                >
-                                    <Ionicons name="trash" size={24} color="#FF4444" />
-                                    <Text style={[styles.imageOptionText, styles.deleteText]}>Delete Photo</Text>
-                                </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                                style={[styles.imageOptionButton, styles.cancelButton]}
-                                onPress={() => setShowImageOptions(false)}
-                            >
-                                <Text style={styles.cancelText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </View>
+                    <View style={styles.imageOptionIconContainer}>
+                        <Ionicons name="camera-outline" size={22} color={cskColors[500]} />
                     </View>
+                    <Text style={styles.imageOptionText}>Take Photo</Text>
                 </TouchableOpacity>
-            </Modal>
+                
+                <TouchableOpacity
+                    style={styles.imageOptionButton}
+                    onPress={handleImagePick}
+                >
+                    <View style={styles.imageOptionIconContainer}>
+                        <Ionicons name="images-outline" size={22} color={cskColors[500]} />
+                    </View>
+                    <Text style={styles.imageOptionText}>Choose from Gallery</Text>
+                </TouchableOpacity>
+                
+                {profileImg && (
+                    <TouchableOpacity
+                        style={styles.imageOptionButton}
+                        onPress={handleDeleteImage}
+                    >
+                        <View style={styles.imageOptionIconContainer}>
+                            <Ionicons name="trash-outline" size={22} color="#EF4444" />
+                        </View>
+                        <Text style={[styles.imageOptionText, styles.deleteText]}>
+                            Delete Photo
+                        </Text>
+                    </TouchableOpacity>
+                )}
+            </BottomSheetModal>
 
             {/* Theme Picker Modal */}
-            <Modal
+            <BottomSheetModal
                 visible={showThemePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowThemePicker(false)}
+                onClose={() => setShowThemePicker(false)}
+                height={350}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Theme</Text>
-                            <TouchableOpacity onPress={() => setShowThemePicker(false)}>
-                                <Ionicons name="close" size={24} color={themeColors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        {THEMES.map((themeOption) => (
-                            <TouchableOpacity
-                                key={themeOption.id}
-                                style={styles.modalOption}
-                                onPress={() => {
-                                    setTheme(themeOption.id);
-                                    // Immediately apply theme to the app
-                                    setThemeMode(themeOption.id as 'light' | 'dark' | 'system');
-                                    setShowThemePicker(false);
-                                }}
-                            >
-                                <View style={styles.themeOption}>
-                                    <Ionicons
-                                        name={themeOption.icon as any}
-                                        size={20}
-                                        color={Colors.light.text}
-                                        style={styles.themeIcon}
-                                    />
-                                    <Text style={styles.modalOptionText}>{themeOption.label}</Text>
-                                </View>
-                                {theme === themeOption.id && (
-                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Select Theme</Text>
                 </View>
-            </Modal>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {THEMES.map((themeOption) => (
+                        <TouchableOpacity
+                            key={themeOption.id}
+                            style={styles.bottomSheetOption}
+                            onPress={() => {
+                                setTheme(themeOption.id);
+                                // Immediately apply theme to the app
+                                setThemeMode(themeOption.id as 'light' | 'dark' | 'system');
+                                setShowThemePicker(false);
+                            }}
+                        >
+                            <View style={styles.themeOption}>
+                                <Ionicons
+                                    name={themeOption.icon as any}
+                                    size={20}
+                                    color={Colors.light.text}
+                                    style={styles.themeIcon}
+                                />
+                                <Text style={styles.bottomSheetOptionText}>{themeOption.label}</Text>
+                            </View>
+                            {theme === themeOption.id && (
+                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </BottomSheetModal>
         </KeyboardAvoidingView>
     );
 }
@@ -870,7 +985,6 @@ const styles = StyleSheet.create({
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginHorizontal: 20,
         marginBottom: 10,
         borderWidth: 1,
         borderColor: '#E5E5E5',
@@ -893,7 +1007,7 @@ const styles = StyleSheet.create({
     datePickerContainer: {
         flexDirection: 'row',
         height: 250,
-        paddingHorizontal: 20,
+        paddingHorizontal: 8,
         paddingVertical: 10,
     },
     datePickerColumn: {
@@ -919,6 +1033,70 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontFamily: Fonts.semiBold,
     },
+    datePickerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+        marginBottom: 8,
+    },
+    datePickerTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.semiBold,
+        color: Colors.light.text,
+    },
+    datePickerCancel: {
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: grayColors[500],
+    },
+    datePickerDone: {
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
+        color: cskColors[500],
+    },
+    datePickerDoneDisabled: {
+        opacity: 0.4,
+    },
+    datePickerHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: cskColors[50],
+        borderRadius: 8,
+        marginBottom: 12,
+        gap: 6,
+    },
+    datePickerHintText: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        color: cskColors[600],
+    },
+    datePickerLabels: {
+        flexDirection: 'row',
+        paddingHorizontal: 8,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: '#E5E5E5',
+        marginTop: 8,
+    },
+    datePickerLabel: {
+        flex: 1,
+        textAlign: 'center',
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: grayColors[500],
+        marginHorizontal: 4,
+    },
+    datePickerLoading: {
+        height: 250,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     themeOption: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -926,46 +1104,55 @@ const styles = StyleSheet.create({
     themeIcon: {
         marginRight: 12,
     },
-    imageOptionsContainer: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    imageOptionsContent: {
-        backgroundColor: Colors.light.background,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
-    },
     imageOptionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 20,
         paddingVertical: 16,
+        paddingHorizontal: 4,
         borderBottomWidth: 1,
         borderBottomColor: '#F5F5F5',
     },
+    imageOptionIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: grayColors[50],
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
     imageOptionText: {
-        marginLeft: 16,
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+        color: Colors.light.text,
+    },
+    deleteText: {
+        color: '#EF4444',
+    },
+    bottomSheetHeader: {
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+        marginBottom: 8,
+    },
+    bottomSheetTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.semiBold,
+        color: Colors.light.text,
+        textAlign: 'center',
+    },
+    bottomSheetOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5',
+    },
+    bottomSheetOptionText: {
         fontSize: 16,
         fontFamily: Fonts.regular,
         color: Colors.light.text,
-    },
-    deleteButton: {
-        borderBottomWidth: 0,
-    },
-    deleteText: {
-        color: '#FF4444',
-    },
-    cancelButton: {
-        borderTopWidth: 8,
-        borderTopColor: '#F5F5F5',
-        justifyContent: 'center',
-    },
-    cancelText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[500],
-        textAlign: 'center',
-        width: '100%',
     },
 });

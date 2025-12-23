@@ -43,15 +43,24 @@ export default function OnboardingStep3() {
     const { formData, setStep3Data } = useOnboardingStore();
     const toast = useToast();
 
-    const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+    // Initialize from Zustand store
+    const storedGoals = formData.goals || [];
+    const predefinedGoals = storedGoals.filter(g => GOALS.includes(g));
+    const customStoredGoals = storedGoals.filter(g => !GOALS.includes(g));
+    
+    const [selectedGoals, setSelectedGoals] = useState<string[]>(
+        customStoredGoals.length > 0 ? [...predefinedGoals, 'Others'] : predefinedGoals
+    );
     const [customGoalInput, setCustomGoalInput] = useState('');
-    const [showCustomInput, setShowCustomInput] = useState(false);
-    const [customGoals, setCustomGoals] = useState<string[]>([]);
+    const [showCustomInput, setShowCustomInput] = useState(customStoredGoals.length > 0);
+    const [customGoals, setCustomGoals] = useState<string[]>(customStoredGoals);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Parent[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedParents, setSelectedParents] = useState<Parent[]>([]);
-    const [newsletter, setNewsletter] = useState(false);
+    const [newsletter, setNewsletter] = useState(
+        formData.newsletterEnabled ?? false
+    );
     const [notifications, setNotifications] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -82,12 +91,33 @@ export default function OnboardingStep3() {
         return () => clearTimeout(timeoutId);
     }, [searchQuery]);
 
+    // Save data to Zustand when component unmounts or data changes
+    useEffect(() => {
+        return () => {
+            // Save current state when navigating away
+            const finalGoals = [...selectedGoals.filter(g => g !== 'Others'), ...customGoals];
+            const parentIds = selectedParents.length > 0 ? selectedParents.map(p => p.id) : undefined;
+            
+            setStep3Data({
+                goals: finalGoals,
+                parentIds: parentIds,
+                newsletterEnabled: newsletter,
+            });
+        };
+    }, [selectedGoals, customGoals, selectedParents, newsletter, setStep3Data]);
+
     const handleSendRequest = useCallback((parent: Parent) => {
+        // Check if already selected
+        if (selectedParents.some(p => p.id === parent.id)) {
+            toast.warning('Already Selected', `${parent.name} is already in your list`);
+            return;
+        }
+        
         setSelectedParents(prev => [...prev, parent]);
-        setSearchQuery('');
-        setSearchResults([]);
+        // Remove the selected parent from search results but keep the search active
+        setSearchResults(prev => prev.filter(p => p.id !== parent.id));
         toast.success('Parent Selected', `${parent.name} has been added`);
-    }, [toast]);
+    }, [toast, selectedParents]);
 
     const handleRemoveParent = useCallback((parentId: string) => {
         setSelectedParents(prev => prev.filter(p => p.id !== parentId));

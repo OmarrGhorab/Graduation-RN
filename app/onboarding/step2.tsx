@@ -5,9 +5,7 @@ import { useRouter, Href } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Dimensions,
-    Image,
     KeyboardAvoidingView,
-    Modal,
     Platform,
     ScrollView,
     StatusBar,
@@ -18,6 +16,7 @@ import {
     View,
 } from 'react-native';
 import { useOnboardingStore } from '@/libs/onboarding';
+import BottomSheetModal from '@/components/BottomSheetModal';
 
 const { width } = Dimensions.get('window');
 
@@ -40,10 +39,16 @@ const ROLES = [
 export default function OnboardingStep2() {
     const router = useRouter();
     const toast = useToast();
+    const { formData, setStep2Data } = useOnboardingStore();
 
-    const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-    const [selectedRole, setSelectedRole] = useState<string>('');
-    const [bio, setBio] = useState<string>('');
+    // Initialize from Zustand store
+    const [selectedInterests, setSelectedInterests] = useState<string[]>(
+        formData.interests || []
+    );
+    const [selectedRole, setSelectedRole] = useState<string>(
+        formData.role?.toLowerCase() || ''
+    );
+    const [bio, setBio] = useState<string>(formData.bio || '');
     const [showRolePicker, setShowRolePicker] = useState(false);
 
 
@@ -85,7 +90,7 @@ export default function OnboardingStep2() {
         }
 
         // Save data to store
-        useOnboardingStore.getState().setStep2Data({
+        setStep2Data({
             role: mappedRole,
             interests: selectedInterests,
             bio: bio || undefined,
@@ -193,41 +198,35 @@ export default function OnboardingStep2() {
             </ScrollView>
 
             {/* Role Picker Modal */}
-            <Modal
+            <BottomSheetModal
                 visible={showRolePicker}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowRolePicker(false)}
+                onClose={() => setShowRolePicker(false)}
+                height={450}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Role</Text>
-                            <TouchableOpacity onPress={() => setShowRolePicker(false)}>
-                                <Ionicons name="close" size={24} color={Colors.light.text} />
-                            </TouchableOpacity>
-                        </View>
-                        {ROLES.map((role) => (
-                            <TouchableOpacity
-                                key={role.id}
-                                style={styles.modalOption}
-                                onPress={() => {
-                                    setSelectedRole(role.id);
-                                    setShowRolePicker(false);
-                                }}
-                            >
-                                <View style={styles.roleOptionContent}>
-                                    <Text style={styles.modalOptionText}>{role.label}</Text>
-                                    <Text style={styles.roleOptionDescription}>{role.description}</Text>
-                                </View>
-                                {selectedRole === role.id && (
-                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                <View style={styles.bottomSheetHeader}>
+                    <Text style={styles.bottomSheetTitle}>Select Role</Text>
                 </View>
-            </Modal>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {ROLES.map((role) => (
+                        <TouchableOpacity
+                            key={role.id}
+                            style={styles.bottomSheetOption}
+                            onPress={() => {
+                                setSelectedRole(role.id);
+                                setShowRolePicker(false);
+                            }}
+                        >
+                            <View style={styles.roleOptionContent}>
+                                <Text style={styles.bottomSheetOptionText}>{role.label}</Text>
+                                <Text style={styles.roleOptionDescription}>{role.description}</Text>
+                            </View>
+                            {selectedRole === role.id && (
+                                <Ionicons name="checkmark" size={20} color={cskColors[500]} />
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </BottomSheetModal>
 
         </KeyboardAvoidingView>
     );
@@ -407,5 +406,31 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[500],
         marginTop: 2,
+    },
+    bottomSheetHeader: {
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+        marginBottom: 8,
+    },
+    bottomSheetTitle: {
+        fontSize: 18,
+        fontFamily: Fonts.semiBold,
+        color: Colors.light.text,
+        textAlign: 'center',
+    },
+    bottomSheetOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F5F5F5',
+    },
+    bottomSheetOptionText: {
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        color: Colors.light.text,
     },
 });
