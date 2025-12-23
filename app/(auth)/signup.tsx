@@ -1,5 +1,5 @@
 import { useRouter, Href } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -18,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
 import { googleSignIn, configureGoogleSignIn, register } from '@/services/AuthService';
+import { checkUsername } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
 import { RegisterRequest, LoginResponse } from '@/types/auth';
 
@@ -37,15 +38,88 @@ export default function SignUpScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const { success, error } = useToast();
     const [suggestions, setSuggestions] = useState<string[]>([]);
+    
+    // Username validation states
+    const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+    const [usernameError, setUsernameError] = useState('');
+    const [usernameAvailable, setUsernameAvailable] = useState(false);
+    const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         configureGoogleSignIn();
     }, []);
 
+    // Debounced username check
+    useEffect(() => {
+        // Clear previous timeout
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+
+        // Don't check if username is empty
+        if (!username.trim()) {
+            setUsernameError('');
+            setUsernameAvailable(false);
+            setSuggestions([]);
+            setIsCheckingUsername(false);
+            return;
+        }
+
+        // Set checking state immediately
+        setIsCheckingUsername(true);
+
+        // Debounce the check
+        debounceTimeoutRef.current = setTimeout(() => {
+            handleCheckUsername();
+        }, 300);
+
+        // Cleanup
+        return () => {
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+            }
+        };
+    }, [username]);
+
+    const handleCheckUsername = async () => {
+        if (!username.trim()) {
+            setUsernameError('');
+            setUsernameAvailable(false);
+            setSuggestions([]);
+            return;
+        }
+
+        try {
+            setIsCheckingUsername(true);
+            const result = await checkUsername(username);
+            
+            if (!result.available) {
+                setUsernameError(result.message || 'Username is not available');
+                setUsernameAvailable(false);
+                setSuggestions(result.suggestions || []);
+            } else {
+                setUsernameError('');
+                setUsernameAvailable(true);
+                setSuggestions([]);
+            }
+        } catch (err: any) {
+            console.error('Username check error:', err);
+            setUsernameError(err.message || 'Failed to check username');
+            setUsernameAvailable(false);
+            setSuggestions([]);
+        } finally {
+            setIsCheckingUsername(false);
+        }
+    };
+
     const handleSignUp = async () => {
-        setSuggestions([]); // Clear previous suggestions
         if (!fullName || !username || !email || !password) {
             error('Missing fields', 'Please fill in all fields');
+            return;
+        }
+
+        if (usernameError) {
+            error('Invalid username', 'Please fix username errors');
             return;
         }
 
@@ -71,7 +145,7 @@ export default function SignUpScreen() {
             // Handle username suggestions if present in the error response
             if (err.responseData?.suggestions && Array.isArray(err.responseData.suggestions)) {
                 setSuggestions(err.responseData.suggestions);
-                // Don't append to toast, just show the base error
+                setUsernameError(errorMsg);
                 error('Username taken', errorMsg);
             } else {
                 error('Registration failed', errorMsg);
@@ -83,7 +157,8 @@ export default function SignUpScreen() {
 
     const handleSuggestionClick = (suggestion: string) => {
         setUsername(suggestion);
-        // Keep suggestions visible so user can switch between them
+        setSuggestions([]); // Clear suggestions after selection
+        setUsernameError(''); // Clear error
     };
 
     const handleGoogleSignIn = async () => {
@@ -154,49 +229,67 @@ export default function SignUpScreen() {
                         <View style={styles.labelContainer}>
                             <Text style={[styles.label, { color: '#888', backgroundColor: theme.background }]}>Username</Text>
                         </View>
-                        <TextInput
-                            style={[styles.input, { color: theme.text, borderColor: '#ccc' }]}
-                            placeholder="Choose a unique username"
-                            placeholderTextColor="#A0A0A0"
-                            value={username}
-                            onChangeText={setUsername}
-                            autoCapitalize="none"
-                        />
+                        <View style={styles.usernameInputContainer}>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    { color: theme.text, borderColor: '#ccc' },
+                                    usernameError && styles.inputError,
+                                    usernameAvailable && styles.inputSuccess,
+                                ]}
+                                placeholder="Choose a unique username"
+                                placeholderTextColor="#A0A0A0"
+                                value={username}
+                                onChangeText={setUsername}
+                                autoCapitalize="none"
+                            />
+                            {isCheckingUsername && (
+                                <View style={styles.usernameStatusIcon}>
+                                    <ActivityIndicator size="small" color={cskColors[500]} />
+                                </View>
+                            )}
+                            {!isCheckingUsername && usernameAvailable && username && (
+                                <View style={styles.usernameStatusIcon}>
+                                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                                </View>
+                            )}
+                            {!isCheckingUsername && usernameError && username && (
+                                <View style={styles.usernameStatusIcon}>
+                                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                                </View>
+                            )}
+                        </View>
+                        {usernameError && (
+                            <Text style={styles.errorText}>{usernameError}</Text>
+                        )}
+                        {usernameAvailable && username && (
+                            <Text style={styles.successText}>Username is available!</Text>
+                        )}
                     </View>
 
                     {/* Suggestions */}
                     {suggestions.length > 0 && (
                         <View style={styles.suggestionsContainer}>
-                            <Text style={styles.suggestionsLabel}>Try these available usernames:</Text>
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.suggestionsScroll}
-                            >
-                                {suggestions.map((suggestion, index) => {
-                                    const isSelected = username === suggestion;
-                                    return (
-                                        <TouchableOpacity
-                                            key={index}
-                                            style={[
-                                                styles.suggestionChip,
-                                                isSelected && styles.suggestionChipSelected
-                                            ]}
-                                            onPress={() => handleSuggestionClick(suggestion)}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Text style={styles.suggestionText}>@{suggestion}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
+                            <Text style={styles.suggestionsLabel}>Suggestions:</Text>
+                            <View style={styles.suggestionsRow}>
+                                {suggestions.map((suggestion, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={styles.suggestionChip}
+                                        onPress={() => handleSuggestionClick(suggestion)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </View>
                     )}
 
                     {/* Email Input */}
                     <View style={styles.inputWrapper}>
                         <View style={styles.labelContainer}>
-                            <Text style={[styles.label, { color: '#888', backgroundColor: theme.background }]}>Email / Username</Text>
+                            <Text style={[styles.label, { color: '#888', backgroundColor: theme.background }]}>Email</Text>
                         </View>
                         <TextInput
                             style={[styles.input, { color: theme.text, borderColor: '#ccc' }]}
@@ -341,6 +434,32 @@ const styles = StyleSheet.create({
         fontSize: 16,
         height: 50,
     },
+    inputError: {
+        borderColor: '#EF4444',
+    },
+    inputSuccess: {
+        borderColor: '#10B981',
+    },
+    usernameInputContainer: {
+        position: 'relative',
+    },
+    usernameStatusIcon: {
+        position: 'absolute',
+        right: 16,
+        top: 15,
+    },
+    errorText: {
+        fontSize: 12,
+        color: '#EF4444',
+        marginTop: 4,
+        marginLeft: 4,
+    },
+    successText: {
+        fontSize: 12,
+        color: '#10B981',
+        marginTop: 4,
+        marginLeft: 4,
+    },
     passwordContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -426,34 +545,29 @@ const styles = StyleSheet.create({
     },
     suggestionsContainer: {
         marginBottom: 16,
-        marginTop: -8,
+        marginTop: 8,
     },
     suggestionsLabel: {
-        fontSize: 13,
+        fontSize: 12,
         color: '#666',
-        marginBottom: 10,
+        marginBottom: 8,
         fontWeight: '500',
     },
-    suggestionsScroll: {
-        paddingVertical: 2,
+    suggestionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
     },
     suggestionChip: {
         backgroundColor: cskColors[500],
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
-        marginRight: 10,
         shadowColor: cskColors[500],
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 3,
         elevation: 2,
-    },
-    suggestionChipSelected: {
-        backgroundColor: cskColors[700],
-        transform: [{ scale: 1.05 }],
-        shadowOpacity: 0.3,
-        elevation: 4,
     },
     suggestionText: {
         color: '#FFFFFF',
