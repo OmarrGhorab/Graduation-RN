@@ -358,63 +358,90 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 
 export async function logout(): Promise<void> {
     try {
-        const token = await getValidAccessToken();
-        const refreshToken = await getRefreshToken();
+        // Get tokens directly without validation/refresh to avoid creating new sessions
+        const token = getAuthToken();
+        const refreshToken = getRefreshToken();
+
+        console.log('[Auth] ========== LOGOUT DEBUG START ==========');
+        console.log('[Auth] Access Token exists:', !!token);
+        console.log('[Auth] Access Token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'null');
+        console.log('[Auth] Refresh Token exists:', !!refreshToken);
+        console.log('[Auth] Refresh Token (first 20 chars):', refreshToken ? refreshToken.substring(0, 20) + '...' : 'null');
 
         if (token || refreshToken) {
             // Unregister FCM token first (fire and forget)
             unregisterFCMToken().catch(err => console.log('[Auth] FCM unregister warning:', err));
 
             // Call backend logout API
-            console.log('[Auth] Logging out with URL:', `${BASE_URL}/api/v1/auth/logout`);
+            console.log('[Auth] Logout URL:', `${BASE_URL}/api/v1/auth/logout`);
 
             try {
                 const headers: Record<string, string> = {
                     'Content-Type': 'application/json',
                 };
 
-                // Add Authorization header if we have an access token
+                // Add access token to Authorization header
                 if (token) {
                     headers['Authorization'] = `Bearer ${token}`;
+                    console.log('[Auth] Added Authorization header');
                 }
 
-                // Prepare request body with refresh token (if available)
-                const body = refreshToken ? JSON.stringify({ refreshToken }) : undefined;
+                // Add refresh token to x-refresh-token header (not body!)
+                if (refreshToken) {
+                    headers['x-refresh-token'] = refreshToken;
+                    console.log('[Auth] Added x-refresh-token header');
+                }
+
+                console.log('[Auth] Request headers:', Object.keys(headers));
+                console.log('[Auth] Sending logout request...');
 
                 const response = await fetch(
                     `${BASE_URL}/api/v1/auth/logout`,
                     {
                         method: 'POST',
                         headers,
-                        body,
+                        // No body - both tokens are in headers
                     }
                 );
 
+                console.log('[Auth] Response status:', response.status);
+                console.log('[Auth] Response ok:', response.ok);
+
                 if (!response.ok) {
                     const responseData = await response.json();
-                    console.warn('[Auth] Logout API returned error:', responseData);
+                    console.error('[Auth] Logout API ERROR response:', JSON.stringify(responseData, null, 2));
                     // Continue to clear local tokens even if API call fails
+                } else {
+                    const responseData = await response.json();
+                    console.log('[Auth] Logout API SUCCESS response:', JSON.stringify(responseData, null, 2));
                 }
-            } catch (apiError) {
-                console.error('[Auth] Logout API call failed:', apiError);
+            } catch (apiError: any) {
+                console.error('[Auth] Logout API call EXCEPTION:', apiError);
+                console.error('[Auth] Exception message:', apiError.message);
+                console.error('[Auth] Exception stack:', apiError.stack);
                 // Continue to clear local tokens even if API call fails
             }
+        } else {
+            console.log('[Auth] No tokens found, skipping API call');
         }
 
         // Clear local tokens
+        console.log('[Auth] Clearing local tokens...');
         await clearAuthToken();
 
         // Sign out from Google if user was signed in with Google
         try {
             await signOutGoogle();
+            console.log('[Auth] Google sign-out completed');
         } catch (googleError) {
             // Ignore Google sign-out errors (user might not have been signed in with Google)
             console.log('[Auth] Google sign-out not needed or failed (this is okay)');
         }
 
+        console.log('[Auth] ========== LOGOUT DEBUG END ==========');
         console.log('[Auth] Logout completed successfully');
     } catch (error) {
-        console.error('[Auth] Logout failed:', error);
+        console.error('[Auth] Logout OUTER EXCEPTION:', error);
         // Even if logout fails, try to clear tokens
         try {
             await clearAuthToken();

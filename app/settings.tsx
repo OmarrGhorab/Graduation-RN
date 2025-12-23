@@ -58,6 +58,7 @@ import {
     LinkedAccount,
 } from '@/services/ParentLinkService';
 import { usePreferences, useUpdatePreference } from '@/hooks/usePreferences';
+import { logout } from '@/services/AuthService';
 
 type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'preferences' | 'parentLink';
 
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const toast = useToast();
-    const { logout, user } = useAuthStore();
+    const { user } = useAuthStore();
     const themeMode = useThemeStore((state) => state.themeMode);
     const setThemeMode = useThemeStore((state) => state.setThemeMode);
 
@@ -465,7 +466,7 @@ export default function SettingsScreen() {
             await deactivateAccount();
             setShowDeactivateModal(false);
             toast.success('Account Deactivated', 'Your account has been deactivated');
-            logout();
+            await logout();
             router.replace('/login');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to deactivate account');
@@ -485,7 +486,7 @@ export default function SettingsScreen() {
             await deleteAccount(deletePassword);
             setShowDeleteModal(false);
             toast.success('Account Deleted', 'Your account has been permanently deleted');
-            logout();
+            await logout();
             router.replace('/login');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to delete account');

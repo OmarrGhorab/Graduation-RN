@@ -8,11 +8,12 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuthStore } from '@/libs/auth';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { uploadProfileImage } from '@/services/ProfileService';
+import { logout } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { usePrefetchPreferences } from '@/hooks/usePreferences';
 
 export default function AccountScreen() {
-    const { user, logout, updateUser } = useAuthStore();
+    const { user, updateUser } = useAuthStore();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const toast = useToast();
@@ -28,9 +29,15 @@ export default function AccountScreen() {
         prefetchPreferences();
     }, []);
 
-    const handleLogout = () => {
-        logout();
-        router.replace('/login');
+    const handleLogout = async () => {
+        try {
+            await logout();
+            router.replace('/login');
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Still navigate to login even if logout fails
+            router.replace('/login');
+        }
     };
 
     const handleEditProfile = () => {
