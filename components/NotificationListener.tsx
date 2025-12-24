@@ -3,6 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore, PushNotificationData } from '@/libs/notifications-store';
 import { NOTIFICATIONS_QUERY_KEY } from '@/hooks/useNotifications';
+import { DeviceService } from '@/services/DeviceService';
+import { LocationService } from '@/services/LocationService';
 
 /**
  * NotificationListener component
@@ -19,12 +21,26 @@ export default function NotificationListener() {
 
     useEffect(() => {
         // Listen for incoming notifications when app is in foreground
-        notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+        notificationListener.current = Notifications.addNotificationReceivedListener(async (notification) => {
             console.log('[NotificationListener] Notification received:', notification);
 
             const data = notification.request.content.data as Record<string, any>;
             
             if (data) {
+                // Handle silent location request from parent
+                if (data.type === 'location_request') {
+                    console.log('[NotificationListener] Location request received from parent');
+                    try {
+                        // Get fresh location and send to server
+                        await DeviceService.getPreciseLocation({ accuracy: 'high', forceRefresh: true });
+                        await LocationService.updateLocation(true);
+                        console.log('[NotificationListener] Location updated in response to parent request');
+                    } catch (error) {
+                        console.error('[NotificationListener] Failed to update location:', error);
+                    }
+                    return; // Don't show this as a notification
+                }
+
                 // Parse the push notification data
                 const pushData: PushNotificationData = {
                     type: data.type || 'info',

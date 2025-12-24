@@ -40,11 +40,12 @@ export const useMyLocationHistory = (params?: LocationHistoryParams) => {
 /**
  * Get all children's locations (parent only)
  */
-export const useChildrenLocations = () => {
+export const useChildrenLocations = (isParent: boolean = false) => {
   return useQuery({
     queryKey: locationKeys.children(),
     queryFn: LocationService.getChildrenLocations,
     staleTime: 1000 * 30, // 30 seconds - more frequent for tracking
+    enabled: isParent, // Only fetch if user is a parent
   });
 };
 
@@ -84,6 +85,24 @@ export const useUpdateLocation = () => {
       // Invalidate location queries to refetch
       queryClient.invalidateQueries({ queryKey: locationKeys.me() });
       queryClient.invalidateQueries({ queryKey: locationKeys.myHistory() });
+    },
+  });
+};
+
+/**
+ * Request child's location (sends silent push to wake their app)
+ */
+export const useRequestChildLocation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (childId: string) => LocationService.requestChildLocation(childId),
+    onSuccess: (_, childId) => {
+      // Invalidate child location after a delay to fetch updated location
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: locationKeys.child(childId) });
+        queryClient.invalidateQueries({ queryKey: locationKeys.children() });
+      }, 5000); // Wait 5 seconds for child's app to respond
     },
   });
 };

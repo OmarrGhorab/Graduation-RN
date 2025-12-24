@@ -23,6 +23,7 @@ import {
     useMyLocation,
     useChildrenLocations,
     useUpdateLocation,
+    useRequestChildLocation,
 } from '@/hooks/useLocation';
 import { DeviceService } from '@/services/DeviceService';
 
@@ -39,7 +40,19 @@ const formatTime = (timestamp: string) => {
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
     
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    
     return date.toLocaleDateString();
+};
+
+// Check if location is recent (within 10 minutes = likely online)
+const isRecentLocation = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    return diffMins < 10;
 };
 
 // Generate static map URL - memoized outside component
@@ -106,14 +119,19 @@ const LocationCard = memo(({
     location, 
     isCurrentUser = false,
     onPress,
+    onRequestLocation,
+    isRequestingLocation = false,
 }: {
     name: string;
     location: any;
     isCurrentUser?: boolean;
     onPress?: () => void;
+    onRequestLocation?: () => void;
+    isRequestingLocation?: boolean;
 }) => {
     const hasLocation = location && location.latitude && location.longitude;
     const isPrecise = location?.accuracy && location.accuracy < 50;
+    const isOnline = hasLocation && isRecentLocation(location.timestamp);
     
     return (
         <TouchableOpacity 
@@ -129,9 +147,26 @@ const LocationCard = memo(({
                         size={24} 
                         color={cskColors[500]} 
                     />
+                    {/* Online/Offline indicator for children */}
+                    {!isCurrentUser && hasLocation && (
+                        <View style={[
+                            styles.onlineIndicator,
+                            { backgroundColor: isOnline ? '#22c55e' : grayColors[400] }
+                        ]} />
+                    )}
                 </View>
                 <View style={styles.cardInfo}>
-                    <Text style={styles.cardName}>{name}</Text>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.cardName}>{name}</Text>
+                        {!isCurrentUser && hasLocation && (
+                            <Text style={[
+                                styles.onlineStatus,
+                                { color: isOnline ? '#22c55e' : grayColors[500] }
+                            ]}>
+                                {isOnline ? 'Online' : 'Offline'}
+                            </Text>
+                        )}
+                    </View>
                     {hasLocation && (
                         <Text style={styles.cardTime}>
                             {formatTime(location.timestamp)}
@@ -189,9 +224,32 @@ const LocationCard = memo(({
             )}
             
             {onPress && (
-                <View style={styles.viewHistoryRow}>
-                    <Text style={styles.viewHistoryText}>View history</Text>
-                    <Ionicons name="chevron-forward" size={16} color={cskColors[500]} />
+                <View style={styles.cardActions}>
+                    {/* Request Location Button */}
+                    {onRequestLocation && (
+                        <TouchableOpacity 
+                            style={styles.requestLocationButton}
+                            onPress={onRequestLocation}
+                            disabled={isRequestingLocation}
+                        >
+                            {isRequestingLocation ? (
+                                <ActivityIndicator size="small" color={cskColors[500]} />
+                            ) : (
+                                <>
+                                    <Ionicons name="locate-outline" size={16} color={cskColors[500]} />
+                                    <Text style={styles.requestLocationText}>
+                                        {isOnline ? 'Refresh Location' : 'Request Location'}
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    )}
+                    
+                    {/* View History */}
+                    <TouchableOpacity style={styles.viewHistoryRow} onPress={onPress}>
+                        <Text style={styles.viewHistoryText}>View history</Text>
+                        <Ionicons name="chevron-forward" size={16} color={cskColors[500]} />
+                    </TouchableOpacity>
                 </View>
             )}
         </TouchableOpacity>
@@ -207,6 +265,7 @@ export default function LocationScreen() {
     
     const [refreshing, setRefreshing] = useState(false);
     const [localLocation, setLocalLocation] = useState<any>(null);
+    const [requestingChildId, setRequestingChildId] = useState<string | null>(null);
     
     // Queries with optimized settings
     const { 
@@ -219,9 +278,10 @@ export default function LocationScreen() {
         data: childrenLocations, 
         isLoading: isLoadingChildren,
         refetch: refetchChildren,
-    } = useChildrenLocations();
+    } = useChildrenLocations(isParent);
     
     const updateLocationMutation = useUpdateLocation();
+    const requestLocationMutation = useRequestChildLocation();
     
     // Get local device location on mount
     useEffect(() => {
@@ -281,6 +341,24 @@ export default function LocationScreen() {
     const handleChildPress = useCallback((childId: string) => {
         router.push(`/location-history/${childId}` as any);
     }, [router]);
+
+    // Request location from offline child
+    const handleRequestLocation = useCallback(async (childId: string) => {
+        setRequestingChildId(childId);
+        try {
+            await requestLocationMutation.mutateAsync(childId);
+            toast.success('Request Sent', 'Location request sent. Waiting for response...');
+            
+            // Poll for updated location after a few seconds
+            setTimeout(async () => {
+                await refetchChildren();
+                setRequestingChildId(null);
+            }, 5000);
+        } catch (error: any) {
+            toast.error('Error', error.message || 'Failed to request location');
+            setRequestingChildId(null);
+        }
+    }, [requestLocationMutation, refetchChildren, toast]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -358,6 +436,8 @@ export default function LocationScreen() {
                                             name={child.childName}
                                             location={child.location}
                                             onPress={() => handleChildPress(child.childId)}
+                                            onRequestLocation={() => handleRequestLocation(child.childId)}
+                                            isRequestingLocation={requestingChildId === child.childId}
                                         />
                                     ))
                                 ) : (
@@ -469,15 +549,35 @@ const styles = StyleSheet.create({
         backgroundColor: cskColors[50],
         justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
+    },
+    onlineIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
     },
     cardInfo: {
         flex: 1,
         marginLeft: 12,
     },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     cardName: {
         fontSize: 16,
         fontFamily: Fonts.semiBold,
         color: grayColors[900],
+    },
+    onlineStatus: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
     },
     cardTime: {
         fontSize: 12,
@@ -570,6 +670,28 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
         color: grayColors[500],
         marginTop: 8,
+    },
+    cardActions: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: grayColors[100],
+    },
+    requestLocationButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: cskColors[50],
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        marginBottom: 8,
+    },
+    requestLocationText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        color: cskColors[500],
+        marginLeft: 6,
     },
     viewHistoryRow: {
         flexDirection: 'row',

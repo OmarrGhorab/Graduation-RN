@@ -1262,10 +1262,22 @@ export const googleSignIn = async (options?: {
 // Sign out from Google completely to force account picker next time
 export const signOutGoogle = async (): Promise<void> => {
     try {
-        await GoogleSignin.revokeAccess();
-        await GoogleSignin.signOut();
-    } catch (error) {
-        console.error('Google Sign-Out error:', error);
+        // Check if signed in with Google first
+        const isSignedIn = await GoogleSignin.getCurrentUser();
+        if (isSignedIn) {
+            await GoogleSignin.revokeAccess();
+            await GoogleSignin.signOut();
+            console.log('[Auth] Google sign-out completed');
+        } else {
+            console.log('[Auth] Not signed in with Google, skipping Google sign-out');
+        }
+    } catch (error: any) {
+        // SIGN_IN_REQUIRED means user wasn't signed in with Google - this is fine
+        if (error?.code === 'SIGN_IN_REQUIRED' || error?.message?.includes('SIGN_IN_REQUIRED')) {
+            console.log('[Auth] Google sign-out not needed (not signed in with Google)');
+        } else {
+            console.log('[Auth] Google sign-out error (non-critical):', error?.message);
+        }
     }
 };
 
