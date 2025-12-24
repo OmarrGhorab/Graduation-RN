@@ -548,7 +548,7 @@ export default function SettingsScreen() {
                 {currentSection === 'sessions' && 'Active Sessions'}
                 {currentSection === 'activity' && 'Activity Log'}
                 {currentSection === 'danger' && 'Account'}
-                {currentSection === 'parentLink' && 'Parent Link'}
+                {currentSection === 'parentLink' && (isParent ? 'My Children' : 'Parent Link')}
             </Text>
             <View style={styles.placeholder} />
         </View>
@@ -621,9 +621,9 @@ export default function SettingsScreen() {
                         <Ionicons name="people-outline" size={22} color={grayColors[600]} />
                     </View>
                     <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Parent Link</Text>
+                        <Text style={styles.menuText}>{isParent ? 'My Children' : 'Parent Link'}</Text>
                         <Text style={styles.menuSubtext}>
-                            {isParent ? 'Manage linked children' : 'Link with your parent'}
+                            {isParent ? 'View and manage linked children' : 'Link with your parent'}
                         </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
