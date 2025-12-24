@@ -5,6 +5,7 @@ import { DeviceService } from './DeviceService';
 // ==================== Types ====================
 
 export interface LocationData {
+  id?: string;
   latitude: number;
   longitude: number;
   accuracy: number | null;
@@ -12,21 +13,43 @@ export interface LocationData {
   timestamp: string;
 }
 
+export interface ChildInfo {
+  id: string;
+  name: string;
+  username: string;
+  profileImg: string | null;
+}
+
 export interface ChildLocation {
-  childId: string;
-  childName: string;
+  child: ChildInfo;
   location: LocationData | null;
 }
 
-export interface LocationHistoryParams {
-  limit?: number;
-  since?: string; // ISO date string
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
 }
 
-export interface LocationRequestResponse {
-  success: boolean;
-  message: string;
-  requestId?: string;
+export interface LocationHistoryParams {
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+}
+
+export interface LocationHistoryResponse {
+  data: LocationData[];
+  pagination: PaginationInfo;
+}
+
+export interface ChildLocationHistoryResponse {
+  child: ChildInfo;
+  data: LocationData[];
+  pagination: PaginationInfo;
 }
 
 // ==================== Helper ====================
@@ -48,11 +71,10 @@ const getAuthHeaders = async () => {
 
 export const LocationService = {
   /**
-   * Update current location on server and optionally record to history
+   * Update current location on server
    */
-  updateLocation: async (recordHistory: boolean = false): Promise<LocationData | null> => {
+  updateLocation: async (): Promise<LocationData | null> => {
     try {
-      // Get fresh location first
       const location = await DeviceService.getPreciseLocation({ accuracy: 'high' });
       
       if (!location) {
@@ -66,7 +88,6 @@ export const LocationService = {
         method: 'POST',
         headers,
         body: JSON.stringify({ 
-          recordHistory,
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
@@ -74,10 +95,9 @@ export const LocationService = {
         }),
       });
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        console.log('[LocationService] Update location endpoint not available yet');
+        console.log('[LocationService] Update location endpoint error');
         return null;
       }
 
@@ -87,10 +107,10 @@ export const LocationService = {
         throw new Error(data.message || 'Failed to update location');
       }
 
-      return data.data || null;
+      return data.location || null;
     } catch (error) {
       console.error('[LocationService] Update location error:', error);
-      return null; // Return null instead of throwing
+      return null;
     }
   },
 
@@ -106,11 +126,8 @@ export const LocationService = {
         headers,
       });
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        // Endpoint not implemented yet, return null silently
-        console.log('[LocationService] Location endpoint not available yet');
         return null;
       }
 
@@ -120,23 +137,25 @@ export const LocationService = {
         throw new Error(data.message || 'Failed to get location');
       }
 
-      return data.data || null;
+      return data.location || null;
     } catch (error) {
       console.error('[LocationService] Get my location error:', error);
-      return null; // Return null instead of throwing to allow fallback to local location
+      return null;
     }
   },
 
   /**
-   * Get my location history
+   * Get my location history with pagination
    */
-  getMyLocationHistory: async (params?: LocationHistoryParams): Promise<LocationData[]> => {
+  getMyLocationHistory: async (params?: LocationHistoryParams): Promise<LocationHistoryResponse> => {
     try {
       const headers = await getAuthHeaders();
       
       const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.since) queryParams.append('since', params.since);
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
       
       const url = `${BASE_URL}/api/v1/location/history${queryParams.toString() ? `?${queryParams}` : ''}`;
       
@@ -145,16 +164,24 @@ export const LocationService = {
         headers,
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        return { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false } };
+      }
+
       const data = await response.json();
       
       if (!response.ok) {
         throw new Error(data.message || 'Failed to get location history');
       }
 
-      return data.data || [];
+      return {
+        data: data.data || [],
+        pagination: data.pagination || { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false },
+      };
     } catch (error) {
       console.error('[LocationService] Get location history error:', error);
-      throw error;
+      return { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false } };
     }
   },
 
@@ -170,39 +197,19 @@ export const LocationService = {
         headers,
       });
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.log('[LocationService] Children non-JSON response:', text.substring(0, 200));
         return [];
       }
 
       const data = await response.json();
       
       if (!response.ok) {
-        // Don't throw for permission errors - just return empty
-        if (response.status === 403) {
-          return [];
-        }
+        if (response.status === 403) return [];
         throw new Error(data.message || 'Failed to get children locations');
       }
 
-      // Handle different response formats
-      const children = data.data || data.children || [];
-      
-      // Map to expected format
-      return children.map((item: any) => ({
-        childId: item.childId || item.child?.id,
-        childName: item.childName || item.child?.name || item.child?.username,
-        location: item.location ? {
-          latitude: item.location.latitude,
-          longitude: item.location.longitude,
-          accuracy: item.location.accuracy,
-          address: item.location.address,
-          timestamp: item.location.timestamp,
-        } : null,
-      }));
+      return data.children || [];
     } catch (error) {
       console.error('[LocationService] Get children locations error:', error);
       return [];
@@ -212,7 +219,7 @@ export const LocationService = {
   /**
    * Get specific child's latest location
    */
-  getChildLocation: async (childId: string): Promise<LocationData | null> => {
+  getChildLocation: async (childId: string): Promise<{ child: ChildInfo; location: LocationData | null } | null> => {
     try {
       const headers = await getAuthHeaders();
       
@@ -220,6 +227,11 @@ export const LocationService = {
         method: 'GET',
         headers,
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        return null;
+      }
 
       const data = await response.json();
       
@@ -230,7 +242,10 @@ export const LocationService = {
         throw new Error(data.message || 'Failed to get child location');
       }
 
-      return data.data || null;
+      return {
+        child: data.child,
+        location: data.location || null,
+      };
     } catch (error) {
       console.error('[LocationService] Get child location error:', error);
       throw error;
@@ -238,18 +253,20 @@ export const LocationService = {
   },
 
   /**
-   * Get specific child's location history
+   * Get specific child's location history with pagination
    */
   getChildLocationHistory: async (
     childId: string,
     params?: LocationHistoryParams
-  ): Promise<LocationData[]> => {
+  ): Promise<ChildLocationHistoryResponse> => {
     try {
       const headers = await getAuthHeaders();
       
       const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.since) queryParams.append('since', params.since);
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
       
       const url = `${BASE_URL}/api/v1/location/child/${childId}/history${queryParams.toString() ? `?${queryParams}` : ''}`;
       
@@ -257,6 +274,11 @@ export const LocationService = {
         method: 'GET',
         headers,
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server error');
+      }
 
       const data = await response.json();
       
@@ -267,7 +289,11 @@ export const LocationService = {
         throw new Error(data.message || 'Failed to get child location history');
       }
 
-      return data.data || [];
+      return {
+        child: data.child,
+        data: data.data || [],
+        pagination: data.pagination || { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false },
+      };
     } catch (error) {
       console.error('[LocationService] Get child location history error:', error);
       throw error;
@@ -276,9 +302,8 @@ export const LocationService = {
 
   /**
    * Request fresh location from child (sends silent push notification)
-   * Parent only - triggers child's app to wake up and send location
    */
-  requestChildLocation: async (childId: string): Promise<LocationRequestResponse> => {
+  requestChildLocation: async (childId: string): Promise<{ success: boolean; message: string }> => {
     try {
       const headers = await getAuthHeaders();
       
@@ -287,22 +312,14 @@ export const LocationService = {
         headers,
       });
 
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        console.error('[LocationService] Non-JSON response:', await response.text());
         throw new Error('Server error. Please try again later.');
       }
 
       const data = await response.json();
       
       if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error(data.message || 'You are not linked to this child');
-        }
-        if (response.status === 400) {
-          throw new Error(data.message || 'Child device not available');
-        }
         throw new Error(data.message || 'Failed to request location');
       }
 

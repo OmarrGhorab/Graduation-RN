@@ -24,6 +24,7 @@ import {
     useChildrenLocations,
     useUpdateLocation,
     useRequestChildLocation,
+    ChildLocation,
 } from '@/hooks/useLocation';
 import { DeviceService } from '@/services/DeviceService';
 
@@ -283,10 +284,10 @@ export default function LocationScreen() {
     const updateLocationMutation = useUpdateLocation();
     const requestLocationMutation = useRequestChildLocation();
     
-    // Get local device location on mount
+    // Get local device location on mount (use balanced for faster initial load)
     useEffect(() => {
         const fetchLocalLocation = async () => {
-            const loc = await DeviceService.getPreciseLocation({ accuracy: 'high' });
+            const loc = await DeviceService.getPreciseLocation({ accuracy: 'balanced' });
             if (loc) {
                 setLocalLocation({
                     latitude: loc.latitude,
@@ -304,30 +305,33 @@ export default function LocationScreen() {
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            // Parallel fetch for better performance
-            const [loc] = await Promise.all([
-                DeviceService.getPreciseLocation({ accuracy: 'high', forceRefresh: true }),
-                updateLocationMutation.mutateAsync(true).catch(() => {}),
-            ]);
-            
-            if (loc) {
-                setLocalLocation({
-                    latitude: loc.latitude,
-                    longitude: loc.longitude,
-                    accuracy: loc.accuracy,
-                    address: loc.formattedAddress,
-                    timestamp: new Date(loc.timestamp).toISOString(),
-                });
-            }
-            
-            await Promise.all([
+            // Refetch server data first (fast) - don't wait for GPS
+            const refetchPromises = [
                 refetchMyLocation(),
                 isParent ? refetchChildren() : Promise.resolve(),
-            ]);
+            ];
             
+            // Start GPS fetch in parallel but don't block on it
+            DeviceService.getPreciseLocation({ accuracy: 'high', forceRefresh: true })
+                .then(loc => {
+                    if (loc) {
+                        setLocalLocation({
+                            latitude: loc.latitude,
+                            longitude: loc.longitude,
+                            accuracy: loc.accuracy,
+                            address: loc.formattedAddress,
+                            timestamp: new Date(loc.timestamp).toISOString(),
+                        });
+                        // Update server in background
+                        updateLocationMutation.mutate();
+                    }
+                })
+                .catch(() => {});
+            
+            await Promise.all(refetchPromises);
             toast.success('Updated', 'Location refreshed');
         } catch (error: any) {
-            toast.error('Error', error.message || 'Failed to refresh location');
+            toast.error('Error', error.message || 'Failed to refresh');
         } finally {
             setRefreshing(false);
         }
@@ -413,6 +417,7 @@ export default function LocationScreen() {
                                 name={user?.name || 'You'}
                                 location={myLocation}
                                 isCurrentUser
+                                onPress={() => router.push('/my-location-history' as any)}
                             />
                         </View>
                         
@@ -430,14 +435,14 @@ export default function LocationScreen() {
                                         style={{ marginTop: 20 }}
                                     />
                                 ) : childrenLocations && childrenLocations.length > 0 ? (
-                                    childrenLocations.map((child) => (
+                                    childrenLocations.map((item: ChildLocation) => (
                                         <LocationCard
-                                            key={child.childId}
-                                            name={child.childName}
-                                            location={child.location}
-                                            onPress={() => handleChildPress(child.childId)}
-                                            onRequestLocation={() => handleRequestLocation(child.childId)}
-                                            isRequestingLocation={requestingChildId === child.childId}
+                                            key={item.child.id}
+                                            name={item.child.name || item.child.username}
+                                            location={item.location}
+                                            onPress={() => handleChildPress(item.child.id)}
+                                            onRequestLocation={() => handleRequestLocation(item.child.id)}
+                                            isRequestingLocation={requestingChildId === item.child.id}
                                         />
                                     ))
                                 ) : (

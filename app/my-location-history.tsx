@@ -9,13 +9,16 @@ import {
     ActivityIndicator,
     StatusBar,
     Image,
+    Linking,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { GEOAPIFY_API_KEY } from '@/constants/config';
-import { useChildLocation, useChildLocationHistory, LocationData } from '@/hooks/useLocation';
+import { useAuthStore } from '@/libs/auth';
+import { useMyLocation, useMyLocationHistory, LocationData } from '@/hooks/useLocation';
 
 // Format timestamp
 const formatDateTime = (timestamp: string) => {
@@ -38,29 +41,45 @@ const getMapUrl = (latitude: number, longitude: number) => {
     return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=120&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${GEOAPIFY_API_KEY}`;
 };
 
-// Location History Item
+// Open in maps
+const openInMaps = (latitude: number, longitude: number, label: string) => {
+    const encodedLabel = encodeURIComponent(label);
+    const googleMapsUrl = Platform.select({
+        ios: `comgooglemaps://?q=${latitude},${longitude}&center=${latitude},${longitude}&zoom=17`,
+        android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
+    });
+    const webUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    
+    Linking.canOpenURL(googleMapsUrl || '').then((supported) => {
+        if (supported) {
+            Linking.openURL(googleMapsUrl || '');
+        } else {
+            Linking.openURL(webUrl);
+        }
+    }).catch(() => Linking.openURL(webUrl));
+};
+
+// History Item Component
 const HistoryItem = ({ item, isFirst }: { item: LocationData; isFirst: boolean }) => {
     const { date, time } = formatDateTime(item.timestamp);
     
     return (
         <View style={styles.historyItem}>
-            {/* Timeline */}
             <View style={styles.timeline}>
-                <View style={[
-                    styles.timelineDot,
-                    isFirst && styles.timelineDotActive
-                ]} />
+                <View style={[styles.timelineDot, isFirst && styles.timelineDotActive]} />
                 <View style={styles.timelineLine} />
             </View>
             
-            {/* Content */}
-            <View style={styles.historyContent}>
+            <TouchableOpacity 
+                style={styles.historyContent}
+                onPress={() => openInMaps(item.latitude, item.longitude, item.address || 'Location')}
+                activeOpacity={0.7}
+            >
                 <View style={styles.historyHeader}>
                     <Text style={styles.historyTime}>{time}</Text>
                     <Text style={styles.historyDate}>{date}</Text>
                 </View>
                 
-                {/* Mini Map */}
                 <Image 
                     source={{ uri: getMapUrl(item.latitude, item.longitude) }}
                     style={styles.historyMap}
@@ -82,42 +101,36 @@ const HistoryItem = ({ item, isFirst }: { item: LocationData; isFirst: boolean }
                         </Text>
                     </View>
                 )}
-            </View>
+            </TouchableOpacity>
         </View>
     );
 };
 
-export default function LocationHistoryScreen() {
+export default function MyLocationHistoryScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { childId } = useLocalSearchParams<{ childId: string }>();
+    const { user } = useAuthStore();
     
     const [refreshing, setRefreshing] = useState(false);
     
-    // Queries
     const { 
-        data: childData, 
-        isLoading: isLoadingCurrent,
+        data: currentLocation, 
         refetch: refetchCurrent,
-    } = useChildLocation(childId || '');
+    } = useMyLocation();
     
     const { 
         data: historyData,
-        isLoading: isLoadingHistory,
+        isLoading,
         isFetchingNextPage,
         hasNextPage,
         fetchNextPage,
         refetch: refetchHistory,
-    } = useChildLocationHistory(childId || '', 10);
+    } = useMyLocationHistory(10);
     
-    // Flatten paginated data
     const historyItems = useMemo(() => {
         if (!historyData?.pages) return [];
         return historyData.pages.flatMap(page => page.data);
     }, [historyData]);
-    
-    const childInfo = childData?.child || historyData?.pages?.[0]?.child;
-    const currentLocation = childData?.location;
     
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -131,8 +144,6 @@ export default function LocationHistoryScreen() {
         }
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
     
-    const isLoading = isLoadingCurrent || isLoadingHistory;
-    
     const renderItem = useCallback(({ item, index }: { item: LocationData; index: number }) => (
         <HistoryItem item={item} isFirst={index === 0} />
     ), []);
@@ -142,9 +153,13 @@ export default function LocationHistoryScreen() {
     
     const ListHeader = () => (
         <>
-            {/* Current Location Card */}
+            {/* Current Location */}
             {currentLocation && (
-                <View style={styles.currentCard}>
+                <TouchableOpacity 
+                    style={styles.currentCard}
+                    onPress={() => openInMaps(currentLocation.latitude, currentLocation.longitude, currentLocation.address || 'My Location')}
+                    activeOpacity={0.8}
+                >
                     <View style={styles.currentHeader}>
                         <View style={styles.currentBadge}>
                             <View style={styles.liveDot} />
@@ -157,7 +172,6 @@ export default function LocationHistoryScreen() {
                         )}
                     </View>
                     
-                    {/* Map Preview */}
                     <Image 
                         source={{ uri: getMapUrl(currentLocation.latitude, currentLocation.longitude) }}
                         style={styles.currentMap}
@@ -170,12 +184,17 @@ export default function LocationHistoryScreen() {
                             {currentLocation.address || 'Address unavailable'}
                         </Text>
                     </View>
-                </View>
+                    
+                    <View style={styles.openInMapsRow}>
+                        <Ionicons name="open-outline" size={14} color={cskColors[500]} />
+                        <Text style={styles.openInMapsText}>Tap to open in Maps</Text>
+                    </View>
+                </TouchableOpacity>
             )}
             
             {/* History Header */}
             <View style={styles.historyTitleRow}>
-                <Text style={styles.historyTitle}>Location History</Text>
+                <Text style={styles.historyTitle}>My Location History</Text>
                 {historyData?.pages?.[0]?.pagination && (
                     <Text style={styles.historyCount}>
                         {historyData.pages[0].pagination.total} locations
@@ -199,7 +218,7 @@ export default function LocationHistoryScreen() {
             <Ionicons name="time-outline" size={48} color={grayColors[300]} />
             <Text style={styles.emptyText}>No location history</Text>
             <Text style={styles.emptySubtext}>
-                Location history will appear here as the child moves
+                Your location history will appear here
             </Text>
         </View>
     );
@@ -208,21 +227,13 @@ export default function LocationHistoryScreen() {
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
             
-            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity 
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
+                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={24} color={grayColors[900]} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>
-                        {childInfo?.name || childInfo?.username || 'Location History'}
-                    </Text>
-                    {childInfo && (
-                        <Text style={styles.headerSubtitle}>@{childInfo.username}</Text>
-                    )}
+                    <Text style={styles.headerTitle}>{user?.name || 'My Location'}</Text>
+                    <Text style={styles.headerSubtitle}>Location History</Text>
                 </View>
                 <View style={styles.placeholder} />
             </View>
@@ -258,10 +269,7 @@ export default function LocationHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
+    container: { flex: 1, backgroundColor: '#FFFFFF' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -271,38 +279,13 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: grayColors[100],
     },
-    backButton: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerCenter: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    headerSubtitle: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    placeholder: {
-        width: 40,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    listContent: {
-        padding: 16,
-        paddingBottom: 32,
-    },
+    backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+    headerCenter: { flex: 1, alignItems: 'center' },
+    headerTitle: { fontSize: 18, fontFamily: Fonts.semiBold, color: grayColors[900] },
+    headerSubtitle: { fontSize: 12, fontFamily: Fonts.regular, color: grayColors[500] },
+    placeholder: { width: 40 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    listContent: { padding: 16, paddingBottom: 32 },
     currentCard: {
         backgroundColor: cskColors[50],
         borderRadius: 16,
@@ -325,156 +308,33 @@ const styles = StyleSheet.create({
         paddingVertical: 4,
         borderRadius: 12,
     },
-    liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#FFFFFF',
-        marginRight: 6,
-    },
-    liveText: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        color: '#FFFFFF',
-    },
-    currentAccuracy: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        color: cskColors[600],
-    },
-    currentMap: {
-        width: '100%',
-        height: 120,
-        borderRadius: 12,
-        marginBottom: 12,
-        backgroundColor: grayColors[200],
-    },
-    currentLocation: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-    },
-    currentAddress: {
-        flex: 1,
-        fontSize: 15,
-        fontFamily: Fonts.medium,
-        color: grayColors[800],
-        marginLeft: 8,
-        lineHeight: 22,
-    },
-    historyTitleRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    historyTitle: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    historyCount: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    historyItem: {
-        flexDirection: 'row',
-        marginBottom: 4,
-    },
-    timeline: {
-        width: 24,
-        alignItems: 'center',
-    },
-    timelineDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: grayColors[300],
-        marginTop: 4,
-    },
-    timelineDotActive: {
-        backgroundColor: cskColors[500],
-    },
-    timelineLine: {
-        flex: 1,
-        width: 2,
-        backgroundColor: grayColors[200],
-        marginVertical: 4,
-    },
-    historyContent: {
-        flex: 1,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        padding: 12,
-        marginLeft: 8,
-        marginBottom: 8,
-    },
-    historyHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    historyTime: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    historyDate: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    historyMap: {
-        width: '100%',
-        height: 80,
-        borderRadius: 8,
-        marginBottom: 8,
-        backgroundColor: grayColors[200],
-    },
-    historyLocation: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 4,
-    },
-    historyAddress: {
-        flex: 1,
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[700],
-        marginLeft: 6,
-        lineHeight: 18,
-    },
-    historyAccuracy: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginLeft: 20,
-    },
-    historyAccuracyText: {
-        fontSize: 11,
-        fontFamily: Fonts.regular,
-        color: grayColors[400],
-        marginLeft: 4,
-    },
-    footerLoader: {
-        paddingVertical: 20,
-        alignItems: 'center',
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    emptyText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[500],
-        marginTop: 12,
-    },
-    emptySubtext: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[400],
-        marginTop: 4,
-        textAlign: 'center',
-    },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF', marginRight: 6 },
+    liveText: { fontSize: 12, fontFamily: Fonts.medium, color: '#FFFFFF' },
+    currentAccuracy: { fontSize: 12, fontFamily: Fonts.medium, color: cskColors[600] },
+    currentMap: { width: '100%', height: 150, borderRadius: 12, marginBottom: 12, backgroundColor: grayColors[200] },
+    currentLocation: { flexDirection: 'row', alignItems: 'flex-start' },
+    currentAddress: { flex: 1, fontSize: 15, fontFamily: Fonts.medium, color: grayColors[800], marginLeft: 8, lineHeight: 22 },
+    openInMapsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: cskColors[200] },
+    openInMapsText: { fontSize: 13, fontFamily: Fonts.medium, color: cskColors[500], marginLeft: 6 },
+    historyTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    historyTitle: { fontSize: 16, fontFamily: Fonts.semiBold, color: grayColors[900] },
+    historyCount: { fontSize: 12, fontFamily: Fonts.regular, color: grayColors[500] },
+    historyItem: { flexDirection: 'row', marginBottom: 4 },
+    timeline: { width: 24, alignItems: 'center' },
+    timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: grayColors[300], marginTop: 4 },
+    timelineDotActive: { backgroundColor: cskColors[500] },
+    timelineLine: { flex: 1, width: 2, backgroundColor: grayColors[200], marginVertical: 4 },
+    historyContent: { flex: 1, backgroundColor: grayColors[50], borderRadius: 12, padding: 12, marginLeft: 8, marginBottom: 8 },
+    historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    historyTime: { fontSize: 14, fontFamily: Fonts.semiBold, color: grayColors[900] },
+    historyDate: { fontSize: 12, fontFamily: Fonts.regular, color: grayColors[500] },
+    historyMap: { width: '100%', height: 80, borderRadius: 8, marginBottom: 8, backgroundColor: grayColors[200] },
+    historyLocation: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+    historyAddress: { flex: 1, fontSize: 13, fontFamily: Fonts.regular, color: grayColors[700], marginLeft: 6, lineHeight: 18 },
+    historyAccuracy: { flexDirection: 'row', alignItems: 'center', marginLeft: 20 },
+    historyAccuracyText: { fontSize: 11, fontFamily: Fonts.regular, color: grayColors[400], marginLeft: 4 },
+    footerLoader: { paddingVertical: 20, alignItems: 'center' },
+    emptyContainer: { alignItems: 'center', paddingVertical: 60 },
+    emptyText: { fontSize: 16, fontFamily: Fonts.semiBold, color: grayColors[500], marginTop: 12 },
+    emptySubtext: { fontSize: 14, fontFamily: Fonts.regular, color: grayColors[400], marginTop: 4, textAlign: 'center' },
 });

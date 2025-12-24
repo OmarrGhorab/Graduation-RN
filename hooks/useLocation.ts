@@ -1,16 +1,23 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LocationService, LocationData, ChildLocation, LocationHistoryParams } from '@/services/LocationService';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
+import { 
+  LocationService, 
+  LocationData, 
+  ChildLocation, 
+  LocationHistoryParams,
+  LocationHistoryResponse,
+  ChildLocationHistoryResponse,
+  ChildInfo,
+} from '@/services/LocationService';
 
 // ==================== Query Keys ====================
 
 export const locationKeys = {
   all: ['location'] as const,
   me: () => [...locationKeys.all, 'me'] as const,
-  myHistory: (params?: LocationHistoryParams) => [...locationKeys.all, 'history', params] as const,
+  myHistory: () => [...locationKeys.all, 'history'] as const,
   children: () => [...locationKeys.all, 'children'] as const,
   child: (childId: string) => [...locationKeys.all, 'child', childId] as const,
-  childHistory: (childId: string, params?: LocationHistoryParams) => 
-    [...locationKeys.all, 'child', childId, 'history', params] as const,
+  childHistory: (childId: string) => [...locationKeys.all, 'child', childId, 'history'] as const,
 };
 
 // ==================== Hooks ====================
@@ -27,12 +34,19 @@ export const useMyLocation = () => {
 };
 
 /**
- * Get my location history
+ * Get my location history with infinite scroll
  */
-export const useMyLocationHistory = (params?: LocationHistoryParams) => {
-  return useQuery({
-    queryKey: locationKeys.myHistory(params),
-    queryFn: () => LocationService.getMyLocationHistory(params),
+export const useMyLocationHistory = (limit: number = 10) => {
+  return useInfiniteQuery({
+    queryKey: locationKeys.myHistory(),
+    queryFn: ({ pageParam = 1 }) => LocationService.getMyLocationHistory({ page: pageParam, limit }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.hasNext) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
+    },
+    initialPageParam: 1,
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
 };
@@ -44,8 +58,8 @@ export const useChildrenLocations = (isParent: boolean = false) => {
   return useQuery({
     queryKey: locationKeys.children(),
     queryFn: LocationService.getChildrenLocations,
-    staleTime: 1000 * 30, // 30 seconds - more frequent for tracking
-    enabled: isParent, // Only fetch if user is a parent
+    staleTime: 1000 * 30, // 30 seconds
+    enabled: isParent,
   });
 };
 
@@ -62,12 +76,19 @@ export const useChildLocation = (childId: string) => {
 };
 
 /**
- * Get specific child's location history
+ * Get specific child's location history with infinite scroll
  */
-export const useChildLocationHistory = (childId: string, params?: LocationHistoryParams) => {
-  return useQuery({
-    queryKey: locationKeys.childHistory(childId, params),
-    queryFn: () => LocationService.getChildLocationHistory(childId, params),
+export const useChildLocationHistory = (childId: string, limit: number = 10) => {
+  return useInfiniteQuery({
+    queryKey: locationKeys.childHistory(childId),
+    queryFn: ({ pageParam = 1 }) => LocationService.getChildLocationHistory(childId, { page: pageParam, limit }),
+    getNextPageParam: (lastPage) => {
+      if (lastPage.pagination.hasNext) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
+    },
+    initialPageParam: 1,
     enabled: !!childId,
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
@@ -80,9 +101,8 @@ export const useUpdateLocation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (recordHistory: boolean = false) => LocationService.updateLocation(recordHistory),
+    mutationFn: () => LocationService.updateLocation(),
     onSuccess: () => {
-      // Invalidate location queries to refetch
       queryClient.invalidateQueries({ queryKey: locationKeys.me() });
       queryClient.invalidateQueries({ queryKey: locationKeys.myHistory() });
     },
@@ -102,7 +122,10 @@ export const useRequestChildLocation = () => {
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: locationKeys.child(childId) });
         queryClient.invalidateQueries({ queryKey: locationKeys.children() });
-      }, 5000); // Wait 5 seconds for child's app to respond
+      }, 5000);
     },
   });
 };
+
+// Re-export types for convenience
+export type { LocationData, ChildLocation, ChildInfo, LocationHistoryParams };

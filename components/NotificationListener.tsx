@@ -33,7 +33,7 @@ export default function NotificationListener() {
                     try {
                         // Get fresh location and send to server
                         await DeviceService.getPreciseLocation({ accuracy: 'high', forceRefresh: true });
-                        await LocationService.updateLocation(true);
+                        await LocationService.updateLocation();
                         console.log('[NotificationListener] Location updated in response to parent request');
                     } catch (error) {
                         console.error('[NotificationListener] Failed to update location:', error);
