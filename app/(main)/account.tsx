@@ -204,6 +204,15 @@ export default function AccountScreen() {
                         <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
                     </TouchableOpacity>
 
+                    {/* Location */}
+                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/location')}>
+                        <View style={styles.menuIconContainer}>
+                            <Ionicons name="location-outline" size={22} color={grayColors[600]} />
+                        </View>
+                        <Text style={styles.menuText}>Location</Text>
+                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
+                    </TouchableOpacity>
+
                     {/* Help & Support */}
                     <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
                         <View style={styles.menuIconContainer}>

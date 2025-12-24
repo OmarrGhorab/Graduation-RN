@@ -28,6 +28,26 @@ export interface LocationInfo {
     timestamp: number;
 }
 
+export interface PreciseLocation {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null; // meters
+    altitude: number | null; // meters
+    altitudeAccuracy: number | null; // meters
+    heading: number | null; // degrees (0-360)
+    speed: number | null; // m/s
+    timestamp: number;
+    // Reverse geocoded info
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    postalCode: string | null;
+    street: string | null;
+    formattedAddress: string | null;
+}
+
+export type LocationAccuracyLevel = 'lowest' | 'low' | 'balanced' | 'high' | 'highest';
+
 export interface DeviceHeaders {
     'User-Agent': string;
     'X-Device-Name': string;
@@ -37,15 +57,31 @@ export interface DeviceHeaders {
     'X-Device-Location': string;
     'X-Device-Timezone': string;
     'X-Device-Platform': string;
+    'X-Device-Latitude'?: string;
+    'X-Device-Longitude'?: string;
+    'X-Device-Location-Accuracy'?: string;
     'X-Forwarded-For'?: string;
 }
 
 // Cache
 let cachedDeviceInfo: DeviceInfo | null = null;
 let cachedLocationInfo: LocationInfo | null = null;
+let cachedPreciseLocation: PreciseLocation | null = null;
 let cachedPublicIpAddress: string | null = null;
 let cachedLocalIpAddress: string | null = null;
 let cachedPushToken: string | null = null;
+
+// Helper to map accuracy level to expo-location accuracy
+const getLocationAccuracy = (level: LocationAccuracyLevel): Location.Accuracy => {
+    switch (level) {
+        case 'lowest': return Location.Accuracy.Lowest;
+        case 'low': return Location.Accuracy.Low;
+        case 'balanced': return Location.Accuracy.Balanced;
+        case 'high': return Location.Accuracy.High;
+        case 'highest': return Location.Accuracy.Highest;
+        default: return Location.Accuracy.Balanced;
+    }
+};
 
 export const DeviceService = {
     /**
@@ -129,20 +165,55 @@ export const DeviceService = {
     },
 
     /**
-     * Request location permission
+     * Request location permission (precise only)
+     * On Android 12+, if user selects "approximate", we prompt them to enable precise
      */
     requestLocationPermission: async (): Promise<boolean> => {
         try {
             const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
             
             if (existingStatus === 'granted') {
-                return true;
+                // Check if we have precise location access (Android 12+)
+                const accuracy = await Location.getProviderStatusAsync();
+                if (accuracy.locationServicesEnabled) {
+                    return true;
+                }
             }
 
+            // Request foreground permission
             const { status } = await Location.requestForegroundPermissionsAsync();
-            return status === 'granted';
+            
+            if (status !== 'granted') {
+                console.warn('[DeviceService] Location permission denied');
+                return false;
+            }
+
+            return true;
         } catch (error) {
             console.warn('[DeviceService] Location permission error:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Check if precise location is available (not approximate)
+     * Returns true if we can get high-accuracy location
+     */
+    hasPreciseLocationAccess: async (): Promise<boolean> => {
+        try {
+            const { status } = await Location.getForegroundPermissionsAsync();
+            if (status !== 'granted') return false;
+
+            // Try to get a location with high accuracy - if it fails or returns low accuracy, 
+            // the user likely selected "approximate"
+            const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+            });
+
+            // If accuracy is worse than 100m, likely using approximate location
+            const accuracy = location.coords.accuracy;
+            return accuracy !== null && accuracy < 100;
+        } catch {
             return false;
         }
     },
@@ -249,6 +320,289 @@ export const DeviceService = {
             };
             cachedLocationInfo = fallback;
             return fallback;
+        }
+    },
+
+    /**
+     * Get precise location with latitude, longitude, and full geocoded details
+     * @param accuracy - Accuracy level: 'lowest', 'low', 'balanced', 'high', 'highest'
+     * @param includeGeocoding - Whether to include reverse geocoding (city, country, etc.)
+     * @param forceRefresh - Force a new location fetch, ignoring cache
+     * @param timeout - Timeout in milliseconds (default: 15000)
+     */
+    getPreciseLocation: async (options?: {
+        accuracy?: LocationAccuracyLevel;
+        includeGeocoding?: boolean;
+        forceRefresh?: boolean;
+        timeout?: number;
+    }): Promise<PreciseLocation | null> => {
+        const {
+            accuracy = 'high',
+            includeGeocoding = true,
+            forceRefresh = false,
+            timeout = 15000,
+        } = options || {};
+
+        // Check cache if not forcing refresh (cache for 5 minutes for precise location)
+        const PRECISE_CACHE_DURATION = 5 * 60 * 1000;
+        if (!forceRefresh && cachedPreciseLocation && 
+            (Date.now() - cachedPreciseLocation.timestamp) < PRECISE_CACHE_DURATION) {
+            console.log('[DeviceService] Returning cached precise location');
+            return cachedPreciseLocation;
+        }
+
+        // Check permission
+        const hasPermission = await DeviceService.requestLocationPermission();
+        
+        if (!hasPermission) {
+            console.warn('[DeviceService] Location permission denied');
+            return null;
+        }
+
+        try {
+            console.log(`[DeviceService] Getting precise location with ${accuracy} accuracy...`);
+            
+            // Get current position with specified accuracy
+            const position = await Location.getCurrentPositionAsync({
+                accuracy: getLocationAccuracy(accuracy),
+                timeInterval: 1000, // Update interval in ms
+                distanceInterval: 1, // Update distance in meters
+            });
+
+            const { latitude, longitude, accuracy: posAccuracy, altitude, altitudeAccuracy, heading, speed } = position.coords;
+            
+            console.log(`[DeviceService] Got coordinates: ${latitude}, ${longitude} (accuracy: ${posAccuracy}m)`);
+
+            let geocodeData: {
+                city: string | null;
+                region: string | null;
+                country: string | null;
+                postalCode: string | null;
+                street: string | null;
+                formattedAddress: string | null;
+            } = {
+                city: null,
+                region: null,
+                country: null,
+                postalCode: null,
+                street: null,
+                formattedAddress: null,
+            };
+
+            // Reverse geocode if requested
+            if (includeGeocoding) {
+                try {
+                    const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+                    
+                    if (results && results.length > 0) {
+                        const result = results[0];
+                        geocodeData = {
+                            city: result.city || null,
+                            region: result.region || null,
+                            country: result.country || null,
+                            postalCode: result.postalCode || null,
+                            street: result.street ? `${result.streetNumber || ''} ${result.street}`.trim() : null,
+                            formattedAddress: [
+                                result.streetNumber,
+                                result.street,
+                                result.city,
+                                result.region,
+                                result.postalCode,
+                                result.country,
+                            ].filter(Boolean).join(', ') || null,
+                        };
+                        console.log('[DeviceService] Geocoded address:', geocodeData.formattedAddress);
+                    }
+                } catch (geocodeError) {
+                    console.warn('[DeviceService] Reverse geocoding failed:', geocodeError);
+                }
+            }
+
+            const preciseLocation: PreciseLocation = {
+                latitude,
+                longitude,
+                accuracy: posAccuracy ?? null,
+                altitude: altitude ?? null,
+                altitudeAccuracy: altitudeAccuracy ?? null,
+                heading: heading ?? null,
+                speed: speed ?? null,
+                timestamp: Date.now(),
+                ...geocodeData,
+            };
+
+            // Cache the result
+            cachedPreciseLocation = preciseLocation;
+
+            return preciseLocation;
+        } catch (error) {
+            console.warn('[DeviceService] Precise location fetch error:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Watch location changes in real-time
+     * @param callback - Function called with each location update
+     * @param options - Accuracy level and update intervals
+     * @returns Subscription object with remove() method to stop watching
+     */
+    watchLocation: async (
+        callback: (location: PreciseLocation) => void,
+        options?: {
+            accuracy?: LocationAccuracyLevel;
+            timeInterval?: number; // ms between updates
+            distanceInterval?: number; // meters between updates
+            includeGeocoding?: boolean;
+        }
+    ): Promise<Location.LocationSubscription | null> => {
+        const {
+            accuracy = 'high',
+            timeInterval = 5000,
+            distanceInterval = 10,
+            includeGeocoding = false,
+        } = options || {};
+
+        const hasPermission = await DeviceService.requestLocationPermission();
+        
+        if (!hasPermission) {
+            console.warn('[DeviceService] Location permission denied for watch');
+            return null;
+        }
+
+        try {
+            console.log('[DeviceService] Starting location watch...');
+            
+            const subscription = await Location.watchPositionAsync(
+                {
+                    accuracy: getLocationAccuracy(accuracy),
+                    timeInterval,
+                    distanceInterval,
+                },
+                async (position) => {
+                    const { latitude, longitude, accuracy: posAccuracy, altitude, altitudeAccuracy, heading, speed } = position.coords;
+                    
+                    let geocodeData = {
+                        city: null as string | null,
+                        region: null as string | null,
+                        country: null as string | null,
+                        postalCode: null as string | null,
+                        street: null as string | null,
+                        formattedAddress: null as string | null,
+                    };
+
+                    if (includeGeocoding) {
+                        try {
+                            const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+                            if (results && results.length > 0) {
+                                const result = results[0];
+                                geocodeData = {
+                                    city: result.city || null,
+                                    region: result.region || null,
+                                    country: result.country || null,
+                                    postalCode: result.postalCode || null,
+                                    street: result.street ? `${result.streetNumber || ''} ${result.street}`.trim() : null,
+                                    formattedAddress: [
+                                        result.streetNumber,
+                                        result.street,
+                                        result.city,
+                                        result.region,
+                                        result.postalCode,
+                                        result.country,
+                                    ].filter(Boolean).join(', ') || null,
+                                };
+                            }
+                        } catch (e) {
+                            // Ignore geocoding errors in watch mode
+                        }
+                    }
+
+                    const preciseLocation: PreciseLocation = {
+                        latitude,
+                        longitude,
+                        accuracy: posAccuracy ?? null,
+                        altitude: altitude ?? null,
+                        altitudeAccuracy: altitudeAccuracy ?? null,
+                        heading: heading ?? null,
+                        speed: speed ?? null,
+                        timestamp: Date.now(),
+                        ...geocodeData,
+                    };
+
+                    // Update cache
+                    cachedPreciseLocation = preciseLocation;
+                    
+                    callback(preciseLocation);
+                }
+            );
+
+            return subscription;
+        } catch (error) {
+            console.warn('[DeviceService] Watch location error:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Get last known location (faster, may be stale)
+     */
+    getLastKnownLocation: async (): Promise<PreciseLocation | null> => {
+        // Return cached if available
+        if (cachedPreciseLocation) {
+            return cachedPreciseLocation;
+        }
+
+        const hasPermission = await DeviceService.requestLocationPermission();
+        if (!hasPermission) return null;
+
+        try {
+            const position = await Location.getLastKnownPositionAsync();
+            
+            if (!position) return null;
+
+            const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } = position.coords;
+
+            return {
+                latitude,
+                longitude,
+                accuracy: accuracy ?? null,
+                altitude: altitude ?? null,
+                altitudeAccuracy: altitudeAccuracy ?? null,
+                heading: heading ?? null,
+                speed: speed ?? null,
+                timestamp: position.timestamp,
+                city: null,
+                region: null,
+                country: null,
+                postalCode: null,
+                street: null,
+                formattedAddress: null,
+            };
+        } catch (error) {
+            console.warn('[DeviceService] Get last known location error:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Check if location services are enabled on the device
+     */
+    isLocationServicesEnabled: async (): Promise<boolean> => {
+        try {
+            return await Location.hasServicesEnabledAsync();
+        } catch {
+            return false;
+        }
+    },
+
+    /**
+     * Get current location permission status
+     */
+    getLocationPermissionStatus: async (): Promise<'granted' | 'denied' | 'undetermined'> => {
+        try {
+            const { status } = await Location.getForegroundPermissionsAsync();
+            return status as 'granted' | 'denied' | 'undetermined';
+        } catch {
+            return 'undetermined';
         }
     },
 
@@ -375,21 +729,33 @@ export const DeviceService = {
      */
     getDeviceHeaders: async (): Promise<DeviceHeaders> => {
         const deviceInfo = DeviceService.getDeviceInfo();
-        const locationInfo = await DeviceService.getLocation();
+        // Use cached location if available, otherwise fetch
+        const preciseLocation = cachedPreciseLocation || await DeviceService.getPreciseLocation({ accuracy: 'highest' });
         const publicIp = await DeviceService.getPublicIpAddress();
         const userAgent = DeviceService.getUserAgent();
 
-        return {
+        const headers: DeviceHeaders = {
             'User-Agent': userAgent,
             'X-Device-Name': deviceInfo.deviceName,
             'X-Device-Model': deviceInfo.deviceModel,
             'X-Device-OS-Version': deviceInfo.osVersion,
             'X-App-Version': deviceInfo.appVersion,
-            'X-Device-Location': locationInfo.location || '',
-            'X-Device-Timezone': locationInfo.timezone,
+            'X-Device-Location': preciseLocation?.formattedAddress || '',
+            'X-Device-Timezone': deviceInfo.timezone,
             'X-Device-Platform': deviceInfo.platform,
             'X-Forwarded-For': publicIp,
         };
+
+        // Add precise coordinates if available
+        if (preciseLocation) {
+            headers['X-Device-Latitude'] = preciseLocation.latitude.toString();
+            headers['X-Device-Longitude'] = preciseLocation.longitude.toString();
+            if (preciseLocation.accuracy) {
+                headers['X-Device-Location-Accuracy'] = preciseLocation.accuracy.toString();
+            }
+        }
+
+        return headers;
     },
 
     /**
@@ -420,9 +786,18 @@ export const DeviceService = {
         const deviceInfo = DeviceService.getDeviceInfo();
         console.log('[DeviceService] Device Info:', deviceInfo);
         
-        // Pre-fetch location in background (don't await)
-        DeviceService.getLocation().then(loc => {
-            console.log('[DeviceService] Location:', loc.location);
+        // Pre-fetch precise location in background
+        DeviceService.getPreciseLocation({ accuracy: 'highest' }).then(loc => {
+            if (loc) {
+                console.log('[DeviceService] Precise Location:', {
+                    lat: loc.latitude,
+                    lng: loc.longitude,
+                    accuracy: `${loc.accuracy}m`,
+                    address: loc.formattedAddress || `${loc.city}, ${loc.country}`,
+                });
+            } else {
+                console.log('[DeviceService] Location: Permission denied or unavailable');
+            }
         }).catch(e => {
             console.warn('[DeviceService] Background location fetch failed:', e);
         });
@@ -439,6 +814,7 @@ export const DeviceService = {
     clearCache: async (): Promise<void> => {
         cachedDeviceInfo = null;
         cachedLocationInfo = null;
+        cachedPreciseLocation = null;
         cachedPublicIpAddress = null;
         cachedLocalIpAddress = null;
         cachedPushToken = null;
@@ -453,5 +829,20 @@ export const DeviceService = {
         cachedLocationInfo = null;
         await AsyncStorage.removeItem(LOCATION_CACHE_KEY);
         return DeviceService.getLocation();
+    },
+
+    /**
+     * Force refresh precise location
+     */
+    refreshPreciseLocation: async (accuracy: LocationAccuracyLevel = 'high'): Promise<PreciseLocation | null> => {
+        cachedPreciseLocation = null;
+        return DeviceService.getPreciseLocation({ accuracy, forceRefresh: true });
+    },
+
+    /**
+     * Get cached precise location (synchronous, may be null)
+     */
+    getCachedPreciseLocation: (): PreciseLocation | null => {
+        return cachedPreciseLocation;
     },
 };
