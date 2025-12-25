@@ -114,6 +114,7 @@ export default function SettingsScreen() {
     const [showDeactivateModal, setShowDeactivateModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
     const [disablePassword, setDisablePassword] = useState('');
 
     // Modal State for Preferences
@@ -483,14 +484,25 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = async () => {
-        if (!deletePassword) {
-            toast.error('Error', 'Password is required');
-            return;
+        const hasPassword = user?.hasPassword ?? true;
+        
+        if (hasPassword) {
+            // User has password - require password confirmation
+            if (!deletePassword) {
+                toast.error('Error', 'Password is required');
+                return;
+            }
+        } else {
+            // OAuth user - require typing "DELETE" confirmation
+            if (deleteConfirmText !== 'DELETE') {
+                toast.error('Error', 'Please type DELETE to confirm');
+                return;
+            }
         }
 
         try {
             setIsLoading(true);
-            await deleteAccount(deletePassword);
+            await deleteAccount(hasPassword ? deletePassword : undefined);
             setShowDeleteModal(false);
             toast.success('Account Deleted', 'Your account has been permanently deleted');
             await logout();
@@ -1934,57 +1946,82 @@ export default function SettingsScreen() {
         </Modal>
     );
 
-    const renderDeleteModal = () => (
-        <Modal
-            visible={showDeleteModal}
-            transparent
-            animationType="fade"
-            onRequestClose={() => {
-                setShowDeleteModal(false);
-                setDeletePassword('');
-            }}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <Ionicons name="trash" size={48} color="#EF4444" />
-                    <Text style={styles.modalTitle}>Delete Account?</Text>
-                    <Text style={styles.modalText}>
-                        This action is permanent and cannot be undone. All your data will be permanently deleted.
-                    </Text>
-                    <TextInput
-                        style={styles.passwordInput}
-                        value={deletePassword}
-                        onChangeText={setDeletePassword}
-                        placeholder="Enter your password to confirm"
-                        placeholderTextColor={grayColors[400]}
-                        secureTextEntry
-                    />
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={() => {
-                                setShowDeleteModal(false);
-                                setDeletePassword('');
-                            }}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.deleteConfirmButton, !deletePassword && styles.buttonDisabled]}
-                            onPress={handleDeleteAccount}
-                            disabled={isLoading || !deletePassword}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFFFFF" size="small" />
-                            ) : (
-                                <Text style={styles.confirmButtonText}>Delete</Text>
-                            )}
-                        </TouchableOpacity>
+    const renderDeleteModal = () => {
+        const hasPassword = user?.hasPassword ?? true;
+        const isConfirmValid = hasPassword ? !!deletePassword : deleteConfirmText === 'DELETE';
+        
+        return (
+            <Modal
+                visible={showDeleteModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword('');
+                    setDeleteConfirmText('');
+                }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Ionicons name="trash" size={48} color="#EF4444" />
+                        <Text style={styles.modalTitle}>Delete Account?</Text>
+                        <Text style={styles.modalText}>
+                            This action is permanent and cannot be undone. All your data will be permanently deleted.
+                        </Text>
+                        
+                        {hasPassword ? (
+                            <TextInput
+                                style={styles.passwordInput}
+                                value={deletePassword}
+                                onChangeText={setDeletePassword}
+                                placeholder="Enter your password to confirm"
+                                placeholderTextColor={grayColors[400]}
+                                secureTextEntry
+                            />
+                        ) : (
+                            <>
+                                <Text style={styles.confirmInstructions}>
+                                    Type <Text style={styles.confirmKeyword}>DELETE</Text> to confirm
+                                </Text>
+                                <TextInput
+                                    style={styles.passwordInput}
+                                    value={deleteConfirmText}
+                                    onChangeText={setDeleteConfirmText}
+                                    placeholder="Type DELETE"
+                                    placeholderTextColor={grayColors[400]}
+                                    autoCapitalize="characters"
+                                />
+                            </>
+                        )}
+                        
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={styles.cancelButton}
+                                onPress={() => {
+                                    setShowDeleteModal(false);
+                                    setDeletePassword('');
+                                    setDeleteConfirmText('');
+                                }}
+                            >
+                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.deleteConfirmButton, !isConfirmValid && styles.buttonDisabled]}
+                                onPress={handleDeleteAccount}
+                                disabled={isLoading || !isConfirmValid}
+                            >
+                                {isLoading ? (
+                                    <ActivityIndicator color="#FFFFFF" size="small" />
+                                ) : (
+                                    <Text style={styles.confirmButtonText}>Delete</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
-            </View>
-        </Modal>
-    );
+            </Modal>
+        );
+    };
 
     const renderLanguageModal = () => {
         const languages = [
@@ -2572,6 +2609,17 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         color: grayColors[900],
         marginBottom: 20,
+    },
+    confirmInstructions: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        color: grayColors[600],
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    confirmKeyword: {
+        fontFamily: Fonts.bold,
+        color: '#EF4444',
     },
     modalButtons: {
         flexDirection: 'row',

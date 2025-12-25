@@ -274,10 +274,10 @@ export async function deactivateAccount(): Promise<{ message: string }> {
     return authFetch('/api/v1/auth/account/deactivate', { method: 'POST' });
 }
 
-export async function deleteAccount(password: string): Promise<{ message: string }> {
+export async function deleteAccount(password?: string): Promise<{ message: string }> {
     return authFetch('/api/v1/auth/account/delete', {
         method: 'POST',
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(password ? { password } : {}),
     });
 }
 
