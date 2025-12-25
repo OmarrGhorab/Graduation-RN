@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { googleSignIn, configureGoogleSignIn, login, requiresDeviceVerification } from '@/services/AuthService';
+import { googleSignIn, configureGoogleSignIn, login, requiresDeviceVerification, isAccountDeactivated } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { LoginSuccessResponse } from '@/types/auth';
 
@@ -59,18 +59,6 @@ export default function SignInScreen() {
             onSuccess: (data) => {
                 console.log('Backend auth successful:', data);
                 
-                // Check if account was just reactivated
-                if ((data as any).accountReactivated === true) {
-                    router.replace({
-                        pathname: '/reactivate-account',
-                        params: {
-                            onboardingCompleted: String(data.user?.onboardingCompleted),
-                            message: (data as any).message || '',
-                        }
-                    } as any);
-                    return;
-                }
-                
                 if (data.user?.onboardingCompleted) {
                     router.replace('/home' as Href);
                 } else {
@@ -85,6 +73,22 @@ export default function SignInScreen() {
         // Check if 2FA is required for Google sign-in
         if (result.requires2FA && result.data) {
             navigateTo2FA(result.data);
+            setIsGoogleLoading(false);
+            return;
+        }
+
+        // Check if account is deactivated
+        if (!result.success && result.data && isAccountDeactivated(result.data)) {
+            showToast('info', 'Account Deactivated', result.data.message || 'Your account is deactivated');
+            router.push({
+                pathname: '/reactivate-account',
+                params: {
+                    tempToken: result.data.tempToken,
+                    message: result.data.message || '',
+                }
+            } as any);
+            setIsGoogleLoading(false);
+            return;
         }
 
         // Check if device verification is required for Google sign-in
@@ -130,18 +134,6 @@ export default function SignInScreen() {
             // At this point it's a LoginSuccessResponse
             const successData = result as LoginSuccessResponse;
             
-            // Check if account was just reactivated - show welcome back page
-            if ((result as any).accountReactivated === true) {
-                router.replace({
-                    pathname: '/reactivate-account',
-                    params: {
-                        onboardingCompleted: String(successData.user.onboardingCompleted),
-                        message: (result as any).message || '',
-                    }
-                } as any);
-                return;
-            }
-
             // Normal login flow
             if (successData.user.onboardingCompleted) {
                 router.replace('/home' as Href);
@@ -151,6 +143,20 @@ export default function SignInScreen() {
         } catch (err: any) {
             console.error('Login error:', err);
             const responseData = err.responseData;
+
+            // Check if account is deactivated (403 error with tempToken)
+            if (responseData && isAccountDeactivated(responseData)) {
+                console.log('[Auth] Account deactivated detected, tempToken:', responseData.tempToken ? responseData.tempToken.substring(0, 20) + '...' : 'null');
+                showToast('info', 'Account Deactivated', responseData.message || 'Your account is deactivated');
+                router.push({
+                    pathname: '/reactivate-account',
+                    params: {
+                        tempToken: responseData.tempToken,
+                        message: responseData.message || '',
+                    }
+                } as any);
+                return;
+            }
 
             // Check if 2FA is required from error response (twoFactorEnabled is inside user object)
             if (responseData?.user?.twoFactorEnabled) {

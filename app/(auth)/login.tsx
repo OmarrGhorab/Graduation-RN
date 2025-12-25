@@ -12,7 +12,7 @@ import {
     useColorScheme,
 } from 'react-native';
 import { cskColors, Colors } from '@/constants/theme';
-import { googleSignIn, configureGoogleSignIn } from '@/services/AuthService';
+import { googleSignIn, configureGoogleSignIn, isAccountDeactivated } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
@@ -47,18 +47,6 @@ export default function LoginScreen() {
             onSuccess: (data) => {
                 console.log('Google Sign-In successful:', data);
                 
-                // Check if account was just reactivated
-                if ((data as any).accountReactivated === true) {
-                    router.replace({
-                        pathname: '/reactivate-account',
-                        params: {
-                            onboardingCompleted: String(data.user?.onboardingCompleted),
-                            message: (data as any).message || '',
-                        }
-                    } as any);
-                    return;
-                }
-                
                 if (data.user?.onboardingCompleted) {
                     router.replace('/home' as Href);
                 } else {
@@ -73,6 +61,22 @@ export default function LoginScreen() {
         // If 2FA is required, navigate to 2FA page
         if (result.requires2FA && result.data) {
             navigateTo2FA(result.data);
+            setIsGoogleLoading(false);
+            return;
+        }
+
+        // Check if account is deactivated
+        if (!result.success && result.data && isAccountDeactivated(result.data)) {
+            showToast('info', 'Account Deactivated', result.data.message || 'Your account is deactivated');
+            router.push({
+                pathname: '/reactivate-account',
+                params: {
+                    tempToken: result.data.tempToken,
+                    message: result.data.message || '',
+                }
+            } as any);
+            setIsGoogleLoading(false);
+            return;
         }
 
         // Check if device verification is required for Google sign-in

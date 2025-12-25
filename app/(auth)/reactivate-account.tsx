@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams, Href } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Animated,
     Dimensions,
@@ -10,175 +10,288 @@ import {
     TouchableOpacity,
     View,
     useColorScheme,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { logout } from '@/services/AuthService';
+import { confirmReactivation } from '@/services/AuthService';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useToast } from '@/components/toast';
 
 const { width, height } = Dimensions.get('window');
 
 export default function ReactivateAccountScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
-    const { onboardingCompleted, message } = useLocalSearchParams<{
-        onboardingCompleted: string;
+    const { tempToken, message } = useLocalSearchParams<{
+        tempToken: string;
         message?: string;
     }>();
+    const { success, error } = useToast();
+    const [loading, setLoading] = useState(false);
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(50)).current;
-    const scaleAnim = useRef(new Animated.Value(0.5)).current;
-    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const slideAnim = useRef(new Animated.Value(60)).current;
+    const scaleAnim = useRef(new Animated.Value(0.3)).current;
+    const rotateAnim = useRef(new Animated.Value(0)).current;
+    const cardSlideAnim = useRef(new Animated.Value(100)).current;
+    const buttonSlideAnim = useRef(new Animated.Value(80)).current;
+    const glowAnim = useRef(new Animated.Value(0.4)).current;
 
     useEffect(() => {
-        // Entrance animations
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: true,
-            }),
+        // Staggered entrance animations
+        Animated.sequence([
+            // First: Icon appears with rotation
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    tension: 60,
+                    friction: 7,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(rotateAnim, {
+                    toValue: 1,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+            ]),
+            // Then: Text slides up
             Animated.spring(slideAnim, {
                 toValue: 0,
                 tension: 50,
                 friction: 8,
                 useNativeDriver: true,
             }),
-            Animated.spring(scaleAnim, {
-                toValue: 1,
-                tension: 50,
-                friction: 6,
-                useNativeDriver: true,
-            }),
         ]).start();
 
-        // Pulse animation for the icon
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulseAnim, {
-                    toValue: 1.1,
-                    duration: 1000,
+        // Card and button animations with delay
+        Animated.sequence([
+            Animated.delay(300),
+            Animated.parallel([
+                Animated.spring(cardSlideAnim, {
+                    toValue: 0,
+                    tension: 50,
+                    friction: 9,
                     useNativeDriver: true,
                 }),
-                Animated.timing(pulseAnim, {
-                    toValue: 1,
-                    duration: 1000,
+                Animated.spring(buttonSlideAnim, {
+                    toValue: 0,
+                    tension: 45,
+                    friction: 9,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ]).start();
+
+        // Subtle glow pulse
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(glowAnim, {
+                    toValue: 0.8,
+                    duration: 2000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(glowAnim, {
+                    toValue: 0.4,
+                    duration: 2000,
                     useNativeDriver: true,
                 }),
             ])
         ).start();
     }, []);
 
-    const handleContinue = () => {
-        if (onboardingCompleted === 'true') {
-            router.replace('/home' as Href);
-        } else {
-            router.replace('/onboarding/step1' as Href);
+    const handleContinue = async () => {
+        console.log('[Reactivate] Continue clicked, tempToken:', tempToken ? tempToken.substring(0, 20) + '...' : 'null');
+        
+        if (!tempToken) {
+            error('Error', 'Missing authentication token. Please try logging in again.');
+            router.replace('/login' as Href);
+            return;
+        }
+
+        setLoading(true);
+        try {
+            console.log('[Reactivate] Calling confirmReactivation...');
+            const result = await confirmReactivation(tempToken);
+            
+            console.log('[Reactivate] Reactivation successful:', result);
+            success('Welcome Back!', result.message || 'Your account has been reactivated');
+
+            // Small delay to show success message
+            setTimeout(() => {
+                // Navigate based on onboarding status
+                if (result.user?.onboardingCompleted) {
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
+            }, 500);
+        } catch (err: any) {
+            console.error('[Reactivate] Reactivation confirmation error:', err);
+            error('Reactivation Failed', err.message || 'Please try again');
+            setLoading(false);
         }
     };
 
-    const handleGoBack = async () => {
-        try {
-            await logout();
-        } catch (err) {
-            console.error('Logout error:', err);
-        }
+    const handleGoBack = () => {
+        // Just go back to login - account stays deactivated since we didn't call confirmReactivation
         router.replace('/login' as Href);
     };
 
+    const rotation = rotateAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['-180deg', '0deg'],
+    });
+
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor={cskColors[500]} />
+            <StatusBar barStyle="light-content" backgroundColor={cskColors[600]} />
             
             {/* Gradient Background */}
             <LinearGradient
-                colors={[cskColors[500], cskColors[600], cskColors[700]]}
+                colors={[cskColors[400], cskColors[500], cskColors[600]]}
                 style={styles.gradientBackground}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 0.5, y: 1 }}
             />
 
-            {/* Decorative Circles */}
-            <View style={styles.decorativeCircle1} />
-            <View style={styles.decorativeCircle2} />
-            <View style={styles.decorativeCircle3} />
+            {/* Animated Background Shapes */}
+            <Animated.View style={[styles.bgShape1, { opacity: glowAnim }]} />
+            <Animated.View style={[styles.bgShape2, { opacity: glowAnim }]} />
+            <Animated.View style={[styles.bgShape3, { opacity: Animated.multiply(glowAnim, 0.5) }]} />
 
-            {/* Content */}
-            <Animated.View 
-                style={[
-                    styles.content,
-                    {
-                        opacity: fadeAnim,
-                        transform: [{ translateY: slideAnim }],
-                    }
-                ]}
-            >
-                {/* Animated Icon */}
+            {/* Main Content */}
+            <View style={styles.content}>
+                
+                {/* Icon Section */}
                 <Animated.View 
                     style={[
-                        styles.iconContainer,
+                        styles.iconSection,
                         {
-                            transform: [{ scale: Animated.multiply(scaleAnim, pulseAnim) }],
+                            opacity: fadeAnim,
+                            transform: [
+                                { scale: scaleAnim },
+                                { rotate: rotation },
+                            ],
                         }
                     ]}
                 >
-                    <View style={styles.iconOuter}>
-                        <View style={styles.iconInner}>
-                            <Ionicons name="heart" size={48} color={cskColors[500]} />
+                    <View style={styles.iconOuterRing}>
+                        <View style={styles.iconMiddleRing}>
+                            <View style={styles.iconInnerCircle}>
+                                <Ionicons name="person-circle" size={52} color={cskColors[500]} />
+                            </View>
+                        </View>
+                    </View>
+                    
+                    {/* Checkmark Badge */}
+                    <View style={styles.checkBadge}>
+                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    </View>
+                </Animated.View>
+
+                {/* Text Section */}
+                <Animated.View 
+                    style={[
+                        styles.textSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }],
+                        }
+                    ]}
+                >
+                    <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
+                    <Text style={styles.title}>Good to See You Again!</Text>
+                    <Text style={styles.subtitle}>
+                        {message || "Your account will be reactivated. We're excited to have you back!"}
+                    </Text>
+                </Animated.View>
+
+                {/* Info Cards */}
+                <Animated.View 
+                    style={[
+                        styles.cardsContainer,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: cardSlideAnim }],
+                        }
+                    ]}
+                >
+                    <View style={styles.infoCard}>
+                        <View style={[styles.cardIconWrapper, { backgroundColor: '#ECFDF5' }]}>
+                            <Ionicons name="shield-checkmark" size={22} color="#10B981" />
+                        </View>
+                        <View style={styles.cardTextWrapper}>
+                            <Text style={styles.cardTitle}>Account Secured</Text>
+                            <Text style={styles.cardDescription}>Your data is safe and protected</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.infoCard}>
+                        <View style={[styles.cardIconWrapper, { backgroundColor: '#EEF2FF' }]}>
+                            <Ionicons name="sync" size={22} color="#6366F1" />
+                        </View>
+                        <View style={styles.cardTextWrapper}>
+                            <Text style={styles.cardTitle}>Everything Restored</Text>
+                            <Text style={styles.cardDescription}>Settings and preferences are ready</Text>
                         </View>
                     </View>
                 </Animated.View>
 
-                {/* Celebration Icons */}
-                <View style={styles.celebrationRow}>
-                    <Text style={styles.emoji}>🎉</Text>
-                    <Text style={styles.emoji}>✨</Text>
-                    <Text style={styles.emoji}>🎉</Text>
-                </View>
-
-                {/* Welcome Text */}
-                <Text style={styles.welcomeText}>Welcome Back!</Text>
-                <Text style={styles.subtitle}>
-                    {message || "We missed you! Your account has been successfully reactivated."}
-                </Text>
-
-                {/* Success Card */}
-                <View style={styles.successCard}>
-                    <View style={styles.successIconWrapper}>
-                        <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                    </View>
-                    <View style={styles.successTextWrapper}>
-                        <Text style={styles.successTitle}>Account Restored</Text>
-                        <Text style={styles.successDescription}>
-                            All your data, settings, and preferences are ready for you.
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Continue Button */}
-                <TouchableOpacity
-                    style={styles.continueButton}
-                    onPress={handleContinue}
-                    activeOpacity={0.9}
+                {/* Bottom Section */}
+                <Animated.View 
+                    style={[
+                        styles.bottomSection,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: buttonSlideAnim }],
+                        }
+                    ]}
                 >
-                    <Text style={styles.continueButtonText}>Let's Go!</Text>
-                    <Ionicons name="arrow-forward" size={20} color={cskColors[500]} />
-                </TouchableOpacity>
+                    {/* Continue Button */}
+                    <TouchableOpacity
+                        style={styles.continueButton}
+                        onPress={handleContinue}
+                        activeOpacity={0.9}
+                        disabled={loading}
+                    >
+                        <LinearGradient
+                            colors={['#FFFFFF', '#F8FAFC']}
+                            style={styles.buttonGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 0, y: 1 }}
+                        >
+                            {loading ? (
+                                <ActivityIndicator size="small" color={cskColors[600]} />
+                            ) : (
+                                <>
+                                    <Text style={styles.continueButtonText}>Continue to App</Text>
+                                    <View style={styles.arrowCircle}>
+                                        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                                    </View>
+                                </>
+                            )}
+                        </LinearGradient>
+                    </TouchableOpacity>
 
-                {/* Logout Link */}
-                <TouchableOpacity
-                    style={styles.logoutLink}
-                    onPress={handleGoBack}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.logoutText}>
-                        Changed your mind? <Text style={styles.logoutTextBold}>Log out</Text>
-                    </Text>
-                </TouchableOpacity>
-            </Animated.View>
+                    {/* Logout Option */}
+                    <TouchableOpacity
+                        style={styles.logoutButton}
+                        onPress={handleGoBack}
+                        activeOpacity={0.7}
+                        disabled={loading}
+                    >
+                        <Ionicons name="log-out-outline" size={18} color="rgba(255,255,255,0.8)" />
+                        <Text style={styles.logoutText}>Sign out instead</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            </View>
         </View>
     );
 }
@@ -191,157 +304,197 @@ const styles = StyleSheet.create({
     gradientBackground: {
         ...StyleSheet.absoluteFillObject,
     },
-    decorativeCircle1: {
+    bgShape1: {
         position: 'absolute',
-        top: -100,
-        right: -100,
-        width: 300,
-        height: 300,
-        borderRadius: 150,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    decorativeCircle2: {
-        position: 'absolute',
-        bottom: -50,
-        left: -80,
-        width: 200,
-        height: 200,
-        borderRadius: 100,
+        top: -height * 0.15,
+        right: -width * 0.3,
+        width: width * 0.8,
+        height: width * 0.8,
+        borderRadius: width * 0.4,
         backgroundColor: 'rgba(255,255,255,0.08)',
     },
-    decorativeCircle3: {
+    bgShape2: {
         position: 'absolute',
-        top: height * 0.3,
-        left: -30,
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        bottom: -height * 0.1,
+        left: -width * 0.25,
+        width: width * 0.7,
+        height: width * 0.7,
+        borderRadius: width * 0.35,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    bgShape3: {
+        position: 'absolute',
+        top: height * 0.35,
+        left: -width * 0.15,
+        width: width * 0.4,
+        height: width * 0.4,
+        borderRadius: width * 0.2,
+        backgroundColor: 'rgba(255,255,255,0.04)',
     },
     content: {
         flex: 1,
+        paddingHorizontal: 28,
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
+        paddingBottom: Platform.OS === 'ios' ? 50 : 40,
+    },
+    iconSection: {
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    iconOuterRing: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: 'rgba(255,255,255,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 32,
-        paddingBottom: 40,
     },
-    iconContainer: {
-        marginBottom: 16,
-    },
-    iconOuter: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+    iconMiddleRing: {
+        width: 115,
+        height: 115,
+        borderRadius: 57.5,
+        backgroundColor: 'rgba(255,255,255,0.18)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    iconInner: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
+    iconInnerCircle: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
         backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 8,
+        shadowRadius: 20,
+        elevation: 12,
     },
-    celebrationRow: {
-        flexDirection: 'row',
-        marginBottom: 20,
-        gap: 16,
+    checkBadge: {
+        position: 'absolute',
+        bottom: 8,
+        right: width * 0.5 - 70 - 16,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#10B981',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: cskColors[500],
+        shadowColor: '#10B981',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
     },
-    emoji: {
+    textSection: {
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    welcomeLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: 'rgba(255,255,255,0.7)',
+        letterSpacing: 3,
+        marginBottom: 8,
+    },
+    title: {
         fontSize: 28,
-    },
-    welcomeText: {
-        fontSize: 32,
         fontWeight: '800',
         color: '#FFFFFF',
-        marginBottom: 12,
         textAlign: 'center',
-        letterSpacing: 0.5,
+        marginBottom: 12,
+        letterSpacing: 0.3,
     },
     subtitle: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.9)',
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.85)',
         textAlign: 'center',
-        lineHeight: 24,
-        marginBottom: 32,
-        paddingHorizontal: 16,
+        lineHeight: 23,
+        paddingHorizontal: 12,
     },
-    successCard: {
+    cardsContainer: {
+        gap: 12,
+        marginBottom: 32,
+    },
+    infoCard: {
         flexDirection: 'row',
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
-        padding: 20,
-        width: '100%',
+        padding: 18,
         alignItems: 'center',
-        marginBottom: 32,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 5,
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+        elevation: 4,
     },
-    successIconWrapper: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#ECFDF5',
+    cardIconWrapper: {
+        width: 46,
+        height: 46,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: 14,
     },
-    successTextWrapper: {
+    cardTextWrapper: {
         flex: 1,
     },
-    successTitle: {
-        fontSize: 16,
+    cardTitle: {
+        fontSize: 15,
         fontWeight: '700',
         color: '#1F2937',
-        marginBottom: 4,
+        marginBottom: 3,
     },
-    successDescription: {
+    cardDescription: {
         fontSize: 13,
         color: '#6B7280',
-        lineHeight: 18,
+    },
+    bottomSection: {
+        marginTop: 'auto',
     },
     continueButton: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 16,
+        elevation: 8,
+        marginBottom: 20,
+    },
+    buttonGradient: {
         flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 14,
-        paddingVertical: 18,
-        paddingHorizontal: 48,
         alignItems: 'center',
         justifyContent: 'center',
-        width: '100%',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 6,
-        gap: 10,
+        paddingVertical: 18,
+        paddingHorizontal: 28,
     },
     continueButtonText: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
-        color: cskColors[500],
+        color: cskColors[600],
+        marginRight: 12,
     },
-    logoutLink: {
-        marginTop: 24,
-        paddingVertical: 8,
+    arrowCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: cskColors[500],
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    logoutButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        gap: 8,
     },
     logoutText: {
         fontSize: 14,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    logoutTextBold: {
-        fontWeight: '700',
-        color: '#FFFFFF',
-        textDecorationLine: 'underline',
+        color: 'rgba(255,255,255,0.8)',
+        fontWeight: '500',
     },
 });

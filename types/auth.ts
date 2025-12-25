@@ -180,21 +180,20 @@ export interface ResendDeviceVerificationOTPResponse {
 }
 
 // Account Reactivation Types
-export interface ReactivateAccountRequest {
-    emailOrUsername: string;
-    password: string;
-}
-
-export interface ReactivateAccountResponse {
-    message: string;
-    user?: User;
-    accessToken?: string;
-    refreshToken?: string;
-}
-
 export interface AccountDeactivatedResponse {
-    accountDeactivated: true;
+    error: string;
     message: string;
-    emailOrUsername?: string;
+    accountDeactivated: true;
+    requiresReactivation: true;
+    tempToken: string;
+}
+
+export interface ConfirmReactivationResponse {
+    message: string;
+    accountReactivated: true;
+    user: User;
+    accessToken: string;
+    refreshToken: string;
+    requiresOnboarding: boolean;
 }
 
