@@ -1397,8 +1397,9 @@ export const googleSignIn = async (options?: {
             }
         }
 
-        onSuccess?.(data);
-        return { success: true, data };
+        // Pass responseData to onSuccess to include accountReactivated field
+        onSuccess?.(responseData);
+        return { success: true, data: responseData };
     } catch (error: any) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to authenticate with server';
         if (showAlerts) {

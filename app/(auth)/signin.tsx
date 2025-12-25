@@ -58,6 +58,19 @@ export default function SignInScreen() {
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Backend auth successful:', data);
+                
+                // Check if account was just reactivated
+                if ((data as any).accountReactivated === true) {
+                    router.replace({
+                        pathname: '/reactivate-account',
+                        params: {
+                            onboardingCompleted: String(data.user?.onboardingCompleted),
+                            message: (data as any).message || '',
+                        }
+                    } as any);
+                    return;
+                }
+                
                 if (data.user?.onboardingCompleted) {
                     router.replace('/home' as Href);
                 } else {
@@ -116,6 +129,20 @@ export default function SignInScreen() {
 
             // At this point it's a LoginSuccessResponse
             const successData = result as LoginSuccessResponse;
+            
+            // Check if account was just reactivated - show welcome back page
+            if ((result as any).accountReactivated === true) {
+                router.replace({
+                    pathname: '/reactivate-account',
+                    params: {
+                        onboardingCompleted: String(successData.user.onboardingCompleted),
+                        message: (result as any).message || '',
+                    }
+                } as any);
+                return;
+            }
+
+            // Normal login flow
             if (successData.user.onboardingCompleted) {
                 router.replace('/home' as Href);
             } else {

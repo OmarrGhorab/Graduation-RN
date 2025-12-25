@@ -46,6 +46,19 @@ export default function LoginScreen() {
             showAlerts: true,
             onSuccess: (data) => {
                 console.log('Google Sign-In successful:', data);
+                
+                // Check if account was just reactivated
+                if ((data as any).accountReactivated === true) {
+                    router.replace({
+                        pathname: '/reactivate-account',
+                        params: {
+                            onboardingCompleted: String(data.user?.onboardingCompleted),
+                            message: (data as any).message || '',
+                        }
+                    } as any);
+                    return;
+                }
+                
                 if (data.user?.onboardingCompleted) {
                     router.replace('/home' as Href);
                 } else {
