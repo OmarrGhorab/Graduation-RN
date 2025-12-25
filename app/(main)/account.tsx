@@ -30,13 +30,14 @@ export default function AccountScreen() {
     }, []);
 
     const handleLogout = async () => {
+        // Navigate immediately for instant feedback
+        router.replace('/login');
+        
+        // Do cleanup in background
         try {
             await logout();
-            router.replace('/login');
         } catch (error) {
-            console.error('Logout error:', error);
-            // Still navigate to login even if logout fails
-            router.replace('/login');
+            console.error('Logout cleanup error:', error);
         }
     };
 

@@ -11,6 +11,7 @@ import {
     Image,
     Linking,
     Platform,
+    Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +28,61 @@ import {
     ChildLocation,
 } from '@/hooks/useLocation';
 import { DeviceService } from '@/services/DeviceService';
+
+// Skeleton shimmer component
+const SkeletonBox = ({ width, height, style }: { width: number | string; height: number; style?: any }) => {
+    const animatedValue = React.useRef(new Animated.Value(0)).current;
+    
+    React.useEffect(() => {
+        const animation = Animated.loop(
+            Animated.sequence([
+                Animated.timing(animatedValue, { toValue: 1, duration: 1000, useNativeDriver: true }),
+                Animated.timing(animatedValue, { toValue: 0, duration: 1000, useNativeDriver: true }),
+            ])
+        );
+        animation.start();
+        return () => animation.stop();
+    }, []);
+    
+    const opacity = animatedValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0.7],
+    });
+    
+    return (
+        <Animated.View 
+            style={[
+                { width, height, backgroundColor: grayColors[200], borderRadius: 8, opacity },
+                style
+            ]} 
+        />
+    );
+};
+
+// Skeleton Location Card
+const SkeletonLocationCard = () => (
+    <View style={styles.locationCard}>
+        <View style={styles.cardHeader}>
+            <SkeletonBox width={44} height={44} style={{ borderRadius: 22 }} />
+            <View style={styles.cardInfo}>
+                <SkeletonBox width={120} height={16} style={{ marginBottom: 6 }} />
+                <SkeletonBox width={80} height={12} />
+            </View>
+            <SkeletonBox width={80} height={24} style={{ borderRadius: 12 }} />
+        </View>
+        <View style={styles.locationDetails}>
+            <SkeletonBox width="100%" height={120} style={{ borderRadius: 0 }} />
+            <View style={styles.addressContainer}>
+                <SkeletonBox width={16} height={16} style={{ borderRadius: 4 }} />
+                <SkeletonBox width="80%" height={14} style={{ marginLeft: 8 }} />
+            </View>
+            <View style={styles.accuracyContainer}>
+                <SkeletonBox width={14} height={14} style={{ borderRadius: 4 }} />
+                <SkeletonBox width={150} height={12} style={{ marginLeft: 6 }} />
+            </View>
+        </View>
+    </View>
+);
 
 // Format timestamp to readable string
 const formatTime = (timestamp: string) => {
@@ -339,7 +395,6 @@ export default function LocationScreen() {
     
     // Memoized values
     const myLocation = useMemo(() => serverLocation || localLocation, [serverLocation, localLocation]);
-    const isLoading = isLoadingMyLocation || (isParent && isLoadingChildren);
     
     // Memoized navigation handler
     const handleChildPress = useCallback((childId: string) => {
@@ -403,66 +458,60 @@ export default function LocationScreen() {
                     />
                 }
             >
-                {isLoading && !myLocation ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={cskColors[500]} />
-                        <Text style={styles.loadingText}>Getting location...</Text>
-                    </View>
-                ) : (
-                    <>
-                        {/* My Location */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>My Location</Text>
-                            <LocationCard
-                                name={user?.name || 'You'}
-                                location={myLocation}
-                                isCurrentUser
-                                onPress={() => router.push('/my-location-history' as any)}
-                            />
-                        </View>
+                {/* My Location Section */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>My Location</Text>
+                    {isLoadingMyLocation && !myLocation ? (
+                        <SkeletonLocationCard />
+                    ) : (
+                        <LocationCard
+                            name={user?.name || 'You'}
+                            location={myLocation}
+                            isCurrentUser
+                            onPress={() => router.push('/my-location-history' as any)}
+                        />
+                    )}
+                </View>
+                
+                {/* Children Locations (Parent Only) */}
+                {isParent && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>
+                            Children ({childrenLocations?.length || 0})
+                        </Text>
                         
-                        {/* Children Locations (Parent Only) */}
-                        {isParent && (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>
-                                    Children ({childrenLocations?.length || 0})
+                        {isLoadingChildren ? (
+                            <>
+                                <SkeletonLocationCard />
+                                <SkeletonLocationCard />
+                            </>
+                        ) : childrenLocations && childrenLocations.length > 0 ? (
+                            childrenLocations.map((item: ChildLocation) => (
+                                <LocationCard
+                                    key={item.child.id}
+                                    name={item.child.name || item.child.username}
+                                    location={item.location}
+                                    onPress={() => handleChildPress(item.child.id)}
+                                    onRequestLocation={() => handleRequestLocation(item.child.id)}
+                                    isRequestingLocation={requestingChildId === item.child.id}
+                                />
+                            ))
+                        ) : (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons 
+                                    name="people-outline" 
+                                    size={48} 
+                                    color={grayColors[300]} 
+                                />
+                                <Text style={styles.emptyText}>
+                                    No linked children
                                 </Text>
-                                
-                                {isLoadingChildren ? (
-                                    <ActivityIndicator 
-                                        size="small" 
-                                        color={cskColors[500]} 
-                                        style={{ marginTop: 20 }}
-                                    />
-                                ) : childrenLocations && childrenLocations.length > 0 ? (
-                                    childrenLocations.map((item: ChildLocation) => (
-                                        <LocationCard
-                                            key={item.child.id}
-                                            name={item.child.name || item.child.username}
-                                            location={item.location}
-                                            onPress={() => handleChildPress(item.child.id)}
-                                            onRequestLocation={() => handleRequestLocation(item.child.id)}
-                                            isRequestingLocation={requestingChildId === item.child.id}
-                                        />
-                                    ))
-                                ) : (
-                                    <View style={styles.emptyContainer}>
-                                        <Ionicons 
-                                            name="people-outline" 
-                                            size={48} 
-                                            color={grayColors[300]} 
-                                        />
-                                        <Text style={styles.emptyText}>
-                                            No linked children
-                                        </Text>
-                                        <Text style={styles.emptySubtext}>
-                                            Link with your children to track their location
-                                        </Text>
-                                    </View>
-                                )}
+                                <Text style={styles.emptySubtext}>
+                                    Link with your children to track their location
+                                </Text>
                             </View>
                         )}
-                    </>
+                    </View>
                 )}
             </ScrollView>
         </View>
@@ -507,18 +556,6 @@ const styles = StyleSheet.create({
     scrollContent: {
         padding: 16,
         paddingBottom: 32,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingTop: 100,
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
     },
     section: {
         marginBottom: 24,

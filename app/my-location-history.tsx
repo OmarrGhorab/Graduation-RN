@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -11,6 +11,7 @@ import {
     Image,
     Linking,
     Platform,
+    Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +20,72 @@ import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { GEOAPIFY_API_KEY } from '@/constants/config';
 import { useAuthStore } from '@/libs/auth';
 import { useMyLocation, useMyLocationHistory, LocationData } from '@/hooks/useLocation';
+
+// Skeleton shimmer component
+const SkeletonBox = ({ width, height, style }: { width: number | string; height: number; style?: any }) => {
+    const animatedValue = useRef(new Animated.Value(0)).current;
+    
+    useEffect(() => {
+        const animation = Animated.loop(
+            Animated.sequence([
+                Animated.timing(animatedValue, { toValue: 1, duration: 1000, useNativeDriver: true }),
+                Animated.timing(animatedValue, { toValue: 0, duration: 1000, useNativeDriver: true }),
+            ])
+        );
+        animation.start();
+        return () => animation.stop();
+    }, []);
+    
+    const opacity = animatedValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0.7],
+    });
+    
+    return (
+        <Animated.View 
+            style={[
+                { width, height, backgroundColor: grayColors[200], borderRadius: 8, opacity },
+                style
+            ]} 
+        />
+    );
+};
+
+// Skeleton Current Location Card
+const SkeletonCurrentCard = () => (
+    <View style={styles.currentCard}>
+        <View style={styles.currentHeader}>
+            <SkeletonBox width={120} height={24} style={{ borderRadius: 12 }} />
+            <SkeletonBox width={80} height={16} />
+        </View>
+        <SkeletonBox width="100%" height={150} style={{ borderRadius: 12, marginBottom: 12 }} />
+        <View style={styles.currentLocation}>
+            <SkeletonBox width={20} height={20} style={{ borderRadius: 4 }} />
+            <SkeletonBox width="80%" height={16} style={{ marginLeft: 8 }} />
+        </View>
+    </View>
+);
+
+// Skeleton History Item
+const SkeletonHistoryItem = () => (
+    <View style={styles.historyItem}>
+        <View style={styles.timeline}>
+            <SkeletonBox width={10} height={10} style={{ borderRadius: 5, marginTop: 4 }} />
+            <View style={styles.timelineLine} />
+        </View>
+        <View style={styles.historyContent}>
+            <View style={styles.historyHeader}>
+                <SkeletonBox width={60} height={14} />
+                <SkeletonBox width={80} height={12} />
+            </View>
+            <SkeletonBox width="100%" height={80} style={{ borderRadius: 8, marginBottom: 8 }} />
+            <View style={styles.historyLocation}>
+                <SkeletonBox width={14} height={14} style={{ borderRadius: 4 }} />
+                <SkeletonBox width="70%" height={13} style={{ marginLeft: 6 }} />
+            </View>
+        </View>
+    </View>
+);
 
 // Format timestamp
 const formatDateTime = (timestamp: string) => {
@@ -114,7 +181,8 @@ export default function MyLocationHistoryScreen() {
     const [refreshing, setRefreshing] = useState(false);
     
     const { 
-        data: currentLocation, 
+        data: currentLocation,
+        isLoading: isLoadingCurrent,
         refetch: refetchCurrent,
     } = useMyLocation();
     
@@ -239,8 +307,15 @@ export default function MyLocationHistoryScreen() {
             </View>
             
             {isLoading && historyItems.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={cskColors[500]} />
+                <View style={styles.listContent}>
+                    <SkeletonCurrentCard />
+                    <View style={styles.historyTitleRow}>
+                        <SkeletonBox width={140} height={16} />
+                        <SkeletonBox width={80} height={12} />
+                    </View>
+                    <SkeletonHistoryItem />
+                    <SkeletonHistoryItem />
+                    <SkeletonHistoryItem />
                 </View>
             ) : (
                 <FlatList
@@ -284,7 +359,6 @@ const styles = StyleSheet.create({
     headerTitle: { fontSize: 18, fontFamily: Fonts.semiBold, color: grayColors[900] },
     headerSubtitle: { fontSize: 12, fontFamily: Fonts.regular, color: grayColors[500] },
     placeholder: { width: 40 },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     listContent: { padding: 16, paddingBottom: 32 },
     currentCard: {
         backgroundColor: cskColors[50],
