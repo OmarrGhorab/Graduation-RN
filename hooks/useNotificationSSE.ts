@@ -10,8 +10,8 @@ import { NOTIFICATIONS_QUERY_KEY } from './useNotifications';
 import { ApiNotification } from '@/services/NotificationService';
 
 interface UseNotificationSSEOptions {
-    /** Called when a new notification arrives */
-    onNotification?: (notification: SSENotification) => void;
+    /** Called when a new notification arrives or existing one is updated */
+    onNotification?: (notification: SSENotification, isUpdate: boolean) => void;
     /** Whether to auto-connect when authenticated (default: true) */
     autoConnect?: boolean;
 }
@@ -50,41 +50,52 @@ export function useNotificationSSE(
 
     // Handle new notification - update cache and call callback
     const handleNotification = useCallback(
-        (notification: SSENotification) => {
-            console.log('[useNotificationSSE] New notification:', notification.type);
+        (notification: SSENotification, isUpdate: boolean) => {
+            console.log(`[useNotificationSSE] ${isUpdate ? 'Updated' : 'New'} notification:`, notification.type);
 
-            // Try to update cache optimistically first
             const currentData = queryClient.getQueryData(NOTIFICATIONS_QUERY_KEY);
             
             if (currentData) {
-                // Add to React Query cache (prepend to first page)
                 queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, (old: any) => {
                     if (!old?.pages?.length) return old;
 
-                    // Check if notification already exists
-                    const exists = old.pages.some((page: any) =>
-                        page.data?.some((n: ApiNotification) => n.id === notification.id)
-                    );
+                    if (isUpdate) {
+                        // UPDATE existing notification
+                        console.log('[useNotificationSSE] Updating existing notification in cache');
+                        
+                        const newPages = old.pages.map((page: any) => ({
+                            ...page,
+                            data: page.data?.map((n: ApiNotification) =>
+                                n.id === notification.id ? { ...n, ...notification } : n
+                            ) || [],
+                        }));
 
-                    if (exists) {
-                        console.log('[useNotificationSSE] Notification already in cache');
-                        return old;
+                        return { ...old, pages: newPages };
+                    } else {
+                        // ADD new notification
+                        const exists = old.pages.some((page: any) =>
+                            page.data?.some((n: ApiNotification) => n.id === notification.id)
+                        );
+
+                        if (exists) {
+                            console.log('[useNotificationSSE] Notification already in cache');
+                            return old;
+                        }
+
+                        console.log('[useNotificationSSE] Adding new notification to cache');
+                        
+                        const newPages = [...old.pages];
+                        newPages[0] = {
+                            ...newPages[0],
+                            data: [notification, ...(newPages[0].data || [])],
+                            pagination: {
+                                ...newPages[0].pagination,
+                                total: (newPages[0].pagination?.total || 0) + 1,
+                            },
+                        };
+
+                        return { ...old, pages: newPages };
                     }
-
-                    console.log('[useNotificationSSE] Adding notification to cache');
-                    
-                    // Prepend to first page
-                    const newPages = [...old.pages];
-                    newPages[0] = {
-                        ...newPages[0],
-                        data: [notification, ...(newPages[0].data || [])],
-                        pagination: {
-                            ...newPages[0].pagination,
-                            total: (newPages[0].pagination?.total || 0) + 1,
-                        },
-                    };
-
-                    return { ...old, pages: newPages };
                 });
             } else {
                 // No cache exists yet, invalidate to trigger a fetch
@@ -93,7 +104,7 @@ export function useNotificationSSE(
             }
 
             // Call user callback
-            onNotificationRef.current?.(notification);
+            onNotificationRef.current?.(notification, isUpdate);
         },
         [queryClient]
     );

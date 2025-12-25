@@ -26,10 +26,16 @@ export default function NotificationListener() {
     const queryClient = useQueryClient();
 
     // Handle SSE notification - memoized to prevent unnecessary reconnections
-    const handleSSENotification = useCallback((notification: SSENotification) => {
-        console.log('[NotificationListener] SSE notification received:', notification.type);
+    const handleSSENotification = useCallback((notification: SSENotification, isUpdate: boolean) => {
+        console.log(`[NotificationListener] SSE ${isUpdate ? 'update' : 'notification'} received:`, notification.type);
 
-        // Convert SSE notification to push notification format for store
+        if (isUpdate) {
+            // For updates, we don't need to add to the store - React Query cache is already updated
+            console.log('[NotificationListener] Notification updated:', notification.id);
+            return;
+        }
+
+        // Convert SSE notification to push notification format for store (new notifications only)
         const pushData: PushNotificationData = {
             type: notification.type,
             title: notification.data?.title || 'Notification',
@@ -41,8 +47,6 @@ export default function NotificationListener() {
 
         // Add to notification store
         addNotificationFromPush(pushData);
-
-        // Note: SSE hook already updates React Query cache, no need to invalidate
     }, [addNotificationFromPush]);
 
     // Connect to SSE for real-time notifications

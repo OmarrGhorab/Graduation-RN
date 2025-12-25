@@ -16,6 +16,12 @@ export interface NotificationData {
     title: string;
     createdAt: string;
     requestId?: string;
+    /** Status after parent responds: "ACCEPTED" or "DECLINED" */
+    status?: 'ACCEPTED' | 'DECLINED' | 'PENDING';
+    /** Action taken by parent: "accept" or "decline" */
+    actionTaken?: 'accept' | 'decline';
+    /** Timestamp when parent responded */
+    respondedAt?: string;
 }
 
 export interface ApiNotification {

@@ -24,9 +24,19 @@ export interface SSEConnectionMessage {
     message: string;
 }
 
-export type SSEMessage = SSENotification | SSEConnectionMessage;
+export interface SSENotificationPayload extends SSENotification {
+    /** True if this is an update to an existing notification */
+    updated?: boolean;
+}
 
-type NotificationCallback = (notification: SSENotification) => void;
+export type SSEMessage = SSENotificationPayload | SSEConnectionMessage;
+
+/** Check if message is an update to existing notification */
+export function isNotificationUpdate(message: SSEMessage): boolean {
+    return 'updated' in message && message.updated === true;
+}
+
+type NotificationCallback = (notification: SSENotification, isUpdate: boolean) => void;
 type ConnectionCallback = (connected: boolean) => void;
 type ErrorCallback = (error: Error) => void;
 
@@ -159,8 +169,17 @@ class NotificationSSEService {
             return;
         }
 
-        console.log('[SSE] Received notification:', message.type, 'id:', (message as SSENotification).id);
-        this.onNotificationCallback?.(message as SSENotification);
+        const notification = message as SSENotificationPayload;
+        const isUpdate = notification.updated === true;
+        
+        console.log(
+            `[SSE] ${isUpdate ? 'Updated' : 'New'} notification:`,
+            notification.type,
+            'id:',
+            notification.id
+        );
+        
+        this.onNotificationCallback?.(notification, isUpdate);
     }
 
     /**

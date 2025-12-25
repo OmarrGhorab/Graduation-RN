@@ -22,7 +22,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fonts, cskColors, grayColors } from '@/constants/theme';
-import { ApiNotification, respondToParentLinkRequest } from '@/services/NotificationService';
+import { ApiNotification } from '@/services/NotificationService';
 
 interface NotificationModalProps {
     visible: boolean;
@@ -32,7 +32,7 @@ interface NotificationModalProps {
     onMarkAllAsRead: () => void;
     loading?: boolean;
     onRefresh?: () => void;
-    onParentLinkRespond?: (notificationId: string, requestId: string, action: 'accept' | 'decline') => Promise<void>;
+    onNotificationPress?: (notification: ApiNotification) => void;
     onLoadMore?: () => void;
     hasNextPage?: boolean;
     isFetchingNextPage?: boolean;
@@ -81,7 +81,7 @@ export default function NotificationModal({
     onMarkAllAsRead,
     loading = false,
     onRefresh,
-    onParentLinkRespond,
+    onNotificationPress,
     onLoadMore,
     hasNextPage,
     isFetchingNextPage,
@@ -89,7 +89,6 @@ export default function NotificationModal({
 }: NotificationModalProps) {
     const insets = useSafeAreaInsets();
     const unreadCount = notifications.filter((n) => !n.read).length;
-    const [respondingIds, setRespondingIds] = useState<Set<string>>(new Set());
     
     // Toast state for iOS
     const [toastMessage, setToastMessage] = useState('');
@@ -121,46 +120,45 @@ export default function NotificationModal({
         transform: [{ translateY: toastTranslateY.value }],
     }));
 
-    const handleParentLinkAction = async (
-        notificationId: string,
-        requestId: string,
-        action: 'accept' | 'decline'
-    ) => {
-        setRespondingIds((prev) => new Set(prev).add(notificationId));
+    const handleNotificationPress = (item: ApiNotification) => {
+        // Mark as read
+        if (!item.read) {
+            onMarkAsRead(item.id);
+        }
         
-        try {
-            if (onParentLinkRespond) {
-                await onParentLinkRespond(notificationId, requestId, action);
-            } else {
-                await respondToParentLinkRequest(requestId, action);
-            }
-            showToast(
-                action === 'accept' 
-                    ? 'Parent link request accepted!' 
-                    : 'Parent link request declined.',
-                'success'
-            );
-            onMarkAsRead(notificationId);
-        } catch (error: any) {
-            showToast(error.message || 'Failed to respond to request', 'error');
-        } finally {
-            setRespondingIds((prev) => {
-                const newSet = new Set(prev);
-                newSet.delete(notificationId);
-                return newSet;
-            });
+        // Navigate to appropriate page
+        if (onNotificationPress) {
+            onNotificationPress(item);
+            onClose();
         }
     };
 
     const renderNotification = ({ item }: { item: ApiNotification }) => {
         const icon = getNotificationIcon(item.type);
         const profileImg = item.data.child?.profileImg;
-        const title = item.data.title || item.type.replace(/_/g, ' ');
-        const body = item.data.body;
+        const childName = item.data.child?.name || 'Someone';
         const time = formatTimeAgo(item.createdAt);
         const isParentLinkRequest = item.type === 'parent_link_request';
-        const requestId = item.data.requestId;
-        const isResponding = respondingIds.has(item.id);
+        
+        // Check if this request has been responded to
+        const status = item.data.status;
+        const isAccepted = status === 'ACCEPTED';
+        const isDeclined = status === 'DECLINED';
+        const hasResponded = isAccepted || isDeclined;
+
+        // Dynamic title and body based on status
+        let title = item.data.title || item.type.replace(/_/g, ' ');
+        let body = item.data.body;
+        
+        if (isParentLinkRequest && hasResponded) {
+            if (isAccepted) {
+                title = 'Link Request Accepted';
+                body = `You accepted ${childName}'s link request`;
+            } else {
+                title = 'Link Request Declined';
+                body = `You declined ${childName}'s link request`;
+            }
+        }
 
         return (
             <Pressable
@@ -168,7 +166,7 @@ export default function NotificationModal({
                     styles.notificationItem,
                     !item.read && styles.unreadItem,
                 ]}
-                onPress={() => !item.read && !isParentLinkRequest && onMarkAsRead(item.id)}
+                onPress={() => handleNotificationPress(item)}
             >
                 {/* Profile Image or Icon */}
                 <View style={styles.avatarContainer}>
@@ -192,29 +190,33 @@ export default function NotificationModal({
                         {body}
                     </Text>
                     
-                    {/* Accept/Decline buttons for parent_link_request */}
-                    {isParentLinkRequest && requestId && !item.read && (
-                        <View style={styles.actionButtonsContainer}>
-                            {isResponding ? (
-                                <ActivityIndicator size="small" color={cskColors[500]} />
-                            ) : (
-                                <>
-                                    <TouchableOpacity
-                                        style={[styles.actionButton, styles.acceptButton]}
-                                        onPress={() => handleParentLinkAction(item.id, requestId, 'accept')}
-                                    >
-                                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                                        <Text style={styles.acceptButtonText}>Accept</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.actionButton, styles.declineButton]}
-                                        onPress={() => handleParentLinkAction(item.id, requestId, 'decline')}
-                                    >
-                                        <Ionicons name="close" size={16} color={grayColors[700]} />
-                                        <Text style={styles.declineButtonText}>Decline</Text>
-                                    </TouchableOpacity>
-                                </>
-                            )}
+                    {/* Status badge for responded requests */}
+                    {isParentLinkRequest && hasResponded && (
+                        <View style={[
+                            styles.statusBadge,
+                            isAccepted ? styles.statusAccepted : styles.statusDeclined
+                        ]}>
+                            <Ionicons 
+                                name={isAccepted ? 'checkmark-circle' : 'close-circle'} 
+                                size={14} 
+                                color={isAccepted ? '#16A34A' : '#DC2626'} 
+                            />
+                            <Text style={[
+                                styles.statusText,
+                                isAccepted ? styles.statusTextAccepted : styles.statusTextDeclined
+                            ]}>
+                                {isAccepted ? 'Accepted' : 'Declined'}
+                            </Text>
+                        </View>
+                    )}
+                    
+                    {/* Pending badge for unresponded parent link requests */}
+                    {isParentLinkRequest && !hasResponded && (
+                        <View style={[styles.statusBadge, styles.statusPending]}>
+                            <Ionicons name="time-outline" size={14} color="#D97706" />
+                            <Text style={[styles.statusText, styles.statusTextPending]}>
+                                Pending
+                            </Text>
                         </View>
                     )}
 
@@ -555,6 +557,39 @@ const styles = StyleSheet.create({
         gap: 8,
         marginTop: 8,
         marginBottom: 8,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        borderRadius: 12,
+        gap: 4,
+        marginTop: 4,
+        marginBottom: 8,
+    },
+    statusAccepted: {
+        backgroundColor: '#DCFCE7',
+    },
+    statusDeclined: {
+        backgroundColor: '#FEE2E2',
+    },
+    statusText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    statusTextAccepted: {
+        color: '#16A34A',
+    },
+    statusTextDeclined: {
+        color: '#DC2626',
+    },
+    statusPending: {
+        backgroundColor: '#FEF3C7',
+    },
+    statusTextPending: {
+        color: '#D97706',
     },
     actionButton: {
         flexDirection: 'row',

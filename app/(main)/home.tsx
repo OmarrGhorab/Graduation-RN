@@ -21,7 +21,6 @@ import {
     useNotifications,
     useMarkAsReadMutation,
     useMarkAllAsReadMutation,
-    useRespondToParentLinkMutation,
     useDeleteNotificationMutation,
 } from '@/hooks/useNotifications';
 
@@ -110,10 +109,9 @@ export default function MainHomeScreen() {
 
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
-    const respondMutation = useRespondToParentLinkMutation();
     const deleteNotificationMutation = useDeleteNotificationMutation();
 
-    const handleNotificationPress = () => {
+    const handleNotificationBellPress = () => {
         setShowNotifications(true);
     };
 
@@ -125,12 +123,20 @@ export default function MainHomeScreen() {
         markAllAsReadMutation.mutate();
     };
 
-    const handleParentLinkRespond = async (
-        _notificationId: string,
-        requestId: string,
-        action: 'accept' | 'decline'
-    ) => {
-        await respondMutation.mutateAsync({ requestId, action });
+    const handleNotificationItemPress = (notification: any) => {
+        // Navigate based on notification type
+        if (notification.type === 'parent_link_request' || 
+            notification.type === 'parent_link_accepted' ||
+            notification.type === 'parent_link_declined' ||
+            notification.type === 'parent_link_request_accepted' ||
+            notification.type === 'parent_link_request_declined' ||
+            notification.type === 'unlink_request' ||
+            notification.type === 'unlink_request_accepted' ||
+            notification.type === 'unlink_request_declined') {
+            // Navigate to settings with parentLink section
+            router.push('/settings?section=parentLink');
+        }
+        // Add more notification type handlers as needed
     };
 
     const handleDeleteNotification = (notificationId: string) => {
@@ -269,7 +275,7 @@ export default function MainHomeScreen() {
 
             {/* Header positioned absolutely on top */}
             <HomeHeader
-                onNotificationPress={handleNotificationPress}
+                onNotificationPress={handleNotificationBellPress}
                 onSearchSubmit={handleSearchSubmit}
                 notificationCount={unreadCount}
                 scrollY={scrollY}
@@ -283,7 +289,7 @@ export default function MainHomeScreen() {
                 onMarkAllAsRead={handleMarkAllAsRead}
                 loading={isLoading}
                 onRefresh={() => refetch()}
-                onParentLinkRespond={handleParentLinkRespond}
+                onNotificationPress={handleNotificationItemPress}
                 onLoadMore={handleLoadMore}
                 hasNextPage={hasNextPage}
                 isFetchingNextPage={isFetchingNextPage}

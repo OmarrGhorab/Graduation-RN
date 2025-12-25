@@ -13,7 +13,7 @@ import {
     Image,
     BackHandler,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -64,6 +64,7 @@ type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' 
 
 export default function SettingsScreen() {
     const router = useRouter();
+    const { section: initialSection } = useLocalSearchParams<{ section?: string }>();
     const insets = useSafeAreaInsets();
     const toast = useToast();
     const { user } = useAuthStore();
@@ -81,7 +82,13 @@ export default function SettingsScreen() {
         }
     }, [preferences]);
 
-    const [currentSection, setCurrentSection] = useState<SettingsSection>('main');
+    const [currentSection, setCurrentSection] = useState<SettingsSection>(() => {
+        // Initialize with section from URL params if valid
+        if (initialSection && ['main', 'security', 'sessions', 'activity', 'danger', 'preferences', 'parentLink'].includes(initialSection)) {
+            return initialSection as SettingsSection;
+        }
+        return 'main';
+    });
     const [isLoading, setIsLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
