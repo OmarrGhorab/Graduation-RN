@@ -21,7 +21,7 @@ export default function LoginScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
-    const toast = useToast();
+    const { showToast } = useToast();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
     useEffect(() => {
@@ -60,6 +60,18 @@ export default function LoginScreen() {
         // If 2FA is required, navigate to 2FA page
         if (result.requires2FA && result.data) {
             navigateTo2FA(result.data);
+        }
+
+        // Check if device verification is required for Google sign-in
+        if (result.requiresDeviceVerification && result.deviceFingerprint) {
+            showToast('info', 'New Device Detected', 'Please verify this device using the code sent to your email.');
+            router.push({
+                pathname: '/device-verification',
+                params: {
+                    emailOrUsername: result.emailOrUsername || '',
+                    deviceFingerprint: result.deviceFingerprint,
+                }
+            } as any);
         }
 
         setIsGoogleLoading(false);

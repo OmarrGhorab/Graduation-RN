@@ -142,3 +142,40 @@ export interface RefreshTokenResponse {
     refreshToken: string;
 }
 
+// Device Verification Types
+export interface DeviceVerificationRequired {
+    error: string;
+    message: string;
+    deviceBlocked: true;
+    requiresDeviceVerification: true;
+    deviceFingerprint: string;
+    otp?: string; // Only in development mode
+}
+
+export interface DeviceVerifyRequest {
+    emailOrUsername: string;
+    deviceFingerprint: string;
+    otp: string;
+}
+
+export interface DeviceVerifyResponse {
+    message: string;
+    deviceVerified: boolean;
+    requires2FA?: boolean;
+    emailOrUsername?: string;
+    user?: User;
+    accessToken?: string;
+    refreshToken?: string;
+    requiresOnboarding?: boolean;
+}
+
+export interface ResendDeviceVerificationOTPRequest {
+    emailOrUsername: string;
+    deviceFingerprint: string;
+}
+
+export interface ResendDeviceVerificationOTPResponse {
+    message: string;
+    otp?: string; // Only in development mode
+}
+

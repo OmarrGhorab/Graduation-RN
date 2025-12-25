@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { cskColors, Colors } from '@/constants/theme';
-import { googleSignIn, configureGoogleSignIn, login } from '@/services/AuthService';
+import { googleSignIn, configureGoogleSignIn, login, requiresDeviceVerification } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { LoginSuccessResponse } from '@/types/auth';
 
@@ -74,6 +74,18 @@ export default function SignInScreen() {
             navigateTo2FA(result.data);
         }
 
+        // Check if device verification is required for Google sign-in
+        if (result.requiresDeviceVerification && result.deviceFingerprint) {
+            showToast('info', 'New Device Detected', 'Please verify this device using the code sent to your email.');
+            router.push({
+                pathname: '/device-verification',
+                params: {
+                    emailOrUsername: result.emailOrUsername || '',
+                    deviceFingerprint: result.deviceFingerprint,
+                }
+            } as any);
+        }
+
         setIsGoogleLoading(false);
     };
 
@@ -119,15 +131,20 @@ export default function SignInScreen() {
                 return;
             }
 
-            if (responseData?.requiresDeviceVerification) {
-                showToast('info', 'New Device', 'Please verify this device using the code sent to your email.');
+            // Check if device verification is required
+            if (responseData && requiresDeviceVerification(responseData)) {
+                showToast('info', 'New Device Detected', 'Please verify this device using the code sent to your email.');
                 router.push({
-                    pathname: '/verification',
-                    params: { email, type: 'device' }
+                    pathname: '/device-verification',
+                    params: {
+                        emailOrUsername: email,
+                        deviceFingerprint: responseData.deviceFingerprint,
+                    }
                 } as any);
-            } else {
-                error('Login failed', err.message || 'Check your credentials');
+                return;
             }
+
+            error('Login failed', err.message || 'Check your credentials');
         } finally {
             setIsLoading(false);
         }

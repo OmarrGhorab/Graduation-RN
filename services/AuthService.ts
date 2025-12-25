@@ -29,6 +29,11 @@ import {
     ParentLinkRequest,
     ParentLinkResponse,
     RefreshTokenResponse,
+    DeviceVerificationRequired,
+    DeviceVerifyRequest,
+    DeviceVerifyResponse,
+    ResendDeviceVerificationOTPRequest,
+    ResendDeviceVerificationOTPResponse,
 } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
 import { useThemeStore, ThemeMode } from '@/libs/theme';
@@ -55,6 +60,9 @@ export interface AuthResponse {
     data?: LoginResponse | any;
     error?: string;
     requires2FA?: boolean;
+    requiresDeviceVerification?: boolean;
+    deviceFingerprint?: string;
+    emailOrUsername?: string;
 }
 
 export interface GoogleSignInResult {
@@ -656,6 +664,137 @@ export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPa
 }
 
 /**
+ * Check if login response requires device verification
+ */
+export function requiresDeviceVerification(response: any): response is DeviceVerificationRequired {
+    return response.deviceBlocked === true && response.requiresDeviceVerification === true;
+}
+
+/**
+ * Verify device with OTP
+ * @param data - Email/username, device fingerprint, and OTP
+ */
+export async function verifyDevice(data: DeviceVerifyRequest): Promise<DeviceVerifyResponse> {
+    try {
+        console.log('[Auth] Verifying device with URL:', `${BASE_URL}/api/v1/auth/verify-device`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/verify-device`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    emailOrUsername: data.emailOrUsername,
+                    deviceFingerprint: data.deviceFingerprint,
+                    otp: data.otp,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            // Handle different error status codes
+            if (response.status === 400) {
+                throw new Error(responseData.error || responseData.message || 'Missing fields or device not found');
+            }
+            if (response.status === 401) {
+                throw new Error(responseData.error || responseData.message || 'Invalid or expired OTP');
+            }
+            throw new Error(responseData.error || responseData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        console.log('[Auth] Device verify response:', JSON.stringify(responseData, null, 2));
+
+        // If device verified and we have tokens (no 2FA required), store them
+        if (responseData.deviceVerified && responseData.accessToken && responseData.refreshToken && !responseData.requires2FA) {
+            console.log('[Auth] Device verified, storing tokens...');
+            useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
+            
+            // Wait a tick for the store to persist
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Verify tokens were stored
+            const storedToken = useAuthStore.getState().accessToken;
+            console.log('[Auth] Token stored successfully:', !!storedToken);
+            
+            // Sync FCM token
+            registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
+            
+            // Sync theme preference from user profile
+            if (responseData.user?.preferences?.themePreference) {
+                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
+                console.log('[Auth] Syncing theme preference on device verification:', themePreference);
+                useThemeStore.getState().setThemeMode(themePreference);
+            }
+        } else {
+            console.log('[Auth] Tokens not stored. deviceVerified:', responseData.deviceVerified, 
+                'hasAccessToken:', !!responseData.accessToken, 
+                'hasRefreshToken:', !!responseData.refreshToken,
+                'requires2FA:', responseData.requires2FA);
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Device verification failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Resend device verification OTP
+ * @param data - Email/username and device fingerprint
+ */
+export async function resendDeviceVerificationOTP(data: ResendDeviceVerificationOTPRequest): Promise<ResendDeviceVerificationOTPResponse> {
+    try {
+        console.log('[Auth] Resending device verification OTP with URL:', `${BASE_URL}/api/v1/auth/resend-device-verification-otp`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/resend-device-verification-otp`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    emailOrUsername: data.emailOrUsername,
+                    deviceFingerprint: data.deviceFingerprint,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            throw new Error(responseData.error || responseData.message || 'Failed to resend OTP');
+        }
+
+        return responseData;
+    } catch (error: any) {
+        console.error('[Auth] Resend device verification OTP failed:', error);
+
+        if (error.message === 'Network request failed') {
+            throw new Error(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
  * Submit onboarding data
  * @param data - Onboarding data collected from all steps
  */
@@ -1201,6 +1340,17 @@ export const googleSignIn = async (options?: {
         });
 
         const responseData = await response.json();
+
+        // Check if device verification is required (403 status)
+        if (response.status === 403 && requiresDeviceVerification(responseData)) {
+            return {
+                success: false,
+                requiresDeviceVerification: true,
+                deviceFingerprint: responseData.deviceFingerprint,
+                emailOrUsername: googleResult.user?.email,
+                error: responseData.message || 'Device verification required',
+            };
+        }
 
         if (!response.ok) {
             const errorMsg = responseData.message || `Server error: ${response.status}`;
