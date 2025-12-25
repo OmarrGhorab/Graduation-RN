@@ -1,23 +1,64 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationStore, PushNotificationData } from '@/libs/notifications-store';
 import { NOTIFICATIONS_QUERY_KEY } from '@/hooks/useNotifications';
 import { DeviceService } from '@/services/DeviceService';
 import { LocationService } from '@/services/LocationService';
+import { useNotificationSSE } from '@/hooks/useNotificationSSE';
+import { SSENotification } from '@/services/NotificationSSEService';
 
 /**
  * NotificationListener component
  * 
- * This component listens for incoming push notifications and updates
- * the notification store in real-time. It should be placed at the root
- * of your app (in _layout.tsx) to ensure it's always active.
+ * This component listens for incoming push notifications (FCM) and
+ * real-time notifications (SSE) and updates the notification store.
+ * It should be placed at the root of your app (in _layout.tsx) to
+ * ensure it's always active.
+ * 
+ * SSE provides real-time notifications that work on emulators and
+ * when push notifications are disabled.
  */
 export default function NotificationListener() {
     const notificationListener = useRef<Notifications.Subscription | null>(null);
     const responseListener = useRef<Notifications.Subscription | null>(null);
     const addNotificationFromPush = useNotificationStore((state) => state.addNotificationFromPush);
     const queryClient = useQueryClient();
+
+    // Handle SSE notification - memoized to prevent unnecessary reconnections
+    const handleSSENotification = useCallback((notification: SSENotification) => {
+        console.log('[NotificationListener] SSE notification received:', notification.type);
+
+        // Convert SSE notification to push notification format for store
+        const pushData: PushNotificationData = {
+            type: notification.type,
+            title: notification.data?.title || 'Notification',
+            body: notification.data?.body || '',
+            requestId: notification.data?.requestId,
+            child: notification.data?.child,
+            createdAt: notification.createdAt,
+        };
+
+        // Add to notification store
+        addNotificationFromPush(pushData);
+
+        // Note: SSE hook already updates React Query cache, no need to invalidate
+    }, [addNotificationFromPush]);
+
+    // Connect to SSE for real-time notifications
+    const { isConnected: sseConnected, error: sseError } = useNotificationSSE({
+        onNotification: handleSSENotification,
+        autoConnect: true,
+    });
+
+    // Log SSE connection status
+    useEffect(() => {
+        if (sseConnected) {
+            console.log('[NotificationListener] SSE connected');
+        } else if (sseError) {
+            console.log('[NotificationListener] SSE error:', sseError.message);
+        }
+    }, [sseConnected, sseError]);
 
     useEffect(() => {
         // Listen for incoming notifications when app is in foreground
