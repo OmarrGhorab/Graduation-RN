@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -38,6 +39,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
     onVerify,
     onToggleMode,
 }) => {
+    const { t } = useTranslation();
     const inputRefs = useRef<(TextInput | null)[]>([]);
     const styles = createStyles(theme, isDark);
 
@@ -115,7 +117,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
                     style={styles.backupInput}
                     value={backupCode}
                     onChangeText={onBackupCodeChange}
-                    placeholder="Enter backup code"
+                    placeholder={t('auth.backupCodeTitle')}
                     placeholderTextColor={theme.icon}
                     maxLength={8}
                     autoCapitalize="characters"
@@ -156,14 +158,14 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
                 {isVerifying ? (
                     <ActivityIndicator color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.verifyButtonText}>Verify</Text>
+                    <Text style={styles.verifyButtonText}>{t('auth.verify')}</Text>
                 )}
             </TouchableOpacity>
 
             {/* Toggle Backup Mode */}
             <TouchableOpacity onPress={onToggleMode} style={styles.toggleButton}>
                 <Text style={styles.toggleText}>
-                    {isBackupMode ? 'Use authenticator code instead' : 'Use a backup code instead'}
+                    {isBackupMode ? t('auth.useAuthenticator') : t('auth.useBackupCode')}
                 </Text>
             </TouchableOpacity>
 
@@ -171,9 +173,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
             <View style={styles.helpContainer}>
                 <Ionicons name="information-circle-outline" size={18} color={theme.icon} />
                 <Text style={styles.helpText}>
-                    {isBackupMode
-                        ? 'Backup codes are 8 characters long and can only be used once'
-                        : 'Open your authenticator app to view your verification code'}
+                    {isBackupMode ? t('auth.backupCodeSubtitle') : t('auth.twoFactorSubtitle')}
                 </Text>
             </View>
         </View>

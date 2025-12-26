@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ export const LoginButtons: React.FC<LoginButtonsProps> = ({
     onSignUp,
     onLogIn,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -50,7 +52,7 @@ export const LoginButtons: React.FC<LoginButtonsProps> = ({
                             style={styles.googleIcon}
                             resizeMode="contain"
                         />
-                        <Text style={styles.googleButtonText}>Continue With Google</Text>
+                        <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
                     </>
                 )}
             </TouchableOpacity>
@@ -61,7 +63,7 @@ export const LoginButtons: React.FC<LoginButtonsProps> = ({
                 onPress={onSignUp}
                 activeOpacity={0.8}
             >
-                <Text style={styles.signUpButtonText}>Sign Up</Text>
+                <Text style={styles.signUpButtonText}>{t('auth.signUp')}</Text>
             </TouchableOpacity>
 
             {/* Log In Button */}
@@ -70,7 +72,7 @@ export const LoginButtons: React.FC<LoginButtonsProps> = ({
                 onPress={onLogIn}
                 activeOpacity={0.8}
             >
-                <Text style={styles.logInButtonText}>Log In</Text>
+                <Text style={styles.logInButtonText}>{t('auth.logIn')}</Text>
             </TouchableOpacity>
         </>
     );

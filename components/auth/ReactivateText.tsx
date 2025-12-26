@@ -1,6 +1,7 @@
 import React from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ReactivateTextProps {
     message?: string;
@@ -12,23 +13,27 @@ export const ReactivateText: React.FC<ReactivateTextProps> = ({
     message,
     fadeAnim,
     slideAnim,
-}) => (
-    <Animated.View
-        style={[
-            styles.textSection,
-            {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-            },
-        ]}
-    >
-        <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
-        <Text style={styles.title}>Good to See You Again!</Text>
-        <Text style={styles.subtitle}>
-            {message || "Your account will be reactivated. We're excited to have you back!"}
-        </Text>
-    </Animated.View>
-);
+}) => {
+    const { t } = useTranslation();
+    
+    return (
+        <Animated.View
+            style={[
+                styles.textSection,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                },
+            ]}
+        >
+            <Text style={styles.welcomeLabel}>{t('auth.welcomeBack')}</Text>
+            <Text style={styles.title}>{t('auth.welcomeBackTitle')}</Text>
+            <Text style={styles.subtitle}>
+                {message || t('auth.reactivateSubtitle')}
+            </Text>
+        </Animated.View>
+    );
+};
 
 const styles = StyleSheet.create({
     textSection: {

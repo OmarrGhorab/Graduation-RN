@@ -1,6 +1,7 @@
 import React from 'react';
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -11,22 +12,26 @@ interface SignInHeaderProps {
     isDark: boolean;
 }
 
-export const SignInHeader: React.FC<SignInHeaderProps> = ({ theme, isDark }) => (
-    <>
-        <View style={styles.imageContainer}>
-            <Image
-                source={
-                    isDark
-                        ? require('@/assets/images/logo-white.png')
-                        : require('@/assets/images/logo-green.png')
-                }
-                style={styles.logo}
-                resizeMode="contain"
-            />
-        </View>
-        <Text style={[styles.title, { color: theme.primary }]}>Log In</Text>
-    </>
-);
+export const SignInHeader: React.FC<SignInHeaderProps> = ({ theme, isDark }) => {
+    const { t } = useTranslation();
+    
+    return (
+        <>
+            <View style={styles.imageContainer}>
+                <Image
+                    source={
+                        isDark
+                            ? require('@/assets/images/logo-white.png')
+                            : require('@/assets/images/logo-green.png')
+                    }
+                    style={styles.logo}
+                    resizeMode="contain"
+                />
+            </View>
+            <Text style={[styles.title, { color: theme.primary }]}>{t('auth.logIn')}</Text>
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     imageContainer: {

@@ -2,6 +2,7 @@ import React from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { height } = Dimensions.get('window');
 
@@ -12,21 +13,25 @@ interface ForgotPasswordHeaderProps {
     onBack: () => void;
 }
 
-export const ForgotPasswordHeader: React.FC<ForgotPasswordHeaderProps> = ({ theme, onBack }) => (
-    <>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-        </View>
-        <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.primary }]}>Forgot Password</Text>
-            <Text style={[styles.subtitle, { color: theme.icon }]}>
-                Enter your email address We will send an OTP code for verification in the next step.
-            </Text>
-        </View>
-    </>
-);
+export const ForgotPasswordHeader: React.FC<ForgotPasswordHeaderProps> = ({ theme, onBack }) => {
+    const { t } = useTranslation();
+    
+    return (
+        <>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={theme.text} />
+                </TouchableOpacity>
+            </View>
+            <View style={styles.titleContainer}>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('auth.forgotPasswordTitle')}</Text>
+                <Text style={[styles.subtitle, { color: theme.icon }]}>
+                    {t('auth.forgotPasswordSubtitle')}
+                </Text>
+            </View>
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     header: {

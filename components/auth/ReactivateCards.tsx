@@ -2,6 +2,7 @@ import React from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ReactivateCardsProps {
     fadeAnim: Animated.Value;
@@ -11,37 +12,41 @@ interface ReactivateCardsProps {
 export const ReactivateCards: React.FC<ReactivateCardsProps> = ({
     fadeAnim,
     cardSlideAnim,
-}) => (
-    <Animated.View
-        style={[
-            styles.cardsContainer,
-            {
-                opacity: fadeAnim,
-                transform: [{ translateY: cardSlideAnim }],
-            },
-        ]}
-    >
-        <View style={styles.infoCard}>
-            <View style={[styles.cardIconWrapper, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="shield-checkmark" size={22} color="#10B981" />
+}) => {
+    const { t } = useTranslation();
+    
+    return (
+        <Animated.View
+            style={[
+                styles.cardsContainer,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: cardSlideAnim }],
+                },
+            ]}
+        >
+            <View style={styles.infoCard}>
+                <View style={[styles.cardIconWrapper, { backgroundColor: '#ECFDF5' }]}>
+                    <Ionicons name="shield-checkmark" size={22} color="#10B981" />
+                </View>
+                <View style={styles.cardTextWrapper}>
+                    <Text style={styles.cardTitle}>{t('auth.dataPreserved')}</Text>
+                    <Text style={styles.cardDescription}>{t('auth.dataPreservedDesc')}</Text>
+                </View>
             </View>
-            <View style={styles.cardTextWrapper}>
-                <Text style={styles.cardTitle}>Account Secured</Text>
-                <Text style={styles.cardDescription}>Your data is safe and protected</Text>
-            </View>
-        </View>
 
-        <View style={styles.infoCard}>
-            <View style={[styles.cardIconWrapper, { backgroundColor: '#EEF2FF' }]}>
-                <Ionicons name="sync" size={22} color="#6366F1" />
+            <View style={styles.infoCard}>
+                <View style={[styles.cardIconWrapper, { backgroundColor: '#EEF2FF' }]}>
+                    <Ionicons name="sync" size={22} color="#6366F1" />
+                </View>
+                <View style={styles.cardTextWrapper}>
+                    <Text style={styles.cardTitle}>{t('auth.instantAccess')}</Text>
+                    <Text style={styles.cardDescription}>{t('auth.instantAccessDesc')}</Text>
+                </View>
             </View>
-            <View style={styles.cardTextWrapper}>
-                <Text style={styles.cardTitle}>Everything Restored</Text>
-                <Text style={styles.cardDescription}>Settings and preferences are ready</Text>
-            </View>
-        </View>
-    </Animated.View>
-);
+        </Animated.View>
+    );
+};
 
 const styles = StyleSheet.create({
     cardsContainer: {

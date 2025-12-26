@@ -25,19 +25,96 @@ export default {
 
   // Auth
   auth: {
+    // Login screen
+    welcomeBack: 'مرحباً بعودتك',
+    welcomeSubtitle: 'سجل دخولك للوصول إلى حسابك ومتابعة رحلتك معنا.',
+    continueWithGoogle: 'المتابعة مع جوجل',
+    signUp: 'إنشاء حساب',
+    logIn: 'تسجيل الدخول',
     login: 'تسجيل الدخول',
     logout: 'تسجيل الخروج',
-    register: 'إنشاء حساب',
-    email: 'البريد الإلكتروني',
-    password: 'كلمة المرور',
-    confirmPassword: 'تأكيد كلمة المرور',
-    forgotPassword: 'نسيت كلمة المرور؟',
-    resetPassword: 'إعادة تعيين كلمة المرور',
-    signInWith: 'تسجيل الدخول بـ {{provider}}',
-    dontHaveAccount: 'ليس لديك حساب؟',
-    alreadyHaveAccount: 'لديك حساب بالفعل؟',
-    signUp: 'إنشاء حساب',
+    
+    // Sign In screen
     signIn: 'تسجيل الدخول',
+    emailUsername: 'البريد الإلكتروني / اسم المستخدم',
+    emailPlaceholder: 'smantha@mail.com',
+    password: 'كلمة المرور',
+    passwordPlaceholder: '* * * *',
+    forgotPassword: 'نسيت كلمة المرور؟',
+    dontHaveAccount: 'ليس لديك حساب؟',
+    or: 'أو',
+    
+    // Sign Up screen
+    createAccount: 'إنشاء حساب',
+    fullName: 'الاسم الكامل',
+    fullNamePlaceholder: 'أدخل اسمك الكامل',
+    username: 'اسم المستخدم',
+    usernamePlaceholder: 'اختر اسم مستخدم فريد',
+    email: 'البريد الإلكتروني',
+    emailInputPlaceholder: 'أدخل بريدك الإلكتروني',
+    createPassword: 'أنشئ كلمة مرور',
+    alreadyHaveAccount: 'لديك حساب بالفعل؟',
+    usernameAvailable: 'اسم المستخدم متاح!',
+    suggestions: 'اقتراحات:',
+    
+    // Forgot Password
+    forgotPasswordTitle: 'نسيت كلمة المرور',
+    forgotPasswordSubtitle: 'أدخل بريدك الإلكتروني وسنرسل لك رمز التحقق في الخطوة التالية.',
+    continue: 'متابعة',
+    
+    // Verification
+    verifyOTP: 'التحقق من الرمز',
+    verifyOTPSubtitle: 'يرجى إدخال رمز الأمان المرسل إلى بريدك الإلكتروني لإعادة تعيين كلمة المرور.',
+    resendCode: 'إعادة إرسال الرمز',
+    resendIn: 'إعادة الإرسال خلال {{seconds}} ثانية',
+    
+    // Reset Password
+    resetPassword: 'إعادة تعيين كلمة المرور',
+    resetPasswordSubtitle: 'أنشئ كلمة مرور جديدة لحسابك.',
+    newPassword: 'كلمة المرور الجديدة',
+    confirmPassword: 'تأكيد كلمة المرور',
+    confirmPasswordPlaceholder: 'أكد كلمة المرور',
+    confirm: 'تأكيد',
+    
+    // Reset Success
+    resetSuccessTitle: 'تم إعادة تعيين كلمة المرور بنجاح!',
+    resetSuccessSubtitle: 'تم تغيير كلمة المرور الخاصة بك بنجاح.',
+    goToLogin: 'الذهاب لتسجيل الدخول',
+    
+    // Device Verification
+    newDeviceDetected: 'تم اكتشاف جهاز جديد',
+    deviceVerificationTitle: 'تحقق من جهازك',
+    deviceVerificationSubtitle: 'لاحظنا أنك تسجل الدخول من جهاز جديد. يرجى إدخال رمز التحقق المرسل إلى بريدك الإلكتروني.',
+    verifyDevice: 'تحقق من الجهاز',
+    
+    // 2FA
+    twoFactorTitle: 'المصادقة الثنائية',
+    twoFactorSubtitle: 'أدخل الرمز المكون من 6 أرقام من تطبيق المصادقة.',
+    backupCodeTitle: 'استخدام رمز احتياطي',
+    backupCodeSubtitle: 'أدخل أحد رموزك الاحتياطية المكونة من 8 أحرف.',
+    verify: 'تحقق',
+    useBackupCode: 'استخدم رمز احتياطي بدلاً من ذلك',
+    useAuthenticator: 'استخدم تطبيق المصادقة بدلاً من ذلك',
+    
+    // Reactivate Account
+    welcomeBackTitle: 'مرحباً بعودتك!',
+    accountDeactivated: 'تم تعطيل حسابك',
+    reactivateSubtitle: 'يسعدنا رؤيتك مرة أخرى. حسابك جاهز لإعادة التفعيل.',
+    reactivateAccount: 'إعادة تفعيل الحساب',
+    goBack: 'العودة',
+    dataPreserved: 'بياناتك محفوظة',
+    dataPreservedDesc: 'جميع تقدمك وإعداداتك ومعلوماتك آمنة',
+    instantAccess: 'وصول فوري',
+    instantAccessDesc: 'عد إلى حسابك فوراً',
+    
+    // Validation messages
+    emailRequired: 'البريد الإلكتروني وكلمة المرور مطلوبان',
+    invalidCode: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
+    missingEmail: 'البريد الإلكتروني مفقود',
+    passwordMismatch: 'كلمات المرور غير متطابقة',
+    passwordTooShort: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل',
+    fillAllFields: 'يرجى ملء جميع الحقول',
+    fixUsernameErrors: 'يرجى إصلاح أخطاء اسم المستخدم',
   },
 
   // Settings

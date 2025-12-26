@@ -8,6 +8,7 @@ import {
     View,
 } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -28,6 +29,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
     onEmailChange,
     onContinue,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -35,11 +37,11 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
             {/* Email Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Email / Username</Text>
+                    <Text style={styles.label}>{t('auth.emailUsername')}</Text>
                 </View>
                 <TextInput
                     style={styles.input}
-                    placeholder="smantha@mail.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}
                     onChangeText={onEmailChange}
@@ -58,7 +60,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
                 {isLoading ? (
                     <ActivityIndicator color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.continueButtonText}>Continue</Text>
+                    <Text style={styles.continueButtonText}>{t('auth.continue')}</Text>
                 )}
             </TouchableOpacity>
         </View>

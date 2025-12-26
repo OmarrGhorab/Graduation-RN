@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -39,6 +40,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     onForgotPassword,
     onLogin,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -46,11 +48,11 @@ export const SignInForm: React.FC<SignInFormProps> = ({
             {/* Email Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Email / Username</Text>
+                    <Text style={styles.label}>{t('auth.emailUsername')}</Text>
                 </View>
                 <TextInput
                     style={styles.input}
-                    placeholder="smantha@mail.com"
+                    placeholder={t('auth.emailPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}
                     onChangeText={onEmailChange}
@@ -62,12 +64,12 @@ export const SignInForm: React.FC<SignInFormProps> = ({
             {/* Password Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Password</Text>
+                    <Text style={styles.label}>{t('auth.password')}</Text>
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
-                        placeholder="* * * *"
+                        placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={password}
                         onChangeText={onPasswordChange}
@@ -85,7 +87,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
 
             {/* Forgot Password */}
             <TouchableOpacity onPress={onForgotPassword} style={styles.forgotPasswordContainer}>
-                <Text style={styles.forgotPasswordText}>Forgot password ?</Text>
+                <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
             </TouchableOpacity>
 
             {/* Login Button */}
@@ -98,7 +100,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
                 {isLoading ? (
                     <ActivityIndicator size="small" color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.loginButtonText}>Login</Text>
+                    <Text style={styles.loginButtonText}>{t('auth.login')}</Text>
                 )}
             </TouchableOpacity>
         </View>

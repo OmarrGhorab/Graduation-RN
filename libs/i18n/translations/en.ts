@@ -25,19 +25,96 @@ export default {
 
   // Auth
   auth: {
+    // Login screen
+    welcomeBack: 'WELCOME BACK',
+    welcomeSubtitle: 'Sign in to access your account and continue your journey with us.',
+    continueWithGoogle: 'Continue With Google',
+    signUp: 'Sign Up',
+    logIn: 'Log In',
     login: 'Login',
     logout: 'Logout',
-    register: 'Register',
-    email: 'Email',
-    password: 'Password',
-    confirmPassword: 'Confirm Password',
-    forgotPassword: 'Forgot Password?',
-    resetPassword: 'Reset Password',
-    signInWith: 'Sign in with {{provider}}',
-    dontHaveAccount: "Don't have an account?",
-    alreadyHaveAccount: 'Already have an account?',
-    signUp: 'Sign Up',
+    
+    // Sign In screen
     signIn: 'Sign In',
+    emailUsername: 'Email / Username',
+    emailPlaceholder: 'smantha@mail.com',
+    password: 'Password',
+    passwordPlaceholder: '* * * *',
+    forgotPassword: 'Forgot password ?',
+    dontHaveAccount: "Don't have an account?",
+    or: 'Or',
+    
+    // Sign Up screen
+    createAccount: 'Create Account',
+    fullName: 'Full Name',
+    fullNamePlaceholder: 'Enter your full name',
+    username: 'Username',
+    usernamePlaceholder: 'Choose a unique username',
+    email: 'Email',
+    emailInputPlaceholder: 'Enter your email address',
+    createPassword: 'Create a password',
+    alreadyHaveAccount: 'Already have an account?',
+    usernameAvailable: 'Username is available!',
+    suggestions: 'Suggestions:',
+    
+    // Forgot Password
+    forgotPasswordTitle: 'Forgot Password',
+    forgotPasswordSubtitle: 'Enter your email address We will send an OTP code for verification in the next step.',
+    continue: 'Continue',
+    
+    // Verification
+    verifyOTP: 'Verify OTP Code',
+    verifyOTPSubtitle: 'Please enter the security code sent to your email to reset your password.',
+    resendCode: 'Resend Code',
+    resendIn: 'Resend in {{seconds}}s',
+    
+    // Reset Password
+    resetPassword: 'Reset Password',
+    resetPasswordSubtitle: 'Create a new password for your account.',
+    newPassword: 'New Password',
+    confirmPassword: 'Confirm Password',
+    confirmPasswordPlaceholder: 'Confirm your password',
+    confirm: 'Confirm',
+    
+    // Reset Success
+    resetSuccessTitle: 'Reset Password Successful!',
+    resetSuccessSubtitle: 'Your password has been successfully changed.',
+    goToLogin: 'Go To Log in',
+    
+    // Device Verification
+    newDeviceDetected: 'New Device Detected',
+    deviceVerificationTitle: 'Verify Your Device',
+    deviceVerificationSubtitle: 'We noticed you\'re logging in from a new device. Please enter the verification code sent to your email.',
+    verifyDevice: 'Verify Device',
+    
+    // 2FA
+    twoFactorTitle: 'Two-Factor Authentication',
+    twoFactorSubtitle: 'Enter the 6-digit code from your authenticator app.',
+    backupCodeTitle: 'Use Backup Code',
+    backupCodeSubtitle: 'Enter one of your 8-character backup codes.',
+    verify: 'Verify',
+    useBackupCode: 'Use backup code instead',
+    useAuthenticator: 'Use authenticator app instead',
+    
+    // Reactivate Account
+    welcomeBackTitle: 'Welcome Back!',
+    accountDeactivated: 'Your account was deactivated',
+    reactivateSubtitle: 'We\'re glad to see you again. Your account is ready to be reactivated.',
+    reactivateAccount: 'Reactivate Account',
+    goBack: 'Go Back',
+    dataPreserved: 'Your Data is Preserved',
+    dataPreservedDesc: 'All your progress, settings, and information are safe',
+    instantAccess: 'Instant Access',
+    instantAccessDesc: 'Get back to your account immediately',
+    
+    // Validation messages
+    emailRequired: 'Email and password are required',
+    invalidCode: 'Please enter the full 6-digit code',
+    missingEmail: 'Missing email address',
+    passwordMismatch: 'Passwords do not match',
+    passwordTooShort: 'Password must be at least 6 characters',
+    fillAllFields: 'Please fill in all fields',
+    fixUsernameErrors: 'Please fix username errors',
   },
 
   // Settings

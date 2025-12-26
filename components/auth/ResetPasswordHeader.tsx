@@ -2,6 +2,7 @@ import React from 'react';
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,31 +14,35 @@ interface ResetPasswordHeaderProps {
     onBack: () => void;
 }
 
-export const ResetPasswordHeader: React.FC<ResetPasswordHeaderProps> = ({ theme, isDark, onBack }) => (
-    <>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-        </View>
+export const ResetPasswordHeader: React.FC<ResetPasswordHeaderProps> = ({ theme, isDark, onBack }) => {
+    const { t } = useTranslation();
+    
+    return (
+        <>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={theme.text} />
+                </TouchableOpacity>
+            </View>
 
-        <View style={styles.imageContainer}>
-            <Image
-                source={
-                    isDark
-                        ? require('@/assets/images/logo-white.png')
-                        : require('@/assets/images/logo-green.png')
-                }
-                style={styles.illustration}
-                resizeMode="contain"
-            />
-        </View>
+            <View style={styles.imageContainer}>
+                <Image
+                    source={
+                        isDark
+                            ? require('@/assets/images/logo-white.png')
+                            : require('@/assets/images/logo-green.png')
+                    }
+                    style={styles.illustration}
+                    resizeMode="contain"
+                />
+            </View>
 
-        <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.primary }]}>Reset Password</Text>
-        </View>
-    </>
-);
+            <View style={styles.titleContainer}>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('auth.resetPassword')}</Text>
+            </View>
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     header: {

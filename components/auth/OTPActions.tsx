@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -19,10 +20,11 @@ export const OTPActions: React.FC<OTPActionsProps> = ({
     isDark,
     isLoading,
     timer,
-    buttonText = 'Continue',
+    buttonText,
     onContinue,
     onResend,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
     const formattedTimer = `00:${timer < 10 ? `0${timer}` : timer}`;
 
@@ -38,16 +40,16 @@ export const OTPActions: React.FC<OTPActionsProps> = ({
                 {isLoading ? (
                     <ActivityIndicator color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.continueButtonText}>{buttonText}</Text>
+                    <Text style={styles.continueButtonText}>{buttonText || t('auth.continue')}</Text>
                 )}
             </TouchableOpacity>
 
             {/* Resend Code */}
             <View style={styles.resendContainer}>
-                <Text style={styles.resendLabel}>Did not receive the code?</Text>
+                <Text style={styles.resendLabel}>{t('auth.resendIn', { seconds: '' }).replace('{{seconds}} ', '')}</Text>
                 {timer === 0 ? (
                     <TouchableOpacity onPress={onResend} disabled={isLoading}>
-                        <Text style={styles.resendLink}>Send Again</Text>
+                        <Text style={styles.resendLink}>{t('auth.resendCode')}</Text>
                     </TouchableOpacity>
                 ) : (
                     <Text style={styles.timerText}>{formattedTimer}</Text>

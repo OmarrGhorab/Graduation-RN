@@ -8,6 +8,7 @@ import {
     View,
 } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -26,22 +27,23 @@ export const SignUpFooter: React.FC<SignUpFooterProps> = ({
     onGoogleSignIn,
     onSignIn,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
         <>
             {/* Sign In Link */}
             <View style={styles.footer}>
-                <Text style={styles.footerText}>Already have an account? </Text>
+                <Text style={styles.footerText}>{t('auth.alreadyHaveAccount')} </Text>
                 <TouchableOpacity onPress={onSignIn}>
-                    <Text style={styles.signInText}>Log In</Text>
+                    <Text style={styles.signInText}>{t('auth.logIn')}</Text>
                 </TouchableOpacity>
             </View>
 
             {/* Divider */}
             <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or</Text>
+                <Text style={styles.dividerText}>{t('auth.or')}</Text>
                 <View style={styles.dividerLine} />
             </View>
 
@@ -61,7 +63,7 @@ export const SignUpFooter: React.FC<SignUpFooterProps> = ({
                             style={styles.googleIcon}
                             resizeMode="contain"
                         />
-                        <Text style={styles.googleButtonText}>Continue With Google</Text>
+                        <Text style={styles.googleButtonText}>{t('auth.continueWithGoogle')}</Text>
                     </>
                 )}
             </TouchableOpacity>

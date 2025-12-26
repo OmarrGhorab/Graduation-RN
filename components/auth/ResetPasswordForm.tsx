@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -41,6 +42,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
     onToggleConfirmPassword,
     onConfirm,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -48,12 +50,12 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
             {/* Password Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>PASSWORD</Text>
+                    <Text style={styles.label}>{t('auth.password')}</Text>
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
-                        placeholder="* * * *"
+                        placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={password}
                         onChangeText={onPasswordChange}
@@ -72,12 +74,12 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
             {/* Confirm Password Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>CONFIRM PASSWORD</Text>
+                    <Text style={styles.label}>{t('auth.confirmPassword')}</Text>
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
-                        placeholder="* * * *"
+                        placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={confirmPassword}
                         onChangeText={onConfirmPasswordChange}
@@ -105,7 +107,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 {isLoading ? (
                     <ActivityIndicator color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.confirmButtonText}>Confirm</Text>
+                    <Text style={styles.confirmButtonText}>{t('auth.confirm')}</Text>
                 )}
             </TouchableOpacity>
         </View>

@@ -10,12 +10,14 @@ import {
     useColorScheme,
 } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ResetSuccessScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const theme = Colors[colorScheme || 'light'];
+    const { t } = useTranslation();
 
     const handleGoToLogin = () => {
         router.push('/signin');
@@ -38,12 +40,12 @@ export default function ResetSuccessScreen() {
 
                     {/* Title */}
                     <Text style={[styles.title, { color: theme.primary }]}>
-                        Reset Password Successful!
+                        {t('auth.resetSuccessTitle')}
                     </Text>
 
                     {/* Subtitle */}
                     <Text style={[styles.subtitle, { color: theme.icon }]}>
-                        Your password has been successfully changed.
+                        {t('auth.resetSuccessSubtitle')}
                     </Text>
 
                     {/* Go To Login Button */}
@@ -59,7 +61,7 @@ export default function ResetSuccessScreen() {
                         activeOpacity={0.8}
                     >
                         <Text style={[styles.loginButtonText, { color: theme.onPrimary }]}>
-                            Go To Log in
+                            {t('auth.goToLogin')}
                         </Text>
                     </TouchableOpacity>
                 </View>

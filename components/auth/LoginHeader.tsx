@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -8,16 +9,20 @@ interface LoginHeaderProps {
     theme: Theme;
 }
 
-export const LoginHeader: React.FC<LoginHeaderProps> = ({ theme }) => (
-    <>
-        <Text style={[styles.welcomeText, { color: theme.primary }]}>
-            WELCOME BACK
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.primary }]}>
-            Sign in to access your account and continue your journey with us.
-        </Text>
-    </>
-);
+export const LoginHeader: React.FC<LoginHeaderProps> = ({ theme }) => {
+    const { t } = useTranslation();
+    
+    return (
+        <>
+            <Text style={[styles.welcomeText, { color: theme.primary }]}>
+                {t('auth.welcomeBack')}
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.primary }]}>
+                {t('auth.welcomeSubtitle')}
+            </Text>
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     welcomeText: {

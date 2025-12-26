@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -55,6 +56,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
     onSuggestionClick,
     onSignUp,
 }) => {
+    const { t } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -62,11 +64,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
             {/* Full Name Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Full Name</Text>
+                    <Text style={styles.label}>{t('auth.fullName')}</Text>
                 </View>
                 <TextInput
                     style={styles.input}
-                    placeholder="Enter your full name"
+                    placeholder={t('auth.fullNamePlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={fullName}
                     onChangeText={onFullNameChange}
@@ -77,7 +79,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
             {/* Username Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Username</Text>
+                    <Text style={styles.label}>{t('auth.username')}</Text>
                 </View>
                 <View style={styles.usernameInputContainer}>
                     <TextInput
@@ -86,7 +88,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                             usernameError && styles.inputError,
                             usernameAvailable && username && styles.inputSuccess,
                         ]}
-                        placeholder="Choose a unique username"
+                        placeholder={t('auth.usernamePlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={username}
                         onChangeText={onUsernameChange}
@@ -112,14 +114,14 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                     <Text style={styles.errorText}>{usernameError}</Text>
                 )}
                 {usernameAvailable && username && (
-                    <Text style={styles.successText}>Username is available!</Text>
+                    <Text style={styles.successText}>{t('auth.usernameAvailable')}</Text>
                 )}
             </View>
 
             {/* Username Suggestions */}
             {suggestions.length > 0 && (
                 <View style={styles.suggestionsContainer}>
-                    <Text style={styles.suggestionsLabel}>Suggestions:</Text>
+                    <Text style={styles.suggestionsLabel}>{t('auth.suggestions')}</Text>
                     <View style={styles.suggestionsRow}>
                         {suggestions.map((suggestion, index) => (
                             <TouchableOpacity
@@ -138,11 +140,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
             {/* Email Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Email</Text>
+                    <Text style={styles.label}>{t('auth.email')}</Text>
                 </View>
                 <TextInput
                     style={styles.input}
-                    placeholder="Enter your email address"
+                    placeholder={t('auth.emailInputPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}
                     onChangeText={onEmailChange}
@@ -154,12 +156,12 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
             {/* Password Input */}
             <View style={styles.inputWrapper}>
                 <View style={styles.labelContainer}>
-                    <Text style={styles.label}>Password</Text>
+                    <Text style={styles.label}>{t('auth.password')}</Text>
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
-                        placeholder="Create a password"
+                        placeholder={t('auth.createPassword')}
                         placeholderTextColor={theme.icon}
                         value={password}
                         onChangeText={onPasswordChange}
@@ -185,7 +187,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                 {isLoading ? (
                     <ActivityIndicator size="small" color={theme.onPrimary} />
                 ) : (
-                    <Text style={styles.createButtonText}>Create Account</Text>
+                    <Text style={styles.createButtonText}>{t('auth.createAccount')}</Text>
                 )}
             </TouchableOpacity>
         </View>

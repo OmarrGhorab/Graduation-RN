@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -29,56 +30,60 @@ export const ReactivateButtons: React.FC<ReactivateButtonsProps> = ({
     buttonSlideAnim,
     onContinue,
     onGoBack,
-}) => (
-    <Animated.View
-        style={[
-            styles.bottomSection,
-            {
-                opacity: fadeAnim,
-                transform: [{ translateY: buttonSlideAnim }],
-            },
-        ]}
-    >
-        {/* Continue Button */}
-        <TouchableOpacity
-            style={styles.continueButton}
-            onPress={onContinue}
-            activeOpacity={0.9}
-            disabled={loading}
+}) => {
+    const { t } = useTranslation();
+    
+    return (
+        <Animated.View
+            style={[
+                styles.bottomSection,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: buttonSlideAnim }],
+                },
+            ]}
         >
-            <LinearGradient
-                colors={['#FFFFFF', '#F8FAFC']}
-                style={styles.buttonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+            {/* Continue Button */}
+            <TouchableOpacity
+                style={styles.continueButton}
+                onPress={onContinue}
+                activeOpacity={0.9}
+                disabled={loading}
             >
-                {loading ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
-                ) : (
-                    <>
-                        <Text style={[styles.continueButtonText, { color: theme.primary }]}>
-                            Continue to App
-                        </Text>
-                        <View style={[styles.arrowCircle, { backgroundColor: theme.primary }]}>
-                            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                        </View>
-                    </>
-                )}
-            </LinearGradient>
-        </TouchableOpacity>
+                <LinearGradient
+                    colors={['#FFFFFF', '#F8FAFC']}
+                    style={styles.buttonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                >
+                    {loading ? (
+                        <ActivityIndicator size="small" color={theme.primary} />
+                    ) : (
+                        <>
+                            <Text style={[styles.continueButtonText, { color: theme.primary }]}>
+                                {t('auth.reactivateAccount')}
+                            </Text>
+                            <View style={[styles.arrowCircle, { backgroundColor: theme.primary }]}>
+                                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                            </View>
+                        </>
+                    )}
+                </LinearGradient>
+            </TouchableOpacity>
 
-        {/* Logout Option */}
-        <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={onGoBack}
-            activeOpacity={0.7}
-            disabled={loading}
-        >
-            <Ionicons name="log-out-outline" size={18} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.logoutText}>Sign out instead</Text>
-        </TouchableOpacity>
-    </Animated.View>
-);
+            {/* Logout Option */}
+            <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={onGoBack}
+                activeOpacity={0.7}
+                disabled={loading}
+            >
+                <Ionicons name="log-out-outline" size={18} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.logoutText}>{t('auth.goBack')}</Text>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+};
 
 const styles = StyleSheet.create({
     bottomSection: {
