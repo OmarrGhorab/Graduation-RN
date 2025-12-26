@@ -413,12 +413,12 @@ export default function SettingsScreen() {
 
     const getHeaderTitle = () => {
         switch (currentSection) {
-            case 'security': return 'Security';
-            case 'sessions': return 'Active Sessions';
-            case 'activity': return 'Activity Log';
-            case 'danger': return 'Account';
-            case 'parentLink': return isParent ? 'My Children' : 'Parent Link';
-            default: return 'Settings';
+            case 'security': return t('settings.headerSecurity');
+            case 'sessions': return t('settings.headerActiveSessions');
+            case 'activity': return t('settings.headerActivityLog');
+            case 'danger': return t('settings.headerAccount');
+            case 'parentLink': return isParent ? t('settings.myChildren') : t('settings.parentLink');
+            default: return t('settings.title');
         }
     };
 
@@ -470,16 +470,16 @@ export default function SettingsScreen() {
             {isLoading && !twoFAStatus ? (
                 <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.primary} /></View>
             ) : (
-                <SettingsSection title="Two-Factor Authentication">
-                    <InfoCard icon="shield-checkmark" title={twoFAStatus?.enabled ? '2FA is Enabled' : 'Protect Your Account'} description={twoFAStatus?.enabled ? 'Your account is protected with two-factor authentication.' : 'Add an extra layer of security by requiring a verification code when signing in.'} />
+                <SettingsSection title={t('settings.twoFactorAuthentication')}>
+                    <InfoCard icon="shield-checkmark" title={twoFAStatus?.enabled ? t('settings.twoFAEnabled') : t('settings.protectYourAccount')} description={twoFAStatus?.enabled ? t('settings.twoFAEnabledDesc') : t('settings.protectYourAccountDesc')} />
                     <View style={[styles.toggleRow, { borderBottomColor: theme.border }]}>
-                        <Text style={[styles.toggleLabel, { color: theme.text }]}>Two-Factor Authentication</Text>
+                        <Text style={[styles.toggleLabel, { color: theme.text }]}>{t('settings.twoFactorAuthentication')}</Text>
                         <Switch value={twoFAStatus?.enabled || false} onValueChange={(v) => v ? (setTwoFAStep('info'), setShow2FAModal(true)) : setShowDisable2FAModal(true)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={twoFAStatus?.enabled ? theme.primary : theme.gray[50]} />
                     </View>
                     {twoFAStatus?.enabled && (
                         <TouchableOpacity style={[styles.secondaryButton, { borderColor: theme.primary }]} onPress={handleRegenerateBackupCodes} disabled={isLoading}>
                             <Ionicons name="refresh-outline" size={20} color={theme.primary} />
-                            <Text style={[styles.secondaryButtonText, { color: theme.primary }]}>Regenerate Backup Codes</Text>
+                            <Text style={[styles.secondaryButtonText, { color: theme.primary }]}>{t('settings.regenerateBackupCodes')}</Text>
                         </TouchableOpacity>
                     )}
                 </SettingsSection>
@@ -497,10 +497,10 @@ export default function SettingsScreen() {
                         <View style={[styles.summaryIcon, { backgroundColor: theme.csk[50] }]}>
                             <Ionicons name="shield-checkmark" size={28} color={theme.primary} />
                         </View>
-                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{sessions.filter(s => s.isActive).length} Active {sessions.filter(s => s.isActive).length === 1 ? 'Session' : 'Sessions'}</Text>
-                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>These devices are currently logged into your account</Text>
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{sessions.filter(s => s.isActive).length} {sessions.filter(s => s.isActive).length === 1 ? t('settings.session') : t('settings.sessions')} {t('settings.statusActive')}</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>{t('settings.devicesLoggedIn')}</Text>
                     </View>
-                    <SettingsSection title="Your Devices">
+                    <SettingsSection title={t('settings.yourDevices')}>
                         {sessions.map((session) => (
                             <SessionCard key={session.id} id={session.id} deviceName={session.deviceName} platform={session.platform} location={session.location} lastActivityAt={session.lastActivityAt} isCurrent={session.isCurrent} isLoading={loadingSessionId === session.id} onPress={() => handleViewSessionDetails(session.id)} formatTime={formatRelativeTime} />
                         ))}
@@ -509,16 +509,16 @@ export default function SettingsScreen() {
                         <View style={styles.actionsContainer}>
                             <TouchableOpacity style={[styles.revokeAllButton, { backgroundColor: isDark ? theme.error[50] : '#FEE2E2' }]} onPress={handleRevokeAllSessions} disabled={isLoading}>
                                 <Ionicons name="log-out-outline" size={20} color={theme.error[500]} />
-                                <Text style={[styles.revokeAllText, { color: theme.error[500] }]}>Sign out all other devices</Text>
+                                <Text style={[styles.revokeAllText, { color: theme.error[500] }]}>{t('settings.signOutAllOther')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
                     <View style={[styles.tipsContainer, { backgroundColor: theme.csk[50], borderColor: theme.csk[100] }]}>
                         <View style={styles.tipsHeader}>
                             <Ionicons name="bulb-outline" size={20} color={theme.primary} />
-                            <Text style={[styles.tipsTitle, { color: theme.csk[700] }]}>Security Tips</Text>
+                            <Text style={[styles.tipsTitle, { color: theme.csk[700] }]}>{t('settings.securityTips')}</Text>
                         </View>
-                        <Text style={[styles.tipsText, { color: theme.gray[600] }]}>• Sign out of devices you don't recognize{'\n'}• Enable two-factor authentication for extra security{'\n'}• Use unique passwords for each account</Text>
+                        <Text style={[styles.tipsText, { color: theme.gray[600] }]}>• {t('settings.securityTip1')}{'\n'}• {t('settings.securityTip2')}{'\n'}• {t('settings.securityTip3')}</Text>
                     </View>
                 </>
             )}
@@ -533,17 +533,17 @@ export default function SettingsScreen() {
                 <>
                     <View style={styles.summaryContainer}>
                         <Ionicons name="person-circle" size={48} color={theme.primary} />
-                        <Text style={[styles.summaryTitle, { color: theme.text }]}>Account Overview</Text>
-                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>Member since {formatDate(activityData.account.accountCreatedAt)}</Text>
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{t('settings.accountOverview')}</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>{t('settings.memberSince', { date: formatDate(activityData.account.accountCreatedAt) })}</Text>
                     </View>
-                    <SettingsSection title="Current Device">
+                    <SettingsSection title={t('settings.currentDevice')}>
                         <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
                             <View style={[styles.activityCardHeader, { borderBottomColor: theme.border }]}>
                                 <Ionicons name={getDeviceIcon(activityData.currentDevice.platform) as any} size={24} color={theme.primary} />
                                 <Text style={[styles.activityCardTitle, { color: theme.text }]}>{activityData.currentDevice.deviceName}</Text>
                             </View>
                             <View style={styles.activityCardContent}>
-                                {[['Model', activityData.currentDevice.deviceModel], ['Platform', getPlatformDisplayName(activityData.currentDevice.platform)], ['OS', activityData.currentDevice.os], ['App Version', activityData.currentDevice.appVersion], ['IP Address', activityData.currentDevice.ipAddress], ['Timezone', activityData.currentDevice.timezone]].map(([label, value]) => (
+                                {[[t('settings.model'), activityData.currentDevice.deviceModel], [t('settings.platform'), getPlatformDisplayName(activityData.currentDevice.platform)], [t('settings.os'), activityData.currentDevice.os], [t('settings.appVersion'), activityData.currentDevice.appVersion], [t('settings.ipAddress'), activityData.currentDevice.ipAddress], [t('settings.timezone'), activityData.currentDevice.timezone]].map(([label, value]) => (
                                     <View key={label} style={styles.activityRow}>
                                         <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>{label}</Text>
                                         <Text style={[styles.activityValue, { color: theme.text }]}>{value}</Text>
@@ -552,29 +552,29 @@ export default function SettingsScreen() {
                             </View>
                         </View>
                     </SettingsSection>
-                    <SettingsSection title="Sessions Overview">
+                    <SettingsSection title={t('settings.sessionsOverview')}>
                         <View style={styles.statsRow}>
                             <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
                                 <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.sessions.totalActive}</Text>
-                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Active Sessions</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>{t('settings.activeSessions')}</Text>
                             </View>
                             <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
                                 <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.devices.total}</Text>
-                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Total Devices</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>{t('settings.totalDevices')}</Text>
                             </View>
                         </View>
                         <View style={styles.statsRow}>
                             <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
                                 <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.devices.trusted}</Text>
-                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Trusted Devices</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>{t('settings.trustedDevices')}</Text>
                             </View>
                             <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
                                 <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.sessions.mostRecentActivity ? formatRelativeTime(activityData.sessions.mostRecentActivity) : 'N/A'}</Text>
-                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Last Activity</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>{t('settings.lastActivity')}</Text>
                             </View>
                         </View>
                     </SettingsSection>
-                    <SettingsSection title="Sessions by Platform">
+                    <SettingsSection title={t('settings.sessionsByPlatform')}>
                         <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
                             <View style={styles.activityCardContent}>
                                 {activityData.sessions.byPlatform.IOS !== undefined && (
@@ -583,7 +583,7 @@ export default function SettingsScreen() {
                                             <Ionicons name="phone-portrait-outline" size={18} color={theme.gray[500]} />
                                             <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>iOS</Text>
                                         </View>
-                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.IOS} {activityData.sessions.byPlatform.IOS === 1 ? 'session' : 'sessions'}</Text>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.IOS} {activityData.sessions.byPlatform.IOS === 1 ? t('settings.session') : t('settings.sessions')}</Text>
                                     </View>
                                 )}
                                 {activityData.sessions.byPlatform.ANDROID !== undefined && (
@@ -592,7 +592,7 @@ export default function SettingsScreen() {
                                             <Ionicons name="phone-portrait-outline" size={18} color={theme.gray[500]} />
                                             <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>Android</Text>
                                         </View>
-                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.ANDROID} {activityData.sessions.byPlatform.ANDROID === 1 ? 'session' : 'sessions'}</Text>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.ANDROID} {activityData.sessions.byPlatform.ANDROID === 1 ? t('settings.session') : t('settings.sessions')}</Text>
                                     </View>
                                 )}
                                 {activityData.sessions.byPlatform.WEB !== undefined && (
@@ -601,17 +601,17 @@ export default function SettingsScreen() {
                                             <Ionicons name="desktop-outline" size={18} color={theme.gray[500]} />
                                             <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>Web</Text>
                                         </View>
-                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.WEB} {activityData.sessions.byPlatform.WEB === 1 ? 'session' : 'sessions'}</Text>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.WEB} {activityData.sessions.byPlatform.WEB === 1 ? t('settings.session') : t('settings.sessions')}</Text>
                                     </View>
                                 )}
                                 {!activityData.sessions.byPlatform.IOS && !activityData.sessions.byPlatform.ANDROID && !activityData.sessions.byPlatform.WEB && (
-                                    <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>No platform data available</Text>
+                                    <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>{t('settings.noPlatformData')}</Text>
                                 )}
                             </View>
                         </View>
                     </SettingsSection>
                     {activityData.devices.list && activityData.devices.list.length > 0 && (
-                        <SettingsSection title="Trusted Devices">
+                        <SettingsSection title={t('settings.trustedDevices')}>
                             <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
                                 <View style={styles.activityCardContent}>
                                     {activityData.devices.list.filter(d => d.isTrusted).length > 0 ? (
@@ -629,21 +629,21 @@ export default function SettingsScreen() {
                                                 <View style={{ alignItems: 'flex-end' }}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                                         <Ionicons name="shield-checkmark" size={14} color={theme.csk[600]} />
-                                                        <Text style={[styles.activityLabel, { color: theme.csk[600], fontSize: 12 }]}>Trusted</Text>
+                                                        <Text style={[styles.activityLabel, { color: theme.csk[600], fontSize: 12 }]}>{t('settings.trusted')}</Text>
                                                     </View>
                                                     <Text style={[styles.activityLabel, { color: theme.gray[400], fontSize: 11 }]}>{formatRelativeTime(device.lastLoginAt)}</Text>
                                                 </View>
                                             </View>
                                         ))
                                     ) : (
-                                        <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>No trusted devices</Text>
+                                        <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>{t('settings.noTrustedDevices')}</Text>
                                     )}
                                 </View>
                             </View>
                         </SettingsSection>
                     )}
                     {activityData.recentActivity && activityData.recentActivity.length > 0 && (
-                        <SettingsSection title="Recent Activity">
+                        <SettingsSection title={t('settings.recentActivity')}>
                             <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
                                 <View style={styles.activityCardContent}>
                                     {activityData.recentActivity.slice(0, 5).map((activity) => (
@@ -684,12 +684,12 @@ export default function SettingsScreen() {
                         <View style={[styles.summaryIcon, { backgroundColor: theme.csk[50] }]}>
                             <Ionicons name="people" size={32} color={theme.primary} />
                         </View>
-                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{isParent ? 'Linked Children' : 'Linked Parents'}</Text>
-                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>{isParent ? 'Manage your linked children accounts' : 'Connect with your parent to share your progress'}</Text>
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{isParent ? t('settings.linkedChildren') : t('settings.linkedParents')}</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>{isParent ? t('settings.manageLinkedChildren') : t('settings.connectWithParent')}</Text>
                     </View>
 
                     {linkedAccounts.length > 0 && (
-                        <SettingsSection title={isParent ? 'Your Children' : 'Your Parents'}>
+                        <SettingsSection title={isParent ? t('settings.yourChildren') : t('settings.yourParents')}>
                             {linkedAccounts.map((link) => {
                                 const account = isParent ? link.child : link.parent;
                                 return <ParentLinkCard key={link.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg ?? undefined} showUnlink={!isParent} isProcessing={processingRequestId === account?.id} onUnlink={() => { setUnlinkTargetParent({ id: account?.id || '', name: account?.name || '' }); setShowUnlinkModal(true); }} />;
@@ -698,7 +698,7 @@ export default function SettingsScreen() {
                     )}
 
                     {pendingRequests.length > 0 && (
-                        <SettingsSection title={isParent ? 'Incoming Requests' : 'Sent Requests'}>
+                        <SettingsSection title={isParent ? t('settings.incomingRequests') : t('settings.sentRequests')}>
                             {pendingRequests.map((request) => {
                                 const account = isParent ? request.child : request.parent;
                                 return <ParentLinkCard key={request.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg ?? undefined} isPending pendingTime={formatRelativeTime(request.createdAt)} showActions={isParent} isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToRequest(request.id, 'accept')} onDecline={() => handleRespondToRequest(request.id, 'decline')} />;
@@ -707,9 +707,9 @@ export default function SettingsScreen() {
                     )}
 
                     {isParent && pendingUnlinkRequests.length > 0 && (
-                        <SettingsSection title="Unlink Requests">
+                        <SettingsSection title={t('settings.unlinkRequests')}>
                             {pendingUnlinkRequests.map((request) => (
-                                <ParentLinkCard key={request.id} name={request.child?.name || ''} username="wants to unlink" profileImg={request.child?.profileImg ?? undefined} showActions isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToUnlinkRequest(request.id, 'accept')} onDecline={() => handleRespondToUnlinkRequest(request.id, 'decline')} />
+                                <ParentLinkCard key={request.id} name={request.child?.name || ''} username={t('settings.wantsToUnlink')} profileImg={request.child?.profileImg ?? undefined} showActions isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToUnlinkRequest(request.id, 'accept')} onDecline={() => handleRespondToUnlinkRequest(request.id, 'decline')} />
                             ))}
                         </SettingsSection>
                     )}
@@ -717,7 +717,7 @@ export default function SettingsScreen() {
                     {linkedAccounts.length === 0 && pendingRequests.length === 0 && (
                         <View style={styles.emptyState}>
                             <Ionicons name="people-outline" size={48} color={theme.gray[300]} />
-                            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{isParent ? 'No linked children yet' : 'No linked parents yet'}</Text>
+                            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{isParent ? t('settings.noLinkedChildrenYet') : t('settings.noLinkedParentsYet')}</Text>
                         </View>
                     )}
 
@@ -725,7 +725,7 @@ export default function SettingsScreen() {
                         <SettingsSection title="">
                             <TouchableOpacity style={[styles.addButton, { borderColor: theme.primary }]} onPress={() => setShowSearchModal(true)}>
                                 <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
-                                <Text style={[styles.addButtonText, { color: theme.primary }]}>Link with Parent</Text>
+                                <Text style={[styles.addButtonText, { color: theme.primary }]}>{t('settings.linkWithParentBtn')}</Text>
                             </TouchableOpacity>
                         </SettingsSection>
                     )}
@@ -737,9 +737,9 @@ export default function SettingsScreen() {
     const renderDangerSection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <SettingsSection title="">
-                <InfoCard icon="warning" title="Proceed with Caution" description="Actions in this section can have permanent effects on your account." variant="warning" />
-                <DangerCard title="Deactivate Account" description="Temporarily disable your account. You can reactivate it by logging in again." buttonText="Deactivate Account" onPress={() => setShowDeactivateModal(true)} />
-                <DangerCard title="Delete Account" description="Permanently delete your account and all associated data. This action cannot be undone." buttonText="Delete Account" onPress={() => setShowDeleteModal(true)} isDelete />
+                <InfoCard icon="warning" title={t('settings.proceedWithCaution')} description={t('settings.dangerDescription')} variant="warning" />
+                <DangerCard title={t('settings.deactivateAccount')} description={t('settings.deactivateAccountDesc')} buttonText={t('settings.deactivateAccount')} onPress={() => setShowDeactivateModal(true)} />
+                <DangerCard title={t('settings.deleteAccountTitle')} description={t('settings.deleteAccountDesc')} buttonText={t('settings.deleteAccountTitle')} onPress={() => setShowDeleteModal(true)} isDelete />
             </SettingsSection>
         </ScrollView>
     );
@@ -757,21 +757,21 @@ export default function SettingsScreen() {
 
             <TwoFAModal visible={show2FAModal} step={twoFAStep} isLoading={isLoading} qrCode={twoFASetupData?.qrCode} secret={twoFASetupData?.secret} verificationCode={verificationCode} backupCodes={backupCodes} onClose={() => { setShow2FAModal(false); setTwoFAStep('info'); setVerificationCode(''); }} onGetStarted={handleEnable2FA} onContinue={() => setTwoFAStep('verify')} onVerify={handleVerify2FA} onDone={() => { setShow2FAModal(false); setTwoFAStep('info'); setVerificationCode(''); fetch2FAStatus(); }} onCodeChange={setVerificationCode} onCopySecret={() => twoFASetupData?.secret && copyToClipboard(twoFASetupData.secret)} onCopyCode={copyToClipboard} onCopyAllCodes={() => copyToClipboard(backupCodes.join('\n'))} />
 
-            <ConfirmModal visible={showDisable2FAModal} icon="shield-outline" iconColor="#F59E0B" title="Disable 2FA?" description="This will remove the extra security from your account. Enter your password to confirm." confirmText="Disable" isLoading={isLoading} isDisabled={!disablePassword} onConfirm={handleDisable2FA} onCancel={() => { setShowDisable2FAModal(false); setDisablePassword(''); }} passwordInput={{ value: disablePassword, onChange: setDisablePassword, placeholder: 'Enter your password' }} />
+            <ConfirmModal visible={showDisable2FAModal} icon="shield-outline" iconColor="#F59E0B" title={t('settings.disable2FATitle')} description={t('settings.disable2FADesc')} confirmText={t('settings.disable')} isLoading={isLoading} isDisabled={!disablePassword} onConfirm={handleDisable2FA} onCancel={() => { setShowDisable2FAModal(false); setDisablePassword(''); }} passwordInput={{ value: disablePassword, onChange: setDisablePassword, placeholder: t('settings.enterPasswordToConfirm') }} />
 
-            <ConfirmModal visible={showDeactivateModal} icon="pause-circle" iconColor="#F59E0B" title="Deactivate Account?" description="Your account will be temporarily disabled. You can reactivate it anytime by logging in again." confirmText="Deactivate" isLoading={isLoading} onConfirm={handleDeactivateAccount} onCancel={() => setShowDeactivateModal(false)} />
+            <ConfirmModal visible={showDeactivateModal} icon="pause-circle" iconColor="#F59E0B" title={t('settings.deactivateAccountTitle')} description={t('settings.deactivateAccountConfirmDesc')} confirmText={t('settings.deactivate')} isLoading={isLoading} onConfirm={handleDeactivateAccount} onCancel={() => setShowDeactivateModal(false)} />
 
-            <ConfirmModal visible={showDeleteModal} icon="trash" iconColor="#EF4444" title="Delete Account?" description="This action is permanent and cannot be undone. All your data will be permanently deleted." confirmText="Delete" confirmColor="#EF4444" isLoading={isLoading} isDisabled={user?.hasPassword !== false ? !deletePassword : deleteConfirmText !== 'DELETE'} onConfirm={handleDeleteAccount} onCancel={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); }} passwordInput={user?.hasPassword !== false ? { value: deletePassword, onChange: setDeletePassword, placeholder: 'Enter your password to confirm' } : undefined} textConfirmInput={user?.hasPassword === false ? { value: deleteConfirmText, onChange: setDeleteConfirmText, keyword: 'DELETE' } : undefined} />
+            <ConfirmModal visible={showDeleteModal} icon="trash" iconColor="#EF4444" title={t('settings.deleteAccountConfirmTitle')} description={t('settings.deleteAccountConfirmDesc')} confirmText={t('common.delete')} confirmColor="#EF4444" isLoading={isLoading} isDisabled={user?.hasPassword !== false ? !deletePassword : deleteConfirmText !== 'DELETE'} onConfirm={handleDeleteAccount} onCancel={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); }} passwordInput={user?.hasPassword !== false ? { value: deletePassword, onChange: setDeletePassword, placeholder: t('settings.enterPasswordToConfirm') } : undefined} textConfirmInput={user?.hasPassword === false ? { value: deleteConfirmText, onChange: setDeleteConfirmText, keyword: 'DELETE' } : undefined} />
 
-            <ConfirmModal visible={showUnlinkModal} icon="unlink" iconColor="#EF4444" title="Confirm Unlink" description={`Are you sure you want to send an unlink request to ${unlinkTargetParent?.name}? They will need to approve this request before the link is removed.`} confirmText="Send Request" confirmColor="#EF4444" isLoading={processingRequestId === unlinkTargetParent?.id} onConfirm={handleConfirmUnlink} onCancel={() => { setShowUnlinkModal(false); setUnlinkTargetParent(null); }} />
+            <ConfirmModal visible={showUnlinkModal} icon="unlink" iconColor="#EF4444" title={t('settings.confirmUnlink')} description={t('settings.confirmUnlinkDesc', { name: unlinkTargetParent?.name })} confirmText={t('settings.sendRequest')} confirmColor="#EF4444" isLoading={processingRequestId === unlinkTargetParent?.id} onConfirm={handleConfirmUnlink} onCancel={() => { setShowUnlinkModal(false); setUnlinkTargetParent(null); }} />
 
             <SessionDetailsModal visible={showSessionModal} session={selectedSession} isLoading={loadingSessionId === selectedSession?.id} onClose={() => { setShowSessionModal(false); setSelectedSession(null); }} onRevoke={() => selectedSession && handleRevokeSession(selectedSession.id)} formatDate={formatDate} />
 
             <SearchParentModal visible={showSearchModal} searchQuery={searchQuery} searchResults={searchResults} isSearching={isSearching} processingId={processingRequestId} onClose={() => { setShowSearchModal(false); setSearchQuery(''); setSearchResults([]); }} onSearchChange={setSearchQuery} onSendRequest={handleSendLinkRequest} />
 
-            <PickerModal visible={showLanguageModal} title="Select Language" options={languages} selectedValue={locale} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
+            <PickerModal visible={showLanguageModal} title={t('settings.selectLanguage')} options={languages} selectedValue={locale} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
 
-            <PickerModal visible={showThemeModal} title="Select Theme" options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
+            <PickerModal visible={showThemeModal} title={t('settings.selectTheme')} options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
         </View>
     );
 }
