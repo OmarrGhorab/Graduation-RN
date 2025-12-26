@@ -1,9 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    Dimensions,
     Image,
-    Platform,
     StatusBar,
     StyleSheet,
     Text,
@@ -11,24 +9,16 @@ import {
     View,
     useColorScheme
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { cskColors, Colors } from '@/constants/theme';
-
-const { width, height } = Dimensions.get('window');
+import { Colors, Fonts } from '@/constants/theme';
 
 export default function ResetSuccessScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
     const theme = Colors[colorScheme || 'light'];
     
     const handleGoToLogin = () => {
-        // Navigate back to login
         router.push('/signin');
-    };
-
-    const handleBack = () => {
-        // In success screen, back usually goes to login or dashboard, but for consistency with UI flow:
-        router.back();
     };
 
     return (
@@ -41,41 +31,34 @@ export default function ResetSuccessScreen() {
                     
                     {/* Success Icon */}
                     <View style={styles.iconContainer}>
-                         <Image
+                        <Image
                             source={require('@/assets/images/reset-successful.png')}
                             style={styles.successIcon}
                             resizeMode="contain"
                         />
-                        {/* If we had the specific success checkmark image, we would use it here. 
-                            Using logo-green as fallback/placeholder or 'reset-successful.png' if available.
-                            Wait, file list showed 'reset-successful.png'!
-                        */}
                     </View>
 
                     {/* Title */}
-                    <Text style={[styles.title, { color: cskColors[500] }]}>Reset Password Successful!</Text>
+                    <Text style={[styles.title, { color: theme.primary, fontFamily: Fonts?.bold }]}>
+                        Reset Password Successful!
+                    </Text>
                     
                     {/* Subtitle */}
-                    <Text style={[styles.subtitle, { color: '#666' }]}>
-                        our password has been successfully changed.
+                    <Text style={[styles.subtitle, { color: theme.gray[500], fontFamily: Fonts?.regular }]}>
+                        Your password has been successfully changed.
                     </Text>
 
                     {/* Go To Login Button */}
                     <TouchableOpacity
-                        style={[styles.loginButton, { backgroundColor: cskColors[500] }]}
+                        style={[styles.loginButton, { backgroundColor: theme.primary }]}
                         onPress={handleGoToLogin}
                         activeOpacity={0.8}
                     >
-                        <Text style={styles.loginButtonText}>Go To Log in</Text>
+                        <Text style={[styles.loginButtonText, { fontFamily: Fonts?.bold }]}>
+                            Go To Log in
+                        </Text>
                     </TouchableOpacity>
                 </View>
-                
-                {/* Confirm Button (Outside Card - as per screenshot design, there seems to be a Confirm button at bottom of screen too? 
-                    Actually, the screenshot shows the modal OVER the previous screen, and the previous screen's "Confirm" button is visible at the bottom dimmed out.
-                    But to keep it simple, I'll just make this a full screen page that looks like a modal or just the success content.
-                    The screenshot "reset password success" shows a white card centered on a dimmed background.
-                    Let's replicate that look.
-                */}
             </View>
         </View>
     );
@@ -117,17 +100,14 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 24,
-        fontWeight: '700',
         marginBottom: 12,
         textAlign: 'center',
-        fontFamily: 'System', 
     },
     subtitle: {
         fontSize: 14,
         lineHeight: 20,
         textAlign: 'center',
         marginBottom: 30,
-        fontFamily: 'System',
         paddingHorizontal: 20,
     },
     loginButton: {
@@ -139,6 +119,5 @@ const styles = StyleSheet.create({
     loginButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
-        fontWeight: '700',
     },
 });

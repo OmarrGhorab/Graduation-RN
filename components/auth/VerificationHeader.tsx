@@ -7,28 +7,19 @@ const { width, height } = Dimensions.get('window');
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
-interface VerifyOTPHeaderProps {
+interface VerificationHeaderProps {
     theme: Theme;
     isDark: boolean;
-    title: string;
-    subtitle: string;
     onBack: () => void;
 }
 
-export const VerifyOTPHeader: React.FC<VerifyOTPHeaderProps> = ({
-    theme,
-    isDark,
-    title,
-    subtitle,
-    onBack,
-}) => (
+export const VerificationHeader: React.FC<VerificationHeaderProps> = ({ theme, isDark, onBack }) => (
     <>
         <View style={styles.header}>
             <TouchableOpacity onPress={onBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
         </View>
-
         <View style={styles.imageContainer}>
             <Image
                 source={
@@ -40,10 +31,11 @@ export const VerifyOTPHeader: React.FC<VerifyOTPHeaderProps> = ({
                 resizeMode="contain"
             />
         </View>
-
         <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.primary }]}>{title}</Text>
-            <Text style={[styles.subtitle, { color: theme.icon }]}>{subtitle}</Text>
+            <Text style={[styles.title, { color: theme.primary }]}>Verification Code</Text>
+            <Text style={[styles.subtitle, { color: theme.icon }]}>
+                Please confirm the security code received on your registered email.
+            </Text>
         </View>
     </>
 );
@@ -62,9 +54,10 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     illustration: {
-        width: width * 0.6,
-        height: height * 0.25,
-        marginBottom: 10,
+        width: width * 0.5,
+        height: height * 0.2,
+        maxWidth: 200,
+        maxHeight: 200,
     },
     titleContainer: {
         marginBottom: 30,
@@ -76,7 +69,7 @@ const styles = StyleSheet.create({
     },
     subtitle: {
         fontSize: 14,
-        fontFamily: Fonts?.regular,
         lineHeight: 22,
+        fontFamily: Fonts?.regular,
     },
 });

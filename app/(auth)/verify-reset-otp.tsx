@@ -135,7 +135,6 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingBottom: 40,
     },
 });

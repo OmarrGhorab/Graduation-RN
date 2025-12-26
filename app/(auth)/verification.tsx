@@ -1,40 +1,31 @@
 import { useRouter, useLocalSearchParams, Href } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    Dimensions,
-    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
-    Text,
     TextInput,
-    TouchableOpacity,
-    View,
     useColorScheme,
-    ActivityIndicator
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { cskColors, Colors } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 import { resendVerificationOTP, verifyEmailOTP } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
-
-const { width, height } = Dimensions.get('window');
+import { VerificationHeader } from '@/components/auth/VerificationHeader';
+import { VerificationForm } from '@/components/auth/VerificationForm';
 
 export default function VerificationScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
     const theme = Colors[colorScheme || 'light'];
     const { email, type, source } = useLocalSearchParams<{ email: string; type?: string; source?: string }>();
-    const { success, error, info } = useToast();
-    const [loading, setLoading] = useState(false);
+    const { success, error } = useToast();
 
-    // OTP State (6 digits)
+    const [loading, setLoading] = useState(false);
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [timer, setTimer] = useState(60);
-
-    // Refs for inputs to manage focus
     const inputRefs = useRef<Array<TextInput | null>>([]);
 
     useEffect(() => {
@@ -52,7 +43,6 @@ export default function VerificationScreen() {
         newOtp[index] = value;
         setOtp(newOtp);
 
-        // Move to next input if value is entered
         if (value && index < 5) {
             inputRefs.current[index + 1]?.focus();
         }
@@ -62,7 +52,7 @@ export default function VerificationScreen() {
         if (key === 'Backspace' && !otp[index] && index > 0) {
             inputRefs.current[index - 1]?.focus();
         }
-    }
+    };
 
     const handleContinue = async () => {
         const otpValue = otp.join('');
@@ -117,90 +107,32 @@ export default function VerificationScreen() {
         router.back();
     };
 
-    // Format timer as MM:SS
-    const formattedTimer = `00:${timer < 10 ? `0${timer}` : timer}`;
-
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.container, { backgroundColor: theme.background }]}
         >
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-                {/* Header with Back Button */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={theme.text} />
-                    </TouchableOpacity>
-                </View>
-
-                {/* Image */}
-                <View style={styles.imageContainer}>
-                    <Image
-                        source={require('@/assets/images/logo-green.png')}
-                        style={styles.illustration}
-                        resizeMode="contain"
-                    />
-                </View>
-
-                {/* Title and Subtitle */}
-                <View style={styles.titleContainer}>
-                    <Text style={[styles.title, { color: cskColors[500] }]}>Verification Code</Text>
-                    <Text style={[styles.subtitle, { color: '#888' }]}>
-                        Please confirm the security code received on yur registered email.
-                    </Text>
-                </View>
-
-                {/* OTP Inputs */}
-                <View style={styles.otpContainer}>
-                    {otp.map((digit, index) => (
-                        <TextInput
-                            key={index}
-                            ref={(ref) => { inputRefs.current[index] = ref; }}
-                            style={[
-                                styles.otpInput,
-                                {
-                                    borderColor: cskColors[500], // Green border
-                                    color: cskColors[500] // Green text
-                                }
-                            ]}
-                            value={digit}
-                            onChangeText={(value) => handleOtpChange(value, index)}
-                            onKeyPress={({ nativeEvent }) => handleBackspace(nativeEvent.key, index)}
-                            keyboardType="number-pad"
-                            maxLength={1}
-                            selectTextOnFocus
-                        />
-                    ))}
-                </View>
-
-                {/* Continue Button */}
-                <TouchableOpacity
-                    style={[styles.continueButton, { backgroundColor: cskColors[500] }]}
-                    onPress={handleContinue}
-                    activeOpacity={0.8}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                        <Text style={styles.continueButtonText}>Continue</Text>
-                    )}
-                </TouchableOpacity>
-
-                {/* Resend Code */}
-                <View style={styles.resendContainer}>
-                    <Text style={[styles.resendLabel, { color: '#888' }]}>Did not receive the code?</Text>
-                    {timer === 0 ? (
-                        <TouchableOpacity onPress={handleResend}>
-                            <Text style={[styles.resendLink, { color: cskColors[500] }]}>Send Again</Text>
-                        </TouchableOpacity>
-                    ) : (
-                        <Text style={[styles.timerText, { color: cskColors[500] }]}>{formattedTimer}</Text>
-                    )}
-                </View>
-
+            <StatusBar
+                barStyle={isDark ? 'light-content' : 'dark-content'}
+                backgroundColor={theme.background}
+            />
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
+                <VerificationHeader theme={theme} isDark={isDark} onBack={handleBack} />
+                <VerificationForm
+                    theme={theme}
+                    isDark={isDark}
+                    otp={otp}
+                    loading={loading}
+                    timer={timer}
+                    onOtpChange={handleOtpChange}
+                    onBackspace={handleBackspace}
+                    onContinue={handleContinue}
+                    onResend={handleResend}
+                    inputRefs={inputRefs}
+                />
             </ScrollView>
         </KeyboardAvoidingView>
     );
@@ -213,91 +145,6 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingBottom: 40,
-    },
-    header: {
-        marginBottom: 20,
-    },
-    backButton: {
-        padding: 4,
-        marginLeft: -4,
-    },
-    imageContainer: {
-        alignItems: 'center',
-        marginBottom: 30,
-    },
-    illustration: {
-        width: width * 0.6,
-        height: height * 0.25,
-        marginBottom: 10,
-    },
-    timerText: {
-        fontSize: 16,
-        fontWeight: '700',
-        fontFamily: 'System',
-        marginTop: 10,
-    },
-    titleContainer: {
-        marginBottom: 30,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '700',
-        marginBottom: 12,
-        fontFamily: 'System',
-    },
-    subtitle: {
-        fontSize: 14,
-        lineHeight: 22,
-        fontFamily: 'System',
-    },
-    otpContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 40,
-    },
-    otpInput: {
-        width: 45,
-        height: 50,
-        borderWidth: 1,
-        borderRadius: 8,
-        fontSize: 18,
-        textAlign: 'center',
-        textAlignVertical: 'center',
-        fontWeight: '600',
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    continueButton: {
-        borderRadius: 8,
-        paddingVertical: 16,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-        marginBottom: 24,
-    },
-    continueButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    resendContainer: {
-        alignItems: 'center',
-    },
-    resendLabel: {
-        fontSize: 14,
-        marginBottom: 8,
-    },
-    resendLink: {
-        fontSize: 14,
-        fontWeight: '700',
     },
 });
