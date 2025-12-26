@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, StatusBar, ScrollView, ActivityIndicator, Modal, Platform } from 'react-native';
+import { StyleSheet, View, StatusBar, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuthStore } from '@/libs/auth';
-import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { uploadProfileImage } from '@/services/ProfileService';
 import { logout } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { usePrefetchPreferences } from '@/hooks/usePreferences';
+import { useTheme } from '@/hooks/useTheme';
+import { 
+    ProfileHeader, 
+    MenuItem, 
+    LogoutButton, 
+    ImageOptionsModal 
+} from '@/components/account';
 
 export default function AccountScreen() {
     const { user, updateUser } = useAuthStore();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const toast = useToast();
+    const { theme, isDark } = useTheme();
     const [isUploading, setIsUploading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
     const { prefetch: prefetchPreferences } = usePrefetchPreferences();
@@ -24,16 +30,12 @@ export default function AccountScreen() {
     const displayName = user?.name || user?.username || 'User';
     const profileImage = user?.profileImg;
 
-    // Prefetch preferences when account tab is viewed
     useEffect(() => {
         prefetchPreferences();
     }, []);
 
     const handleLogout = async () => {
-        // Navigate immediately for instant feedback
         router.replace('/login');
-        
-        // Do cleanup in background
         try {
             await logout();
         } catch (error) {
@@ -100,7 +102,6 @@ export default function AccountScreen() {
         try {
             setIsUploading(true);
 
-            // Resize image to 400x400
             const manipResult = await ImageManipulator.manipulateAsync(
                 uri,
                 [{ resize: { width: 400, height: 400 } }],
@@ -112,13 +113,8 @@ export default function AccountScreen() {
             }
 
             const base64Image = `data:image/jpeg;base64,${manipResult.base64}`;
-
-            // Upload to server
             const response = await uploadProfileImage(base64Image);
 
-            console.log('[Profile] Upload response:', response);
-
-            // Update user state with the new image URL from server
             if (response.user && response.user.profileImg) {
                 updateUser({ profileImg: response.user.profileImg });
                 toast.success('Success', 'Profile image updated successfully');
@@ -134,145 +130,39 @@ export default function AccountScreen() {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+            <StatusBar 
+                barStyle={isDark ? 'light-content' : 'dark-content'} 
+                backgroundColor={theme.background} 
+            />
             
             <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Profile Header */}
-                <View style={styles.profileHeader}>
-                    <View style={styles.avatarContainer}>
-                        {isUploading ? (
-                            <View style={styles.avatarPlaceholder}>
-                                <ActivityIndicator size="large" color={cskColors[500]} />
-                            </View>
-                        ) : profileImage ? (
-                            <Image source={{ uri: profileImage }} style={styles.avatar} />
-                        ) : (
-                            <View style={styles.avatarPlaceholder}>
-                                <Text style={styles.avatarText}>
-                                    {displayName.charAt(0).toUpperCase()}
-                                </Text>
-                            </View>
-                        )}
-                        {/* Edit Icon */}
-                        <TouchableOpacity 
-                            style={styles.editIconButton} 
-                            onPress={() => setShowImageOptions(true)}
-                            disabled={isUploading}
-                        >
-                            <Ionicons name="camera" size={18} color={grayColors[600]} />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.userName}>{displayName}</Text>
-                    <Text style={styles.userEmail}>{user?.email}</Text>
-                </View>
+                <ProfileHeader
+                    displayName={displayName}
+                    email={user?.email ?? undefined}
+                    profileImage={profileImage ?? undefined}
+                    isUploading={isUploading}
+                    onEditPress={() => setShowImageOptions(true)}
+                />
 
-                {/* Menu Items */}
                 <View style={styles.menuContainer}>
-                    {/* Profile */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="person-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Profile</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
-
-                    {/* Edit Profile */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={handleEditProfile}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="create-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Edit Profile</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
-
-                    {/* Dashboard */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="grid-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Dashboard</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
-
-                    {/* Settings */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/settings')}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="settings-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Settings</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
-
-                    {/* Location */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/location')}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="location-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Location</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
-
-                    {/* Help & Support */}
-                    <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-                        <View style={styles.menuIconContainer}>
-                            <Ionicons name="help-circle-outline" size={22} color={grayColors[600]} />
-                        </View>
-                        <Text style={styles.menuText}>Help & Support</Text>
-                        <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                    </TouchableOpacity>
+                    <MenuItem icon="person-outline" label="Profile" />
+                    <MenuItem icon="create-outline" label="Edit Profile" onPress={handleEditProfile} />
+                    <MenuItem icon="grid-outline" label="Dashboard" />
+                    <MenuItem icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} />
+                    <MenuItem icon="location-outline" label="Location" onPress={() => router.push('/location')} />
+                    <MenuItem icon="help-circle-outline" label="Help & Support" />
                 </View>
 
-                {/* Logout Button */}
-                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7}>
-                    <Ionicons name="log-out-outline" size={24} color="#FF4444" />
-                    <Text style={styles.logoutText}>Logout</Text>
-                </TouchableOpacity>
+                <LogoutButton onPress={handleLogout} />
             </ScrollView>
 
-            {/* Image Options Modal */}
-            <Modal
+            <ImageOptionsModal
                 visible={showImageOptions}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowImageOptions(false)}
-            >
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setShowImageOptions(false)}
-                >
-                    <View style={styles.imageOptionsContainer}>
-                        <View style={styles.imageOptionsContent}>
-                            <Text style={styles.imageOptionsTitle}>Change Profile Picture</Text>
-                            
-                            <TouchableOpacity
-                                style={styles.imageOptionButton}
-                                onPress={handleTakePhoto}
-                            >
-                                <Ionicons name="camera-outline" size={24} color={grayColors[700]} />
-                                <Text style={styles.imageOptionText}>Take Photo</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.imageOptionButton}
-                                onPress={handleImagePick}
-                            >
-                                <Ionicons name="images-outline" size={24} color={grayColors[700]} />
-                                <Text style={styles.imageOptionText}>Choose from Gallery</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.imageOptionButton, styles.cancelButton]}
-                                onPress={() => setShowImageOptions(false)}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+                onClose={() => setShowImageOptions(false)}
+                onTakePhoto={handleTakePhoto}
+                onPickImage={handleImagePick}
+            />
         </View>
     );
 }
@@ -280,150 +170,9 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    profileHeader: {
-        alignItems: 'center',
-        paddingVertical: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    avatarContainer: {
-        marginBottom: 16,
-        position: 'relative',
-    },
-    avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-    },
-    avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: cskColors[100],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarText: {
-        fontSize: 40,
-        fontFamily: Fonts.bold,
-        color: cskColors[500],
-    },
-    editIconButton: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: grayColors[200],
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    userName: {
-        fontSize: 24,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        marginBottom: 4,
-    },
-    userEmail: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
     },
     menuContainer: {
         paddingHorizontal: 16,
         paddingTop: 16,
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    menuIconContainer: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    menuText: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-        marginLeft: 14,
-    },
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 32,
-        marginBottom: 40,
-        paddingVertical: 16,
-        marginHorizontal: 16,
-        borderRadius: 12,
-        backgroundColor: '#FEF2F2',
-    },
-    logoutText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#FF4444',
-        marginLeft: 8,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    imageOptionsContainer: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
-    },
-    imageOptionsContent: {
-        padding: 20,
-    },
-    imageOptionsTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-        marginBottom: 20,
-        textAlign: 'center',
-    },
-    imageOptionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        borderRadius: 12,
-        backgroundColor: grayColors[50],
-        marginBottom: 12,
-    },
-    imageOptionText: {
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[700],
-        marginLeft: 16,
-    },
-    cancelButton: {
-        backgroundColor: '#FEF2F2',
-        justifyContent: 'center',
-    },
-    cancelButtonText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#FF4444',
-        textAlign: 'center',
     },
 });
