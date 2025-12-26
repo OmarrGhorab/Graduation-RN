@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { useFonts, Rubik_300Light, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black } from '@expo-google-fonts/rubik';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ToastProvider } from '@/components/toast';
@@ -13,6 +15,9 @@ import { DeviceService } from '@/services/DeviceService';
 import { LocationService } from '@/services/LocationService';
 import NotificationListener from '@/components/NotificationListener';
 import { setQueryClientRef, useAuthStore } from '@/libs/auth';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +38,24 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appState = useRef(AppState.currentState);
+
+  // Load Rubik fonts from Expo Google Fonts
+  const [fontsLoaded, fontsError] = useFonts({
+    'Rubik-Light': Rubik_300Light,
+    'Rubik-Regular': Rubik_400Regular,
+    'Rubik-Medium': Rubik_500Medium,
+    'Rubik-SemiBold': Rubik_600SemiBold,
+    'Rubik-Bold': Rubik_700Bold,
+    'Rubik-ExtraBold': Rubik_800ExtraBold,
+    'Rubik-Black': Rubik_900Black,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontsError) {
+      // Hide the splash screen after fonts are loaded
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontsError]);
 
   useEffect(() => {
     // Initialize device service (pre-fetches location and device info)
@@ -92,6 +115,11 @@ export default function RootLayout() {
       }
     };
   }, []);
+
+  // Don't render anything until fonts are loaded
+  if (!fontsLoaded && !fontsError) {
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

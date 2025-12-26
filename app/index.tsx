@@ -11,15 +11,22 @@ import {
     Text,
     View
 } from 'react-native';
-import { Colors, Fonts, primaryGradient } from '@/constants/theme';
+import { Colors, Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
 import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
 import { getUserProfile } from '@/services/AuthService';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
     const router = useRouter();
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    
+    // Get theme colors
+    const theme = isDark ? Colors.dark : Colors.light;
+    const gradient = isDark ? primaryGradientDark : primaryGradient;
 
     // Animation values
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -140,16 +147,16 @@ export default function WelcomeScreen() {
     });
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor={Colors.dark.primary} />
+        <View style={[styles.container, { backgroundColor: theme.primary }]}>
+            <StatusBar barStyle="light-content" backgroundColor={theme.primary} />
 
             {/* Gradient Background */}
             <LinearGradient
-                colors={['#0A8F51', '#097D46', '#075F36']}
-                locations={[0.39, 0.67, 0.91]}
+                colors={gradient.colors as [string, string, ...string[]]}
+                locations={gradient.locations as [number, number, ...number[]]}
                 style={styles.gradient}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+                start={gradient.start}
+                end={gradient.end}
             />
 
             {/* Content */}
@@ -162,7 +169,7 @@ export default function WelcomeScreen() {
                     ]}
                 >
                     <Text style={styles.pathifyText}>
-                        Pathify<Text style={styles.pathifyDot}>.</Text>
+                        Pathify<Text style={[styles.pathifyDot, { color: theme.warning[500] }]}>.</Text>
                     </Text>
                 </Animated.View>
 
@@ -193,7 +200,7 @@ export default function WelcomeScreen() {
                         }
                     ]}
                 >
-                    <View style={styles.spinner} />
+                    <View style={[styles.spinner, { borderTopColor: '#FFFFFF', borderRightColor: '#FFFFFF' }]} />
                 </Animated.View>
 
                 {/* Tagline */}
@@ -208,7 +215,6 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.dark.csk[600],
     },
     gradient: {
         position: 'absolute',
@@ -231,15 +237,12 @@ const styles = StyleSheet.create({
     pathifyText: {
         fontSize: 42,
         fontFamily: Fonts.bold,
-        fontWeight: '700',
         color: '#FFFFFF',
         textAlign: 'center',
     },
     pathifyDot: {
         fontSize: 42,
         fontFamily: Fonts.bold,
-        fontWeight: '700',
-        color: Colors.dark.warning[500],
     },
     logoContainer: {
         flex: 1,
@@ -261,8 +264,6 @@ const styles = StyleSheet.create({
         borderRadius: 25,
         borderWidth: 4,
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderTopColor: Colors.light.background,
-        borderRightColor: Colors.light.background,
     },
     taglineContainer: {
         marginBottom: 40,
