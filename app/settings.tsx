@@ -1,66 +1,34 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-    StyleSheet,
-    View,
-    Text,
-    TouchableOpacity,
-    ScrollView,
-    ActivityIndicator,
-    RefreshControl,
-    Switch,
-    Modal,
-    TextInput,
-    Image,
-    BackHandler,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, ActivityIndicator, RefreshControl, Switch, BackHandler, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useAuthStore } from '@/libs/auth';
-import { useThemeStore, ThemeMode } from '@/libs/theme';
-import { cskColors, grayColors, Fonts } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
+import { useTheme } from '@/hooks/useTheme';
 import {
-    get2FAStatus,
-    enable2FA,
-    verify2FASetup,
-    disable2FA,
-    regenerateBackupCodes,
-    getSessions,
-    getSessionDetails,
-    revokeSession,
-    revokeAllSessions,
-    getActivityLog,
-    deactivateAccount,
-    deleteAccount,
-    getDeviceIcon,
-    getPlatformDisplayName,
-    getStatusColor,
-    TwoFactorStatus,
-    TwoFactorEnableResponse,
-    Session,
-    SessionDetails,
-    ActivityResponse,
-    RecentActivityItem,
+    get2FAStatus, enable2FA, verify2FASetup, disable2FA, regenerateBackupCodes,
+    getSessions, getSessionDetails, revokeSession, revokeAllSessions,
+    getActivityLog, deactivateAccount, deleteAccount,
+    getDeviceIcon, getPlatformDisplayName, getStatusColor,
+    TwoFactorStatus, TwoFactorEnableResponse, Session, SessionDetails, ActivityResponse,
 } from '@/services/SecurityService';
 import {
-    searchParents,
-    sendLinkRequest,
-    getLinkRequests,
-    respondToLinkRequest,
-    getLinkedAccounts,
-    sendUnlinkRequest,
-    getUnlinkRequests,
-    respondToUnlinkRequest,
-    ParentUser,
-    LinkRequest,
-    LinkedAccount,
+    searchParents, sendLinkRequest, getLinkRequests, respondToLinkRequest,
+    getLinkedAccounts, sendUnlinkRequest, getUnlinkRequests, respondToUnlinkRequest,
+    ParentUser, LinkRequest, LinkedAccount,
 } from '@/services/ParentLinkService';
 import { usePreferences, useUpdatePreference } from '@/hooks/usePreferences';
 import { logout } from '@/services/AuthService';
+import {
+    SettingsHeader, SettingsMenuItem, SettingsSection, InfoCard,
+    SessionCard, DangerCard, PickerModal, ConfirmModal, TwoFAModal,
+    SessionDetailsModal, ParentLinkCard, SearchParentModal,
+} from '@/components/settings';
 
-type SettingsSection = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'preferences' | 'parentLink';
+type SettingsSection_Type = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'parentLink';
 
 export default function SettingsScreen() {
     const router = useRouter();
@@ -68,24 +36,13 @@ export default function SettingsScreen() {
     const insets = useSafeAreaInsets();
     const toast = useToast();
     const { user } = useAuthStore();
-    const themeMode = useThemeStore((state) => state.themeMode);
-    const setThemeMode = useThemeStore((state) => state.setThemeMode);
-
-    // Use React Query for preferences
-    const { data: preferences, isLoading: isLoadingPreferences } = usePreferences();
+    const { theme, isDark } = useTheme();
+    const { data: preferences } = usePreferences();
     const updatePreferenceMutation = useUpdatePreference();
 
-    // Debug preferences
-    useEffect(() => {
-        if (preferences) {
-            console.log('[Settings] Current preferences:', preferences);
-        }
-    }, [preferences]);
-
-    const [currentSection, setCurrentSection] = useState<SettingsSection>(() => {
-        // Initialize with section from URL params if valid
-        if (initialSection && ['main', 'security', 'sessions', 'activity', 'danger', 'preferences', 'parentLink'].includes(initialSection)) {
-            return initialSection as SettingsSection;
+    const [currentSection, setCurrentSection] = useState<SettingsSection_Type>(() => {
+        if (initialSection && ['main', 'security', 'sessions', 'activity', 'danger', 'parentLink'].includes(initialSection)) {
+            return initialSection as SettingsSection_Type;
         }
         return 'main';
     });
@@ -100,6 +57,7 @@ export default function SettingsScreen() {
     const [backupCodes, setBackupCodes] = useState<string[]>([]);
     const [show2FAModal, setShow2FAModal] = useState(false);
     const [showDisable2FAModal, setShowDisable2FAModal] = useState(false);
+    const [disablePassword, setDisablePassword] = useState('');
 
     // Sessions State
     const [sessions, setSessions] = useState<Session[]>([]);
@@ -115,9 +73,8 @@ export default function SettingsScreen() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
-    const [disablePassword, setDisablePassword] = useState('');
 
-    // Modal State for Preferences
+    // Modal State
     const [showLanguageModal, setShowLanguageModal] = useState(false);
     const [showThemeModal, setShowThemeModal] = useState(false);
 
@@ -134,46 +91,41 @@ export default function SettingsScreen() {
     const [unlinkTargetParent, setUnlinkTargetParent] = useState<{ id: string; name: string } | null>(null);
 
     const isParent = user?.role === 'PARENT';
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (currentSection === 'security') {
-            fetch2FAStatus();
-        } else if (currentSection === 'sessions') {
-            fetchSessions();
-        } else if (currentSection === 'activity') {
-            fetchActivity();
-        } else if (currentSection === 'parentLink') {
-            fetchParentLinkData();
-        }
+        if (currentSection === 'security') fetch2FAStatus();
+        else if (currentSection === 'sessions') fetchSessions();
+        else if (currentSection === 'activity') fetchActivity();
+        else if (currentSection === 'parentLink') fetchParentLinkData();
     }, [currentSection]);
 
-    // Handle hardware back button
     useEffect(() => {
         const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-            if (currentSection !== 'main') {
-                setCurrentSection('main');
-                return true; // Prevent default behavior
-            }
-            return false; // Let default behavior happen (go back)
+            if (currentSection !== 'main') { setCurrentSection('main'); return true; }
+            return false;
         });
-
         return () => backHandler.remove();
     }, [currentSection]);
+
+    // Debounced search
+    useEffect(() => {
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        if (!searchQuery.trim()) { setSearchResults([]); setIsSearching(false); return; }
+        setIsSearching(true);
+        searchTimeoutRef.current = setTimeout(() => handleSearchParents(searchQuery), 300);
+        return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+    }, [searchQuery]);
 
     const fetch2FAStatus = async () => {
         try {
             setIsLoading(true);
             const status = await get2FAStatus();
-            console.log('[2FA] Status response:', status);
-            // Handle different response formats
             const enabled = status.enabled ?? status.twoFactorEnabled ?? false;
             setTwoFAStatus({ enabled, enabledAt: status.enabledAt });
         } catch (error: any) {
-            console.error('[2FA] Status error:', error);
             toast.error('Error', error.message || 'Failed to fetch 2FA status');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const fetchSessions = async () => {
@@ -183,9 +135,7 @@ export default function SettingsScreen() {
             setSessions(response.sessions || []);
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to fetch sessions');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const fetchActivity = async () => {
@@ -195,45 +145,25 @@ export default function SettingsScreen() {
             setActivityData(response);
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to fetch activity');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const fetchParentLinkData = async () => {
         try {
             setIsLoading(true);
-            
-            // Fetch all data in parallel, handle individual failures gracefully
             const [linkedRes, requestsRes, unlinkRes] = await Promise.allSettled([
-                getLinkedAccounts(),
-                getLinkRequests(),
-                getUnlinkRequests(),
+                getLinkedAccounts(), getLinkRequests(), getUnlinkRequests(),
             ]);
-            
             setLinkedAccounts(linkedRes.status === 'fulfilled' ? linkedRes.value.data || [] : []);
             setPendingRequests(requestsRes.status === 'fulfilled' ? requestsRes.value.data || [] : []);
             setPendingUnlinkRequests(unlinkRes.status === 'fulfilled' ? unlinkRes.value.data || [] : []);
-            
-            // Only show error if all requests failed
-            if (linkedRes.status === 'rejected' && requestsRes.status === 'rejected') {
-                console.log('[ParentLink] Failed to fetch data:', linkedRes.reason);
-            }
         } catch (error: any) {
             console.error('[ParentLink] Error:', error);
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
-    // Debounce timer ref
-    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     const handleSearchParents = useCallback(async (query: string) => {
-        if (!query.trim()) {
-            setSearchResults([]);
-            return;
-        }
+        if (!query.trim()) { setSearchResults([]); return; }
         try {
             setIsSearching(true);
             const response = await searchParents(query.trim());
@@ -241,55 +171,19 @@ export default function SettingsScreen() {
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to search');
             setSearchResults([]);
-        } finally {
-            setIsSearching(false);
-        }
+        } finally { setIsSearching(false); }
     }, []);
-
-    // Debounced search effect
-    useEffect(() => {
-        // Clear previous timeout
-        if (searchTimeoutRef.current) {
-            clearTimeout(searchTimeoutRef.current);
-        }
-
-        // Don't search if query is empty
-        if (!searchQuery.trim()) {
-            setSearchResults([]);
-            setIsSearching(false);
-            return;
-        }
-
-        // Set loading state immediately for better UX
-        setIsSearching(true);
-
-        // Debounce the search
-        searchTimeoutRef.current = setTimeout(() => {
-            handleSearchParents(searchQuery);
-        }, 300);
-
-        // Cleanup
-        return () => {
-            if (searchTimeoutRef.current) {
-                clearTimeout(searchTimeoutRef.current);
-            }
-        };
-    }, [searchQuery, handleSearchParents]);
 
     const handleSendLinkRequest = async (parentId: string) => {
         try {
             setProcessingRequestId(parentId);
             await sendLinkRequest(parentId);
             toast.success('Success', 'Link request sent');
-            setShowSearchModal(false);
-            setSearchQuery('');
-            setSearchResults([]);
+            setShowSearchModal(false); setSearchQuery(''); setSearchResults([]);
             fetchParentLinkData();
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to send request');
-        } finally {
-            setProcessingRequestId(null);
-        }
+        } finally { setProcessingRequestId(null); }
     };
 
     const handleRespondToRequest = async (requestId: string, action: 'accept' | 'decline') => {
@@ -300,14 +194,7 @@ export default function SettingsScreen() {
             fetchParentLinkData();
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to respond');
-        } finally {
-            setProcessingRequestId(null);
-        }
-    };
-
-    const handleShowUnlinkModal = (parentId: string, parentName: string) => {
-        setUnlinkTargetParent({ id: parentId, name: parentName });
-        setShowUnlinkModal(true);
+        } finally { setProcessingRequestId(null); }
     };
 
     const handleConfirmUnlink = async () => {
@@ -316,14 +203,11 @@ export default function SettingsScreen() {
             setProcessingRequestId(unlinkTargetParent.id);
             await sendUnlinkRequest(unlinkTargetParent.id);
             toast.success('Success', 'Unlink request sent');
-            setShowUnlinkModal(false);
-            setUnlinkTargetParent(null);
+            setShowUnlinkModal(false); setUnlinkTargetParent(null);
             fetchParentLinkData();
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to send unlink request');
-        } finally {
-            setProcessingRequestId(null);
-        }
+        } finally { setProcessingRequestId(null); }
     };
 
     const handleRespondToUnlinkRequest = async (requestId: string, action: 'accept' | 'decline') => {
@@ -334,24 +218,16 @@ export default function SettingsScreen() {
             fetchParentLinkData();
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to respond');
-        } finally {
-            setProcessingRequestId(null);
-        }
+        } finally { setProcessingRequestId(null); }
     };
 
-    const handleUpdatePreference = (key: string, value: any) => {
-        updatePreferenceMutation.mutate({ [key]: value });
-    };
+    const handleUpdatePreference = (key: string, value: any) => updatePreferenceMutation.mutate({ [key]: value });
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        if (currentSection === 'sessions') {
-            await fetchSessions();
-        } else if (currentSection === 'activity') {
-            await fetchActivity();
-        } else if (currentSection === 'parentLink') {
-            await fetchParentLinkData();
-        }
+        if (currentSection === 'sessions') await fetchSessions();
+        else if (currentSection === 'activity') await fetchActivity();
+        else if (currentSection === 'parentLink') await fetchParentLinkData();
         setRefreshing(false);
     }, [currentSection]);
 
@@ -363,53 +239,34 @@ export default function SettingsScreen() {
             setTwoFAStep('qr');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to enable 2FA');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleVerify2FA = async () => {
-        if (verificationCode.length !== 6) {
-            toast.error('Invalid Code', 'Please enter a 6-digit code');
-            return;
-        }
-
+        if (verificationCode.length !== 6) { toast.error('Invalid Code', 'Please enter a 6-digit code'); return; }
         try {
             setIsLoading(true);
             const response = await verify2FASetup(verificationCode);
-            if (response.backupCodes) {
-                setBackupCodes(response.backupCodes);
-            } else if (twoFASetupData?.backupCodes) {
-                setBackupCodes(twoFASetupData.backupCodes);
-            }
+            setBackupCodes(response.backupCodes || twoFASetupData?.backupCodes || []);
             setTwoFAStep('backup');
             setTwoFAStatus({ enabled: true, enabledAt: new Date().toISOString() });
             toast.success('Success', '2FA has been enabled');
         } catch (error: any) {
             toast.error('Error', error.message || 'Invalid verification code');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleDisable2FA = async () => {
-        if (!disablePassword) {
-            toast.error('Error', 'Password is required');
-            return;
-        }
-
+        if (!disablePassword) { toast.error('Error', 'Password is required'); return; }
         try {
             setIsLoading(true);
             await disable2FA(disablePassword);
             setTwoFAStatus({ enabled: false });
-            setShowDisable2FAModal(false);
-            setDisablePassword('');
+            setShowDisable2FAModal(false); setDisablePassword('');
             toast.success('Success', '2FA has been disabled');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to disable 2FA');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleRegenerateBackupCodes = async () => {
@@ -417,14 +274,11 @@ export default function SettingsScreen() {
             setIsLoading(true);
             const response = await regenerateBackupCodes();
             setBackupCodes(response.backupCodes);
-            setTwoFAStep('backup');
-            setShow2FAModal(true);
+            setTwoFAStep('backup'); setShow2FAModal(true);
             toast.success('Success', 'New backup codes generated');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to regenerate codes');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleRevokeSession = async (sessionId: string) => {
@@ -432,14 +286,11 @@ export default function SettingsScreen() {
             setLoadingSessionId(sessionId);
             await revokeSession(sessionId);
             setSessions(sessions.filter(s => s.id !== sessionId));
-            setShowSessionModal(false);
-            setSelectedSession(null);
+            setShowSessionModal(false); setSelectedSession(null);
             toast.success('Success', 'Session revoked');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to revoke session');
-        } finally {
-            setLoadingSessionId(null);
-        }
+        } finally { setLoadingSessionId(null); }
     };
 
     const handleViewSessionDetails = async (sessionId: string) => {
@@ -450,9 +301,7 @@ export default function SettingsScreen() {
             setShowSessionModal(true);
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to load session details');
-        } finally {
-            setLoadingSessionId(null);
-        }
+        } finally { setLoadingSessionId(null); }
     };
 
     const handleRevokeAllSessions = async () => {
@@ -463,9 +312,7 @@ export default function SettingsScreen() {
             toast.success('Success', 'All other sessions revoked');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to revoke sessions');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleDeactivateAccount = async () => {
@@ -478,28 +325,13 @@ export default function SettingsScreen() {
             router.replace('/login');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to deactivate account');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const handleDeleteAccount = async () => {
         const hasPassword = user?.hasPassword ?? true;
-        
-        if (hasPassword) {
-            // User has password - require password confirmation
-            if (!deletePassword) {
-                toast.error('Error', 'Password is required');
-                return;
-            }
-        } else {
-            // OAuth user - require typing "DELETE" confirmation
-            if (deleteConfirmText !== 'DELETE') {
-                toast.error('Error', 'Please type DELETE to confirm');
-                return;
-            }
-        }
-
+        if (hasPassword && !deletePassword) { toast.error('Error', 'Password is required'); return; }
+        if (!hasPassword && deleteConfirmText !== 'DELETE') { toast.error('Error', 'Please type DELETE to confirm'); return; }
         try {
             setIsLoading(true);
             await deleteAccount(hasPassword ? deletePassword : undefined);
@@ -509,9 +341,7 @@ export default function SettingsScreen() {
             router.replace('/login');
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to delete account');
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     const copyToClipboard = async (text: string) => {
@@ -519,23 +349,9 @@ export default function SettingsScreen() {
         toast.success('Copied', 'Copied to clipboard');
     };
 
-    const getActivityIcon = (status: string) => {
-        switch (status) {
-            case 'active': return 'checkmark-circle-outline';
-            case 'expired': return 'time-outline';
-            case 'revoked': return 'close-circle-outline';
-            default: return 'ellipse-outline';
-        }
-    };
-
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     };
 
     const formatRelativeTime = (dateString: string) => {
@@ -545,7 +361,6 @@ export default function SettingsScreen() {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
@@ -553,1571 +368,238 @@ export default function SettingsScreen() {
         return formatDate(dateString);
     };
 
-    const renderHeader = () => (
-        <View style={styles.header}>
-            <TouchableOpacity
-                onPress={() => currentSection === 'main' ? router.back() : setCurrentSection('main')}
-                style={styles.backButton}
-            >
-                <Ionicons name="arrow-back" size={24} color={grayColors[900]} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>
-                {currentSection === 'main' && 'Settings'}
-                {currentSection === 'security' && 'Security'}
-                {currentSection === 'sessions' && 'Active Sessions'}
-                {currentSection === 'activity' && 'Activity Log'}
-                {currentSection === 'danger' && 'Account'}
-                {currentSection === 'parentLink' && (isParent ? 'My Children' : 'Parent Link')}
-            </Text>
-            <View style={styles.placeholder} />
-        </View>
-    );
+    const getHeaderTitle = () => {
+        switch (currentSection) {
+            case 'security': return 'Security';
+            case 'sessions': return 'Active Sessions';
+            case 'activity': return 'Activity Log';
+            case 'danger': return 'Account';
+            case 'parentLink': return isParent ? 'My Children' : 'Parent Link';
+            default: return 'Settings';
+        }
+    };
 
+    const languages = [
+        { code: 'en', name: 'English' }, { code: 'ar', name: 'العربية' },
+        { code: 'es', name: 'Español' }, { code: 'fr', name: 'Français' },
+        { code: 'de', name: 'Deutsch' }, { code: 'korean', name: '한국어' },
+    ];
+
+    const themes = [
+        { code: 'light', name: 'Light', icon: 'sunny-outline' },
+        { code: 'dark', name: 'Dark', icon: 'moon-outline' },
+        { code: 'system', name: 'System', icon: 'phone-portrait-outline' },
+    ];
 
     const renderMainSection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Security Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Security</Text>
-                
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setCurrentSection('security')}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="shield-checkmark-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Two-Factor Authentication</Text>
-                        <Text style={styles.menuSubtext}>Add extra security to your account</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
+            <SettingsSection title="Security">
+                <SettingsMenuItem icon="shield-checkmark-outline" label="Two-Factor Authentication" subtitle="Add extra security to your account" onPress={() => setCurrentSection('security')} />
+                <SettingsMenuItem icon="phone-portrait-outline" label="Active Sessions" subtitle="Manage your logged-in devices" onPress={() => setCurrentSection('sessions')} />
+            </SettingsSection>
 
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setCurrentSection('sessions')}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="phone-portrait-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Active Sessions</Text>
-                        <Text style={styles.menuSubtext}>Manage your logged-in devices</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-            </View>
+            <SettingsSection title="Activity">
+                <SettingsMenuItem icon="time-outline" label="Activity Log" subtitle="View your recent account activity" onPress={() => setCurrentSection('activity')} />
+            </SettingsSection>
 
-            {/* Activity Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Activity</Text>
-                
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setCurrentSection('activity')}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="time-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Activity Log</Text>
-                        <Text style={styles.menuSubtext}>View your recent account activity</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-            </View>
+            <SettingsSection title="Family">
+                <SettingsMenuItem icon="people-outline" label={isParent ? 'My Children' : 'Parent Link'} subtitle={isParent ? 'View and manage linked children' : 'Link with your parent'} onPress={() => setCurrentSection('parentLink')} />
+            </SettingsSection>
 
-            {/* Parent Link Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Family</Text>
-                
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setCurrentSection('parentLink')}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="people-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>{isParent ? 'My Children' : 'Parent Link'}</Text>
-                        <Text style={styles.menuSubtext}>
-                            {isParent ? 'View and manage linked children' : 'Link with your parent'}
-                        </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-            </View>
+            <SettingsSection title="Preferences">
+                <SettingsMenuItem icon="color-palette-outline" label="Theme" subtitle={preferences?.themePreference === 'dark' ? 'Dark' : preferences?.themePreference === 'light' ? 'Light' : 'System'} onPress={() => setShowThemeModal(true)} />
+                <SettingsMenuItem icon="language-outline" label="Language" subtitle={preferences?.language === 'ar' ? 'العربية' : preferences?.language === 'es' ? 'Español' : preferences?.language === 'fr' ? 'Français' : preferences?.language === 'de' ? 'Deutsch' : preferences?.language === 'korean' ? '한국어' : 'English'} onPress={() => setShowLanguageModal(true)} />
+                <SettingsMenuItem icon="notifications-outline" label="Notifications" subtitle="Receive push notifications" rightElement={
+                    <Switch value={preferences?.notifications ?? true} onValueChange={(v) => handleUpdatePreference('notifications', v)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={preferences?.notifications ? theme.primary : theme.gray[50]} />
+                } />
+                <SettingsMenuItem icon="mail-outline" label="Newsletter" subtitle="Receive email updates" rightElement={
+                    <Switch value={preferences?.newsletterEnabled ?? false} onValueChange={(v) => handleUpdatePreference('newsletterEnabled', v)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={preferences?.newsletterEnabled ? theme.primary : theme.gray[50]} />
+                } />
+            </SettingsSection>
 
-            {/* Preferences Section */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Preferences</Text>
-                
-                {/* Modal Options */}
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setShowThemeModal(true)}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="color-palette-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Theme</Text>
-                        <Text style={styles.menuSubtext}>
-                            {preferences?.themePreference === 'dark' ? 'Dark' : 
-                             preferences?.themePreference === 'light' ? 'Light' : 'System'}
-                        </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setShowLanguageModal(true)}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="language-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Language</Text>
-                        <Text style={styles.menuSubtext}>
-                            {preferences?.language === 'ar' ? 'العربية' :
-                             preferences?.language === 'es' ? 'Español' :
-                             preferences?.language === 'fr' ? 'Français' :
-                             preferences?.language === 'de' ? 'Deutsch' :
-                             preferences?.language === 'korean' ? '한국어' : 'English'}
-                        </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-
-                {/* Toggle Options */}
-                <View style={styles.menuItem}>
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="notifications-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Notifications</Text>
-                        <Text style={styles.menuSubtext}>Receive push notifications</Text>
-                    </View>
-                    <Switch
-                        value={preferences?.notifications ?? true}
-                        onValueChange={(value) => handleUpdatePreference('notifications', value)}
-                        trackColor={{ false: grayColors[200], true: cskColors[400] }}
-                        thumbColor={preferences?.notifications ? cskColors[500] : grayColors[50]}
-                    />
-                </View>
-
-                <View style={styles.menuItem}>
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="mail-outline" size={22} color={grayColors[600]} />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={styles.menuText}>Newsletter</Text>
-                        <Text style={styles.menuSubtext}>Receive email updates</Text>
-                    </View>
-                    <Switch
-                        value={preferences?.newsletterEnabled ?? false}
-                        onValueChange={(value) => handleUpdatePreference('newsletterEnabled', value)}
-                        trackColor={{ false: grayColors[200], true: cskColors[400] }}
-                        thumbColor={preferences?.newsletterEnabled ? cskColors[500] : grayColors[50]}
-                    />
-                </View>
-            </View>
-
-            {/* Danger Zone */}
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, styles.dangerTitle]}>Danger Zone</Text>
-                
-                <TouchableOpacity
-                    style={styles.menuItem}
-                    onPress={() => setCurrentSection('danger')}
-                >
-                    <View style={styles.menuIconContainer}>
-                        <Ionicons name="warning-outline" size={22} color="#EF4444" />
-                    </View>
-                    <View style={styles.menuTextContainer}>
-                        <Text style={[styles.menuText, styles.dangerText]}>Account Management</Text>
-                        <Text style={styles.menuSubtext}>Deactivate or delete account</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                </TouchableOpacity>
-            </View>
+            <SettingsSection title="Danger Zone" isDanger>
+                <SettingsMenuItem icon="warning-outline" label="Account Management" subtitle="Deactivate or delete account" onPress={() => setCurrentSection('danger')} isDanger />
+            </SettingsSection>
         </ScrollView>
     );
 
     const renderSecuritySection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {isLoading && !twoFAStatus ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={cskColors[500]} />
-                </View>
+                <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.primary} /></View>
             ) : (
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Two-Factor Authentication</Text>
-                    
-                    <View style={styles.infoCard}>
-                        <Ionicons name="shield-checkmark" size={40} color={cskColors[500]} />
-                        <Text style={styles.infoTitle}>
-                            {twoFAStatus?.enabled ? '2FA is Enabled' : 'Protect Your Account'}
-                        </Text>
-                        <Text style={styles.infoText}>
-                            {twoFAStatus?.enabled
-                                ? 'Your account is protected with two-factor authentication.'
-                                : 'Add an extra layer of security by requiring a verification code when signing in.'}
-                        </Text>
+                <SettingsSection title="Two-Factor Authentication">
+                    <InfoCard icon="shield-checkmark" title={twoFAStatus?.enabled ? '2FA is Enabled' : 'Protect Your Account'} description={twoFAStatus?.enabled ? 'Your account is protected with two-factor authentication.' : 'Add an extra layer of security by requiring a verification code when signing in.'} />
+                    <View style={[styles.toggleRow, { borderBottomColor: theme.border }]}>
+                        <Text style={[styles.toggleLabel, { color: theme.text }]}>Two-Factor Authentication</Text>
+                        <Switch value={twoFAStatus?.enabled || false} onValueChange={(v) => v ? (setTwoFAStep('info'), setShow2FAModal(true)) : setShowDisable2FAModal(true)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={twoFAStatus?.enabled ? theme.primary : theme.gray[50]} />
                     </View>
-
-                    <View style={styles.toggleRow}>
-                        <Text style={styles.toggleLabel}>Two-Factor Authentication</Text>
-                        <Switch
-                            value={twoFAStatus?.enabled || false}
-                            onValueChange={(value) => {
-                                if (value) {
-                                    setTwoFAStep('info');
-                                    setShow2FAModal(true);
-                                } else {
-                                    setShowDisable2FAModal(true);
-                                }
-                            }}
-                            trackColor={{ false: grayColors[200], true: cskColors[400] }}
-                            thumbColor={twoFAStatus?.enabled ? cskColors[500] : grayColors[50]}
-                        />
-                    </View>
-
                     {twoFAStatus?.enabled && (
-                        <TouchableOpacity
-                            style={styles.secondaryButton}
-                            onPress={handleRegenerateBackupCodes}
-                            disabled={isLoading}
-                        >
-                            <Ionicons name="refresh-outline" size={20} color={cskColors[500]} />
-                            <Text style={styles.secondaryButtonText}>Regenerate Backup Codes</Text>
+                        <TouchableOpacity style={[styles.secondaryButton, { borderColor: theme.primary }]} onPress={handleRegenerateBackupCodes} disabled={isLoading}>
+                            <Ionicons name="refresh-outline" size={20} color={theme.primary} />
+                            <Text style={[styles.secondaryButtonText, { color: theme.primary }]}>Regenerate Backup Codes</Text>
                         </TouchableOpacity>
                     )}
-                </View>
+                </SettingsSection>
             )}
         </ScrollView>
     );
 
     const renderSessionsSection = () => (
-        <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cskColors[500]]} />
-            }
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />}>
             {isLoading && sessions.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={cskColors[500]} />
-                </View>
+                <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.primary} /></View>
             ) : (
                 <>
-                    {/* Sessions Summary */}
-                    <View style={styles.sessionsSummary}>
-                        <View style={styles.sessionsSummaryIcon}>
-                            <Ionicons name="shield-checkmark" size={28} color={cskColors[500]} />
+                    <View style={styles.summaryContainer}>
+                        <View style={[styles.summaryIcon, { backgroundColor: theme.csk[50] }]}>
+                            <Ionicons name="shield-checkmark" size={28} color={theme.primary} />
                         </View>
-                        <Text style={styles.sessionsSummaryTitle}>
-                            {sessions.filter(s => s.isActive).length} Active {sessions.filter(s => s.isActive).length === 1 ? 'Session' : 'Sessions'}
-                        </Text>
-                        <Text style={styles.sessionsSummaryText}>
-                            These devices are currently logged into your account
-                        </Text>
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{sessions.filter(s => s.isActive).length} Active {sessions.filter(s => s.isActive).length === 1 ? 'Session' : 'Sessions'}</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>These devices are currently logged into your account</Text>
                     </View>
-
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Your Devices</Text>
-                        
+                    <SettingsSection title="Your Devices">
                         {sessions.map((session) => (
-                            <TouchableOpacity
-                                key={session.id}
-                                style={[styles.sessionCard, session.isCurrent && styles.currentSession]}
-                                onPress={() => handleViewSessionDetails(session.id)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.sessionIcon, session.isCurrent && styles.sessionIconCurrent]}>
-                                    <Ionicons
-                                        name={getDeviceIcon(session.platform) as any}
-                                        size={24}
-                                        color={session.isCurrent ? cskColors[500] : grayColors[600]}
-                                    />
-                                </View>
-                                <View style={styles.sessionInfo}>
-                                    <View style={styles.sessionHeader}>
-                                        <Text style={styles.sessionDevice} numberOfLines={1}>
-                                            {session.deviceName || 'Unknown Device'}
-                                        </Text>
-                                        {session.isCurrent && (
-                                            <View style={styles.currentBadge}>
-                                                <Text style={styles.currentBadgeText}>This device</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    <View style={styles.sessionDetails}>
-                                        <Text style={styles.sessionBrowser}>
-                                            {getPlatformDisplayName(session.platform)}
-                                        </Text>
-                                        {session.location && (
-                                            <View style={styles.sessionLocationRow}>
-                                                <Ionicons name="location-outline" size={12} color={grayColors[500]} />
-                                                <Text style={styles.sessionLocation}>{session.location}</Text>
-                                            </View>
-                                        )}
-                                        <Text style={styles.sessionTime}>
-                                            {session.isCurrent ? 'Active now' : formatRelativeTime(session.lastActivityAt)}
-                                        </Text>
-                                    </View>
-                                </View>
-                                {loadingSessionId === session.id ? (
-                                    <ActivityIndicator size="small" color={cskColors[500]} />
-                                ) : (
-                                    <Ionicons name="chevron-forward" size={20} color={grayColors[400]} />
-                                )}
-                            </TouchableOpacity>
+                            <SessionCard key={session.id} id={session.id} deviceName={session.deviceName} platform={session.platform} location={session.location} lastActivityAt={session.lastActivityAt} isCurrent={session.isCurrent} isLoading={loadingSessionId === session.id} onPress={() => handleViewSessionDetails(session.id)} formatTime={formatRelativeTime} />
                         ))}
-                    </View>
-
+                    </SettingsSection>
                     {sessions.filter(s => !s.isCurrent).length > 0 && (
-                        <View style={styles.sessionsActions}>
-                            <TouchableOpacity
-                                style={styles.revokeAllButton}
-                                onPress={handleRevokeAllSessions}
-                                disabled={isLoading}
-                            >
-                                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                                <Text style={styles.revokeAllButtonText}>Sign out all other devices</Text>
+                        <View style={styles.actionsContainer}>
+                            <TouchableOpacity style={[styles.revokeAllButton, { backgroundColor: isDark ? theme.error[50] : '#FEE2E2' }]} onPress={handleRevokeAllSessions} disabled={isLoading}>
+                                <Ionicons name="log-out-outline" size={20} color={theme.error[500]} />
+                                <Text style={[styles.revokeAllText, { color: theme.error[500] }]}>Sign out all other devices</Text>
                             </TouchableOpacity>
                         </View>
                     )}
-
-                    {/* Security Tips */}
-                    <View style={styles.securityTips}>
-                        <View style={styles.securityTipHeader}>
-                            <Ionicons name="bulb-outline" size={20} color={cskColors[500]} />
-                            <Text style={styles.securityTipTitle}>Security Tips</Text>
+                    <View style={[styles.tipsContainer, { backgroundColor: theme.csk[50], borderColor: theme.csk[100] }]}>
+                        <View style={styles.tipsHeader}>
+                            <Ionicons name="bulb-outline" size={20} color={theme.primary} />
+                            <Text style={[styles.tipsTitle, { color: theme.csk[700] }]}>Security Tips</Text>
                         </View>
-                        <Text style={styles.securityTipText}>
-                            • Sign out of devices you don't recognize{'\n'}
-                            • Enable two-factor authentication for extra security{'\n'}
-                            • Use unique passwords for each account
-                        </Text>
+                        <Text style={[styles.tipsText, { color: theme.gray[600] }]}>• Sign out of devices you don't recognize{'\n'}• Enable two-factor authentication for extra security{'\n'}• Use unique passwords for each account</Text>
                     </View>
                 </>
             )}
-
-            {/* Session Details Modal */}
-            <Modal
-                visible={showSessionModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => {
-                    setShowSessionModal(false);
-                    setSelectedSession(null);
-                }}
-            >
-                <View style={styles.sessionModalOverlay}>
-                    <View style={styles.sessionModalContent}>
-                        <View style={styles.sessionModalHeader}>
-                            <Text style={styles.sessionModalTitle}>Session Details</Text>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setShowSessionModal(false);
-                                    setSelectedSession(null);
-                                }}
-                            >
-                                <Ionicons name="close" size={24} color={grayColors[600]} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {selectedSession && (
-                            <ScrollView 
-                                style={styles.sessionModalBody}
-                                showsVerticalScrollIndicator={false}
-                            >
-                                {/* Device Info */}
-                                <View style={styles.sessionModalSection}>
-                                    <View style={styles.sessionModalIconLarge}>
-                                        <Ionicons
-                                            name={getDeviceIcon(selectedSession.device.platform) as any}
-                                            size={40}
-                                            color={selectedSession.isCurrent ? cskColors[500] : grayColors[600]}
-                                        />
-                                    </View>
-                                    <Text style={styles.sessionModalDeviceName}>
-                                        {selectedSession.device.name || 'Unknown Device'}
-                                    </Text>
-                                    {selectedSession.isCurrent && (
-                                        <View style={[styles.currentBadge, { marginTop: 8 }]}>
-                                            <Text style={styles.currentBadgeText}>Current Session</Text>
-                                        </View>
-                                    )}
-                                    {selectedSession.device.isTrusted && (
-                                        <View style={[styles.trustedBadge, { marginTop: 8 }]}>
-                                            <Ionicons name="shield-checkmark" size={12} color={cskColors[600]} />
-                                            <Text style={styles.trustedBadgeText}>Trusted Device</Text>
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* Details List */}
-                                <View style={styles.sessionDetailsList}>
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons name="phone-portrait-outline" size={18} color={grayColors[500]} />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>Platform</Text>
-                                            <Text style={styles.sessionDetailValue}>
-                                                {getPlatformDisplayName(selectedSession.device.platform)}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {selectedSession.device.browser && (
-                                        <View style={styles.sessionDetailRow}>
-                                            <View style={styles.sessionDetailIcon}>
-                                                <Ionicons name="globe-outline" size={18} color={grayColors[500]} />
-                                            </View>
-                                            <View style={styles.sessionDetailInfo}>
-                                                <Text style={styles.sessionDetailLabel}>Browser</Text>
-                                                <Text style={styles.sessionDetailValue}>{selectedSession.device.browser}</Text>
-                                            </View>
-                                        </View>
-                                    )}
-
-                                    {selectedSession.device.os && (
-                                        <View style={styles.sessionDetailRow}>
-                                            <View style={styles.sessionDetailIcon}>
-                                                <Ionicons name="laptop-outline" size={18} color={grayColors[500]} />
-                                            </View>
-                                            <View style={styles.sessionDetailInfo}>
-                                                <Text style={styles.sessionDetailLabel}>Operating System</Text>
-                                                <Text style={styles.sessionDetailValue}>{selectedSession.device.os}</Text>
-                                            </View>
-                                        </View>
-                                    )}
-
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons name="wifi-outline" size={18} color={grayColors[500]} />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>IP Address</Text>
-                                            <Text style={styles.sessionDetailValue}>{selectedSession.network.ipAddress}</Text>
-                                        </View>
-                                    </View>
-
-                                    {selectedSession.network.location && (
-                                        <View style={styles.sessionDetailRow}>
-                                            <View style={styles.sessionDetailIcon}>
-                                                <Ionicons name="location-outline" size={18} color={grayColors[500]} />
-                                            </View>
-                                            <View style={styles.sessionDetailInfo}>
-                                                <Text style={styles.sessionDetailLabel}>Location</Text>
-                                                <Text style={styles.sessionDetailValue}>{selectedSession.network.location}</Text>
-                                            </View>
-                                        </View>
-                                    )}
-
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons name="time-outline" size={18} color={grayColors[500]} />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>Last Activity</Text>
-                                            <Text style={styles.sessionDetailValue}>
-                                                {selectedSession.isCurrent ? 'Active now' : formatDate(selectedSession.timestamps.lastActivityAt)}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons name="calendar-outline" size={18} color={grayColors[500]} />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>Signed In</Text>
-                                            <Text style={styles.sessionDetailValue}>{formatDate(selectedSession.timestamps.createdAt)}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons name="hourglass-outline" size={18} color={grayColors[500]} />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>Expires</Text>
-                                            <Text style={styles.sessionDetailValue}>{formatDate(selectedSession.timestamps.expiresAt)}</Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Status */}
-                                    <View style={styles.sessionDetailRow}>
-                                        <View style={styles.sessionDetailIcon}>
-                                            <Ionicons 
-                                                name={selectedSession.status.isActive ? "checkmark-circle" : "close-circle"} 
-                                                size={18} 
-                                                color={selectedSession.status.isActive ? '#10B981' : '#EF4444'} 
-                                            />
-                                        </View>
-                                        <View style={styles.sessionDetailInfo}>
-                                            <Text style={styles.sessionDetailLabel}>Status</Text>
-                                            <Text style={[
-                                                styles.sessionDetailValue,
-                                                { color: selectedSession.status.isActive ? '#10B981' : '#EF4444' }
-                                            ]}>
-                                                {selectedSession.status.isActive ? 'Active' : 
-                                                 selectedSession.status.isRevoked ? 'Revoked' : 
-                                                 selectedSession.status.isExpired ? 'Expired' : 'Inactive'}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                </View>
-
-                                {/* Revoke Button */}
-                                {!selectedSession.isCurrent && selectedSession.status.isActive && (
-                                    <TouchableOpacity
-                                        style={styles.revokeSessionButton}
-                                        onPress={() => handleRevokeSession(selectedSession.id)}
-                                        disabled={loadingSessionId === selectedSession.id}
-                                    >
-                                        {loadingSessionId === selectedSession.id ? (
-                                            <ActivityIndicator color="#FFFFFF" />
-                                        ) : (
-                                            <>
-                                                <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-                                                <Text style={styles.revokeSessionButtonText}>Sign out this device</Text>
-                                            </>
-                                        )}
-                                    </TouchableOpacity>
-                                )}
-                            </ScrollView>
-                        )}
-                    </View>
-                </View>
-            </Modal>
         </ScrollView>
     );
 
-
     const renderActivitySection = () => (
-        <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cskColors[500]]} />
-            }
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />}>
             {isLoading && !activityData ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={cskColors[500]} />
-                </View>
+                <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.primary} /></View>
             ) : activityData ? (
                 <>
-                    {/* Account Info */}
-                    <View style={styles.activitySummary}>
-                        <View style={styles.activitySummaryIcon}>
-                            <Ionicons name="person-circle" size={48} color={cskColors[500]} />
-                        </View>
-                        <Text style={styles.activitySummaryTitle}>Account Overview</Text>
-                        <Text style={styles.activitySummaryText}>
-                            Member since {formatDate(activityData.account.accountCreatedAt)}
-                        </Text>
+                    <View style={styles.summaryContainer}>
+                        <Ionicons name="person-circle" size={48} color={theme.primary} />
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>Account Overview</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>Member since {formatDate(activityData.account.accountCreatedAt)}</Text>
                     </View>
-
-                    {/* Current Device Info */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Current Device</Text>
-                        <View style={styles.activityCard}>
-                            <View style={styles.activityCardHeader}>
-                                <Ionicons 
-                                    name={getDeviceIcon(activityData.currentDevice.platform) as any} 
-                                    size={24} 
-                                    color={cskColors[500]} 
-                                />
-                                <Text style={styles.activityCardTitle}>
-                                    {activityData.currentDevice.deviceName}
-                                </Text>
+                    <SettingsSection title="Current Device">
+                        <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
+                            <View style={[styles.activityCardHeader, { borderBottomColor: theme.border }]}>
+                                <Ionicons name={getDeviceIcon(activityData.currentDevice.platform) as any} size={24} color={theme.primary} />
+                                <Text style={[styles.activityCardTitle, { color: theme.text }]}>{activityData.currentDevice.deviceName}</Text>
                             </View>
                             <View style={styles.activityCardContent}>
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>Model</Text>
-                                    <Text style={styles.activityValue}>{activityData.currentDevice.deviceModel}</Text>
-                                </View>
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>Platform</Text>
-                                    <Text style={styles.activityValue}>
-                                        {getPlatformDisplayName(activityData.currentDevice.platform)}
-                                    </Text>
-                                </View>
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>OS</Text>
-                                    <Text style={styles.activityValue}>{activityData.currentDevice.os}</Text>
-                                </View>
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>App Version</Text>
-                                    <Text style={styles.activityValue}>{activityData.currentDevice.appVersion}</Text>
-                                </View>
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>IP Address</Text>
-                                    <Text style={styles.activityValue}>{activityData.currentDevice.ipAddress}</Text>
-                                </View>
-                                {activityData.currentDevice.location && (
-                                    <View style={styles.activityRow}>
-                                        <Text style={styles.activityLabel}>Location</Text>
-                                        <Text style={styles.activityValue}>{activityData.currentDevice.location}</Text>
+                                {[['Model', activityData.currentDevice.deviceModel], ['Platform', getPlatformDisplayName(activityData.currentDevice.platform)], ['OS', activityData.currentDevice.os], ['App Version', activityData.currentDevice.appVersion], ['IP Address', activityData.currentDevice.ipAddress], ['Timezone', activityData.currentDevice.timezone]].map(([label, value]) => (
+                                    <View key={label} style={styles.activityRow}>
+                                        <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>{label}</Text>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{value}</Text>
                                     </View>
-                                )}
-                                <View style={styles.activityRow}>
-                                    <Text style={styles.activityLabel}>Timezone</Text>
-                                    <Text style={styles.activityValue}>{activityData.currentDevice.timezone}</Text>
-                                </View>
+                                ))}
                             </View>
                         </View>
-                    </View>
-
-                    {/* Session Stats */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Sessions Overview</Text>
+                    </SettingsSection>
+                    <SettingsSection title="Sessions Overview">
                         <View style={styles.statsRow}>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{activityData.sessions.totalActive}</Text>
-                                <Text style={styles.statLabel}>Active Sessions</Text>
+                            <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
+                                <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.sessions.totalActive}</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Active Sessions</Text>
                             </View>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{activityData.devices.total}</Text>
-                                <Text style={styles.statLabel}>Total Devices</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.statsRow, { marginTop: 12 }]}>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>{activityData.devices.trusted}</Text>
-                                <Text style={styles.statLabel}>Trusted Devices</Text>
-                            </View>
-                            <View style={styles.statCard}>
-                                <Text style={styles.statNumber}>
-                                    {formatRelativeTime(activityData.sessions.mostRecentActivity)}
-                                </Text>
-                                <Text style={styles.statLabel}>Last Activity</Text>
+                            <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
+                                <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.devices.total}</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Total Devices</Text>
                             </View>
                         </View>
-                    </View>
-
-                    {/* Platform Breakdown */}
-                    {activityData.sessions.byPlatform && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Sessions by Platform</Text>
-                            <View style={styles.platformBreakdown}>
-                                {activityData.sessions.byPlatform.IOS && (
-                                    <View style={styles.platformItem}>
-                                        <Ionicons name="logo-apple" size={20} color={grayColors[600]} />
-                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.IOS}</Text>
-                                        <Text style={styles.platformLabel}>iOS</Text>
-                                    </View>
-                                )}
-                                {activityData.sessions.byPlatform.ANDROID && (
-                                    <View style={styles.platformItem}>
-                                        <Ionicons name="logo-android" size={20} color="#3DDC84" />
-                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.ANDROID}</Text>
-                                        <Text style={styles.platformLabel}>Android</Text>
-                                    </View>
-                                )}
-                                {activityData.sessions.byPlatform.WEB && (
-                                    <View style={styles.platformItem}>
-                                        <Ionicons name="globe-outline" size={20} color="#4285F4" />
-                                        <Text style={styles.platformCount}>{activityData.sessions.byPlatform.WEB}</Text>
-                                        <Text style={styles.platformLabel}>Web</Text>
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-                    )}
-
-                    {/* Recent Activity */}
-                    {activityData.recentActivity && activityData.recentActivity.length > 0 && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Recent Activity</Text>
-                            {activityData.recentActivity.map((activity) => (
-                                <View key={activity.sessionId} style={styles.recentActivityItem}>
-                                    <View style={[
-                                        styles.activityStatusDot,
-                                        { backgroundColor: getStatusColor(activity.status) }
-                                    ]} />
-                                    <View style={styles.recentActivityInfo}>
-                                        <Text style={styles.recentActivityDevice}>{activity.deviceName}</Text>
-                                        <View style={styles.recentActivityMeta}>
-                                            <Text style={styles.recentActivityPlatform}>
-                                                {getPlatformDisplayName(activity.platform)}
-                                            </Text>
-                                            {activity.location && (
-                                                <>
-                                                    <Text style={styles.recentActivityDot}>•</Text>
-                                                    <Text style={styles.recentActivityLocation}>{activity.location}</Text>
-                                                </>
-                                            )}
-                                        </View>
-                                        <Text style={styles.recentActivityTime}>
-                                            {formatRelativeTime(activity.lastActivityAt)}
-                                        </Text>
-                                    </View>
-                                    <View style={[
-                                        styles.activityStatusBadge,
-                                        { backgroundColor: getStatusColor(activity.status) + '20' }
-                                    ]}>
-                                        <Text style={[
-                                            styles.activityStatusText,
-                                            { color: getStatusColor(activity.status) }
-                                        ]}>
-                                            {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
-                                        </Text>
-                                    </View>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-
-                    {/* Trusted Devices */}
-                    {activityData.devices.list && activityData.devices.list.length > 0 && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Your Devices</Text>
-                            {activityData.devices.list.map((device) => (
-                                <View key={device.id} style={styles.deviceItem}>
-                                    <View style={styles.deviceIconContainer}>
-                                        <Ionicons 
-                                            name={getDeviceIcon(device.platform) as any} 
-                                            size={22} 
-                                            color={device.isTrusted ? cskColors[500] : grayColors[500]} 
-                                        />
-                                    </View>
-                                    <View style={styles.deviceInfo}>
-                                        <Text style={styles.deviceName}>{device.name}</Text>
-                                        <Text style={styles.deviceMeta}>
-                                            {getPlatformDisplayName(device.platform)} • Last login {formatRelativeTime(device.lastLoginAt)}
-                                        </Text>
-                                    </View>
-                                    {device.isTrusted && (
-                                        <View style={styles.trustedBadgeSmall}>
-                                            <Ionicons name="shield-checkmark" size={14} color={cskColors[500]} />
-                                        </View>
-                                    )}
-                                </View>
-                            ))}
-                        </View>
-                    )}
+                    </SettingsSection>
                 </>
             ) : null}
         </ScrollView>
     );
 
     const renderParentLinkSection = () => (
-        <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[cskColors[500]]} />
-            }
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />}>
             {isLoading && linkedAccounts.length === 0 && pendingRequests.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={cskColors[500]} />
-                </View>
+                <View style={styles.loadingContainer}><ActivityIndicator size="large" color={theme.primary} /></View>
             ) : (
                 <>
-                    {/* Header */}
-                    <View style={styles.parentLinkHeader}>
-                        <View style={styles.parentLinkHeaderIcon}>
-                            <Ionicons name="people" size={32} color={cskColors[500]} />
+                    <View style={styles.summaryContainer}>
+                        <View style={[styles.summaryIcon, { backgroundColor: theme.csk[50] }]}>
+                            <Ionicons name="people" size={32} color={theme.primary} />
                         </View>
-                        <Text style={styles.parentLinkHeaderTitle}>
-                            {isParent ? 'Linked Children' : 'Linked Parents'}
-                        </Text>
-                        <Text style={styles.parentLinkHeaderText}>
-                            {isParent 
-                                ? 'Manage your linked children accounts'
-                                : 'Connect with your parent to share your progress'}
-                        </Text>
+                        <Text style={[styles.summaryTitle, { color: theme.text }]}>{isParent ? 'Linked Children' : 'Linked Parents'}</Text>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>{isParent ? 'Manage your linked children accounts' : 'Connect with your parent to share your progress'}</Text>
                     </View>
 
-                    {/* Linked Accounts */}
                     {linkedAccounts.length > 0 && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>
-                                {isParent ? 'Your Children' : 'Your Parents'}
-                            </Text>
+                        <SettingsSection title={isParent ? 'Your Children' : 'Your Parents'}>
                             {linkedAccounts.map((link) => {
                                 const account = isParent ? link.child : link.parent;
-                                return (
-                                    <View key={link.id} style={styles.linkedAccountCard}>
-                                        {account?.profileImg ? (
-                                            <Image source={{ uri: account.profileImg }} style={styles.linkedAccountAvatar} />
-                                        ) : (
-                                            <View style={styles.linkedAccountAvatarPlaceholder}>
-                                                <Text style={styles.linkedAccountAvatarText}>
-                                                    {account?.name?.charAt(0) || '?'}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        <View style={styles.linkedAccountInfo}>
-                                            <Text style={styles.linkedAccountName}>{account?.name}</Text>
-                                            <Text style={styles.linkedAccountUsername}>@{account?.username}</Text>
-                                        </View>
-                                        {!isParent && (
-                                            <TouchableOpacity
-                                                style={styles.unlinkButton}
-                                                onPress={() => handleShowUnlinkModal(account?.id || '', account?.name || '')}
-                                                disabled={processingRequestId === account?.id}
-                                            >
-                                                {processingRequestId === account?.id ? (
-                                                    <ActivityIndicator size="small" color="#EF4444" />
-                                                ) : (
-                                                    <Ionicons name="unlink-outline" size={20} color="#EF4444" />
-                                                )}
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                );
+                                return <ParentLinkCard key={link.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg} showUnlink={!isParent} isProcessing={processingRequestId === account?.id} onUnlink={() => { setUnlinkTargetParent({ id: account?.id || '', name: account?.name || '' }); setShowUnlinkModal(true); }} />;
                             })}
-                        </View>
+                        </SettingsSection>
                     )}
 
-                    {/* Pending Requests */}
                     {pendingRequests.length > 0 && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>
-                                {isParent ? 'Incoming Requests' : 'Sent Requests'}
-                            </Text>
+                        <SettingsSection title={isParent ? 'Incoming Requests' : 'Sent Requests'}>
                             {pendingRequests.map((request) => {
                                 const account = isParent ? request.child : request.parent;
-                                return (
-                                    <View key={request.id} style={styles.pendingRequestCard}>
-                                        {account?.profileImg ? (
-                                            <Image source={{ uri: account.profileImg }} style={styles.linkedAccountAvatar} />
-                                        ) : (
-                                            <View style={styles.linkedAccountAvatarPlaceholder}>
-                                                <Text style={styles.linkedAccountAvatarText}>
-                                                    {account?.name?.charAt(0) || '?'}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        <View style={styles.linkedAccountInfo}>
-                                            <Text style={styles.linkedAccountName}>{account?.name}</Text>
-                                            <Text style={styles.linkedAccountUsername}>@{account?.username}</Text>
-                                            <Text style={styles.pendingRequestTime}>
-                                                {formatRelativeTime(request.createdAt)}
-                                            </Text>
-                                        </View>
-                                        {isParent ? (
-                                            <View style={styles.requestActions}>
-                                                <TouchableOpacity
-                                                    style={styles.acceptButton}
-                                                    onPress={() => handleRespondToRequest(request.id, 'accept')}
-                                                    disabled={processingRequestId === request.id}
-                                                >
-                                                    {processingRequestId === request.id ? (
-                                                        <ActivityIndicator size="small" color="#FFFFFF" />
-                                                    ) : (
-                                                        <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                                                    )}
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={styles.declineButton}
-                                                    onPress={() => handleRespondToRequest(request.id, 'decline')}
-                                                    disabled={processingRequestId === request.id}
-                                                >
-                                                    <Ionicons name="close" size={18} color="#EF4444" />
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : (
-                                            <View style={styles.pendingBadge}>
-                                                <Text style={styles.pendingBadgeText}>Pending</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                );
+                                return <ParentLinkCard key={request.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg} isPending pendingTime={formatRelativeTime(request.createdAt)} showActions={isParent} isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToRequest(request.id, 'accept')} onDecline={() => handleRespondToRequest(request.id, 'decline')} />;
                             })}
-                        </View>
+                        </SettingsSection>
                     )}
 
-                    {/* Pending Unlink Requests (Parent only) */}
                     {isParent && pendingUnlinkRequests.length > 0 && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Unlink Requests</Text>
+                        <SettingsSection title="Unlink Requests">
                             {pendingUnlinkRequests.map((request) => (
-                                <View key={request.id} style={styles.pendingRequestCard}>
-                                    {request.child?.profileImg ? (
-                                        <Image source={{ uri: request.child.profileImg }} style={styles.linkedAccountAvatar} />
-                                    ) : (
-                                        <View style={styles.linkedAccountAvatarPlaceholder}>
-                                            <Text style={styles.linkedAccountAvatarText}>
-                                                {request.child?.name?.charAt(0) || '?'}
-                                            </Text>
-                                        </View>
-                                    )}
-                                    <View style={styles.linkedAccountInfo}>
-                                        <Text style={styles.linkedAccountName}>{request.child?.name}</Text>
-                                        <Text style={styles.linkedAccountUsername}>wants to unlink</Text>
-                                    </View>
-                                    <View style={styles.requestActions}>
-                                        <TouchableOpacity
-                                            style={styles.acceptButton}
-                                            onPress={() => handleRespondToUnlinkRequest(request.id, 'accept')}
-                                            disabled={processingRequestId === request.id}
-                                        >
-                                            {processingRequestId === request.id ? (
-                                                <ActivityIndicator size="small" color="#FFFFFF" />
-                                            ) : (
-                                                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                                            )}
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={styles.declineButton}
-                                            onPress={() => handleRespondToUnlinkRequest(request.id, 'decline')}
-                                            disabled={processingRequestId === request.id}
-                                        >
-                                            <Ionicons name="close" size={18} color="#EF4444" />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
+                                <ParentLinkCard key={request.id} name={request.child?.name || ''} username="wants to unlink" profileImg={request.child?.profileImg} showActions isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToUnlinkRequest(request.id, 'accept')} onDecline={() => handleRespondToUnlinkRequest(request.id, 'decline')} />
                             ))}
-                        </View>
+                        </SettingsSection>
                     )}
 
-                    {/* Empty State */}
                     {linkedAccounts.length === 0 && pendingRequests.length === 0 && (
                         <View style={styles.emptyState}>
-                            <Ionicons name="people-outline" size={48} color={grayColors[300]} />
-                            <Text style={styles.emptyText}>
-                                {isParent ? 'No linked children yet' : 'No linked parents yet'}
-                            </Text>
+                            <Ionicons name="people-outline" size={48} color={theme.gray[300]} />
+                            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{isParent ? 'No linked children yet' : 'No linked parents yet'}</Text>
                         </View>
                     )}
 
-                    {/* Add Parent Button (Child only) */}
                     {!isParent && (
-                        <View style={styles.section}>
-                            <TouchableOpacity
-                                style={styles.addParentButton}
-                                onPress={() => setShowSearchModal(true)}
-                            >
-                                <Ionicons name="add-circle-outline" size={22} color={cskColors[500]} />
-                                <Text style={styles.addParentButtonText}>Link with Parent</Text>
+                        <SettingsSection title="">
+                            <TouchableOpacity style={[styles.addButton, { borderColor: theme.primary }]} onPress={() => setShowSearchModal(true)}>
+                                <Ionicons name="add-circle-outline" size={22} color={theme.primary} />
+                                <Text style={[styles.addButtonText, { color: theme.primary }]}>Link with Parent</Text>
                             </TouchableOpacity>
-                        </View>
+                        </SettingsSection>
                     )}
                 </>
             )}
-
-            {/* Search Parent Modal */}
-            <Modal
-                visible={showSearchModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => {
-                    setShowSearchModal(false);
-                    setSearchQuery('');
-                    setSearchResults([]);
-                }}
-            >
-                <View style={styles.searchModalOverlay}>
-                    <View style={styles.searchModalContent}>
-                        <View style={styles.searchModalHeader}>
-                            <Text style={styles.searchModalTitle}>Find Parent</Text>
-                            <TouchableOpacity onPress={() => {
-                                setShowSearchModal(false);
-                                setSearchQuery('');
-                                setSearchResults([]);
-                            }}>
-                                <Ionicons name="close" size={24} color={grayColors[600]} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.searchInputContainer}>
-                            <Ionicons name="search" size={20} color={grayColors[400]} />
-                            <TextInput
-                                style={styles.searchInput}
-                                placeholder="Search by name or username"
-                                placeholderTextColor={grayColors[400]}
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                                autoFocus
-                            />
-                            {searchQuery.length > 0 && !isSearching && (
-                                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                    <Ionicons name="close-circle" size={20} color={grayColors[400]} />
-                                </TouchableOpacity>
-                            )}
-                            {isSearching && <ActivityIndicator size="small" color={cskColors[500]} />}
-                        </View>
-
-                        <ScrollView style={styles.searchResults}>
-                            {isSearching ? (
-                                <View style={styles.searchLoadingContainer}>
-                                    <ActivityIndicator size="large" color={cskColors[500]} />
-                                    <Text style={styles.searchLoadingText}>Searching...</Text>
-                                </View>
-                            ) : searchResults.length > 0 ? (
-                                searchResults.map((parent) => (
-                                    <View key={parent.id} style={styles.searchResultItem}>
-                                        {parent.profileImg ? (
-                                            <Image source={{ uri: parent.profileImg }} style={styles.linkedAccountAvatar} />
-                                        ) : (
-                                            <View style={styles.linkedAccountAvatarPlaceholder}>
-                                                <Text style={styles.linkedAccountAvatarText}>
-                                                    {parent.name?.charAt(0) || '?'}
-                                                </Text>
-                                            </View>
-                                        )}
-                                        <View style={styles.linkedAccountInfo}>
-                                            <Text style={styles.linkedAccountName}>{parent.name}</Text>
-                                            <Text style={styles.linkedAccountUsername}>@{parent.username}</Text>
-                                        </View>
-                                        <TouchableOpacity
-                                            style={styles.sendRequestButton}
-                                            onPress={() => handleSendLinkRequest(parent.id)}
-                                            disabled={processingRequestId === parent.id}
-                                        >
-                                            {processingRequestId === parent.id ? (
-                                                <ActivityIndicator size="small" color="#FFFFFF" />
-                                            ) : (
-                                                <Text style={styles.sendRequestButtonText}>Link</Text>
-                                            )}
-                                        </TouchableOpacity>
-                                    </View>
-                                ))
-                            ) : searchQuery.trim() ? (
-                                <View style={styles.noResultsContainer}>
-                                    <Ionicons name="search-outline" size={48} color={grayColors[300]} />
-                                    <Text style={styles.noResultsText}>No parents found</Text>
-                                    <Text style={styles.noResultsSubtext}>Try a different name or username</Text>
-                                </View>
-                            ) : (
-                                <View style={styles.noResultsContainer}>
-                                    <Ionicons name="people-outline" size={48} color={grayColors[300]} />
-                                    <Text style={styles.noResultsText}>Search for a parent</Text>
-                                    <Text style={styles.noResultsSubtext}>Enter a name or username to find parents</Text>
-                                </View>
-                            )}
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Unlink Confirmation Modal */}
-            <Modal
-                visible={showUnlinkModal}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowUnlinkModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.searchModalHeader}>
-                            <Text style={styles.modalTitle}>Confirm Unlink</Text>
-                            <TouchableOpacity onPress={() => setShowUnlinkModal(false)}>
-                                <Ionicons name="close" size={24} color={grayColors[600]} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {unlinkTargetParent && (
-                            <View style={styles.unlinkConfirmContent}>
-                                <Ionicons name="unlink" size={48} color="#EF4444" style={{ marginBottom: 16 }} />
-                                <Text style={styles.unlinkConfirmText}>
-                                    Are you sure you want to send an unlink request to{' '}
-                                    <Text style={styles.unlinkConfirmName}>{unlinkTargetParent.name}</Text>?
-                                </Text>
-                                <Text style={styles.unlinkConfirmSubtext}>
-                                    They will need to approve this request before the link is removed.
-                                </Text>
-
-                                <View style={styles.unlinkConfirmButtons}>
-                                    <TouchableOpacity
-                                        style={styles.unlinkCancelButton}
-                                        onPress={() => setShowUnlinkModal(false)}
-                                    >
-                                        <Text style={styles.unlinkCancelButtonText}>Cancel</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={styles.unlinkConfirmButton}
-                                        onPress={handleConfirmUnlink}
-                                        disabled={processingRequestId === unlinkTargetParent.id}
-                                    >
-                                        {processingRequestId === unlinkTargetParent.id ? (
-                                            <ActivityIndicator size="small" color="#FFFFFF" />
-                                        ) : (
-                                            <Text style={styles.unlinkConfirmButtonText}>Send Request</Text>
-                                        )}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-                    </View>
-                </View>
-            </Modal>
         </ScrollView>
     );
 
     const renderDangerSection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-                <View style={styles.warningCard}>
-                    <Ionicons name="warning" size={32} color="#F59E0B" />
-                    <Text style={styles.warningTitle}>Proceed with Caution</Text>
-                    <Text style={styles.warningText}>
-                        Actions in this section can have permanent effects on your account.
-                    </Text>
-                </View>
-
-                {/* Deactivate Account */}
-                <View style={styles.dangerCard}>
-                    <Text style={styles.dangerCardTitle}>Deactivate Account</Text>
-                    <Text style={styles.dangerCardText}>
-                        Temporarily disable your account. You can reactivate it by logging in again.
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.dangerOutlineButton}
-                        onPress={() => setShowDeactivateModal(true)}
-                    >
-                        <Text style={styles.dangerOutlineButtonText}>Deactivate Account</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Delete Account */}
-                <View style={[styles.dangerCard, styles.deleteCard]}>
-                    <Text style={styles.dangerCardTitle}>Delete Account</Text>
-                    <Text style={styles.dangerCardText}>
-                        Permanently delete your account and all associated data. This action cannot be undone.
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => setShowDeleteModal(true)}
-                    >
-                        <Text style={styles.deleteButtonText}>Delete Account</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+            <SettingsSection title="">
+                <InfoCard icon="warning" title="Proceed with Caution" description="Actions in this section can have permanent effects on your account." variant="warning" />
+                <DangerCard title="Deactivate Account" description="Temporarily disable your account. You can reactivate it by logging in again." buttonText="Deactivate Account" onPress={() => setShowDeactivateModal(true)} />
+                <DangerCard title="Delete Account" description="Permanently delete your account and all associated data. This action cannot be undone." buttonText="Delete Account" onPress={() => setShowDeleteModal(true)} isDelete />
+            </SettingsSection>
         </ScrollView>
     );
 
-    const render2FAModal = () => (
-        <Modal
-            visible={show2FAModal}
-            transparent
-            animationType="slide"
-            onRequestClose={() => {
-                setShow2FAModal(false);
-                setTwoFAStep('info');
-                setVerificationCode('');
-            }}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <TouchableOpacity
-                        style={styles.modalClose}
-                        onPress={() => {
-                            setShow2FAModal(false);
-                            setTwoFAStep('info');
-                            setVerificationCode('');
-                        }}
-                    >
-                        <Ionicons name="close" size={24} color={grayColors[600]} />
-                    </TouchableOpacity>
-
-                    {twoFAStep === 'info' && (
-                        <>
-                            <Ionicons name="shield-checkmark" size={60} color={cskColors[500]} />
-                            <Text style={styles.modalTitle}>Enable Two-Factor Authentication</Text>
-                            <Text style={styles.modalText}>
-                                Two-factor authentication adds an extra layer of security to your account.
-                                You'll need to enter a code from your authenticator app each time you sign in.
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
-                                onPress={handleEnable2FA}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <Text style={styles.primaryButtonText}>Get Started</Text>
-                                )}
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {twoFAStep === 'qr' && twoFASetupData && (
-                        <>
-                            <Text style={styles.modalTitle}>Scan QR Code</Text>
-                            <Text style={styles.modalText}>
-                                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
-                            </Text>
-                            <Image
-                                source={{ uri: twoFASetupData.qrCode }}
-                                style={styles.qrCode}
-                                resizeMode="contain"
-                            />
-                            <TouchableOpacity
-                                style={styles.secretContainer}
-                                onPress={() => copyToClipboard(twoFASetupData.secret)}
-                            >
-                                <Text style={styles.secretLabel}>Manual entry code:</Text>
-                                <View style={styles.secretRow}>
-                                    <Text style={styles.secretText}>{twoFASetupData.secret}</Text>
-                                    <Ionicons name="copy-outline" size={18} color={cskColors[500]} />
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
-                                onPress={() => setTwoFAStep('verify')}
-                            >
-                                <Text style={styles.primaryButtonText}>Continue</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {twoFAStep === 'verify' && (
-                        <>
-                            <Text style={styles.modalTitle}>Verify Setup</Text>
-                            <Text style={styles.modalText}>
-                                Enter the 6-digit code from your authenticator app to complete setup.
-                            </Text>
-                            <TextInput
-                                style={styles.codeInput}
-                                value={verificationCode}
-                                onChangeText={setVerificationCode}
-                                placeholder="000000"
-                                placeholderTextColor={grayColors[400]}
-                                keyboardType="number-pad"
-                                maxLength={6}
-                                textAlign="center"
-                            />
-                            <TouchableOpacity
-                                style={[styles.primaryButton, verificationCode.length !== 6 && styles.buttonDisabled]}
-                                onPress={handleVerify2FA}
-                                disabled={isLoading || verificationCode.length !== 6}
-                            >
-                                {isLoading ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <Text style={styles.primaryButtonText}>Verify</Text>
-                                )}
-                            </TouchableOpacity>
-                        </>
-                    )}
-
-                    {twoFAStep === 'backup' && (
-                        <>
-                            <Ionicons name="checkmark-circle" size={60} color={cskColors[500]} />
-                            <Text style={styles.modalTitle}>Save Backup Codes</Text>
-                            <Text style={styles.modalText}>
-                                Save these backup codes in a safe place. You can use them to access your account if you lose your authenticator.
-                            </Text>
-                            <View style={styles.backupCodesContainer}>
-                                {backupCodes.map((code, index) => (
-                                    <TouchableOpacity 
-                                        key={index} 
-                                        style={styles.backupCodeItem}
-                                        onPress={() => copyToClipboard(code)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={styles.backupCode}>{code}</Text>
-                                        <Ionicons name="copy-outline" size={14} color={grayColors[400]} />
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                            <TouchableOpacity
-                                style={styles.copyAllButton}
-                                onPress={() => copyToClipboard(backupCodes.join('\n'))}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.copyAllContent}>
-                                    <Ionicons name="documents-outline" size={22} color="#FFFFFF" />
-                                    <Text style={styles.copyAllText}>Copy All Codes</Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
-                                onPress={() => {
-                                    setShow2FAModal(false);
-                                    setTwoFAStep('info');
-                                    setVerificationCode('');
-                                    // Refetch 2FA status to ensure UI is in sync
-                                    fetch2FAStatus();
-                                }}
-                            >
-                                <Text style={styles.primaryButtonText}>Done</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
-                </View>
-            </View>
-        </Modal>
-    );
-
-
-    const renderDisable2FAModal = () => (
-        <Modal
-            visible={showDisable2FAModal}
-            transparent
-            animationType="fade"
-            onRequestClose={() => {
-                setShowDisable2FAModal(false);
-                setDisablePassword('');
-            }}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <Ionicons name="shield-outline" size={48} color="#F59E0B" />
-                    <Text style={styles.modalTitle}>Disable 2FA?</Text>
-                    <Text style={styles.modalText}>
-                        This will remove the extra security from your account. Enter your password to confirm.
-                    </Text>
-                    <TextInput
-                        style={styles.passwordInput}
-                        value={disablePassword}
-                        onChangeText={setDisablePassword}
-                        placeholder="Enter your password"
-                        placeholderTextColor={grayColors[400]}
-                        secureTextEntry
-                    />
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={() => {
-                                setShowDisable2FAModal(false);
-                                setDisablePassword('');
-                            }}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.confirmButton, !disablePassword && styles.buttonDisabled]}
-                            onPress={handleDisable2FA}
-                            disabled={isLoading || !disablePassword}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFFFFF" size="small" />
-                            ) : (
-                                <Text style={styles.confirmButtonText}>Disable</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-
-    const renderDeactivateModal = () => (
-        <Modal
-            visible={showDeactivateModal}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowDeactivateModal(false)}
-        >
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    <Ionicons name="pause-circle" size={48} color="#F59E0B" />
-                    <Text style={styles.modalTitle}>Deactivate Account?</Text>
-                    <Text style={styles.modalText}>
-                        Your account will be temporarily disabled. You can reactivate it anytime by logging in again.
-                    </Text>
-                    <View style={styles.modalButtons}>
-                        <TouchableOpacity
-                            style={styles.cancelButton}
-                            onPress={() => setShowDeactivateModal(false)}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.confirmButton}
-                            onPress={handleDeactivateAccount}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFFFFF" size="small" />
-                            ) : (
-                                <Text style={styles.confirmButtonText}>Deactivate</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View>
-        </Modal>
-    );
-
-    const renderDeleteModal = () => {
-        const hasPassword = user?.hasPassword ?? true;
-        const isConfirmValid = hasPassword ? !!deletePassword : deleteConfirmText === 'DELETE';
-        
-        return (
-            <Modal
-                visible={showDeleteModal}
-                transparent
-                animationType="fade"
-                onRequestClose={() => {
-                    setShowDeleteModal(false);
-                    setDeletePassword('');
-                    setDeleteConfirmText('');
-                }}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Ionicons name="trash" size={48} color="#EF4444" />
-                        <Text style={styles.modalTitle}>Delete Account?</Text>
-                        <Text style={styles.modalText}>
-                            This action is permanent and cannot be undone. All your data will be permanently deleted.
-                        </Text>
-                        
-                        {hasPassword ? (
-                            <TextInput
-                                style={styles.passwordInput}
-                                value={deletePassword}
-                                onChangeText={setDeletePassword}
-                                placeholder="Enter your password to confirm"
-                                placeholderTextColor={grayColors[400]}
-                                secureTextEntry
-                            />
-                        ) : (
-                            <>
-                                <Text style={styles.confirmInstructions}>
-                                    Type <Text style={styles.confirmKeyword}>DELETE</Text> to confirm
-                                </Text>
-                                <TextInput
-                                    style={styles.passwordInput}
-                                    value={deleteConfirmText}
-                                    onChangeText={setDeleteConfirmText}
-                                    placeholder="Type DELETE"
-                                    placeholderTextColor={grayColors[400]}
-                                    autoCapitalize="characters"
-                                />
-                            </>
-                        )}
-                        
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={styles.cancelButton}
-                                onPress={() => {
-                                    setShowDeleteModal(false);
-                                    setDeletePassword('');
-                                    setDeleteConfirmText('');
-                                }}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.deleteConfirmButton, !isConfirmValid && styles.buttonDisabled]}
-                                onPress={handleDeleteAccount}
-                                disabled={isLoading || !isConfirmValid}
-                            >
-                                {isLoading ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                ) : (
-                                    <Text style={styles.confirmButtonText}>Delete</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
-        );
-    };
-
-    const renderLanguageModal = () => {
-        const languages = [
-            { code: 'en', name: 'English' },
-            { code: 'ar', name: 'العربية' },
-            { code: 'es', name: 'Español' },
-            { code: 'fr', name: 'Français' },
-            { code: 'de', name: 'Deutsch' },
-            { code: 'korean', name: '한국어' },
-        ];
-
-        return (
-            <Modal
-                visible={showLanguageModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowLanguageModal(false)}
-            >
-                <View style={styles.pickerModalOverlay}>
-                    <View style={styles.pickerModalContent}>
-                        <View style={styles.pickerModalHeader}>
-                            <Text style={styles.pickerModalTitle}>Select Language</Text>
-                            <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
-                                <Ionicons name="close" size={24} color={grayColors[600]} />
-                            </TouchableOpacity>
-                        </View>
-                        {languages.map((lang) => (
-                            <TouchableOpacity
-                                key={lang.code}
-                                style={styles.pickerOption}
-                                onPress={() => {
-                                    handleUpdatePreference('language', lang.code);
-                                    setShowLanguageModal(false);
-                                }}
-                            >
-                                <Text style={styles.pickerOptionText}>{lang.name}</Text>
-                                {preferences?.language === lang.code && (
-                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-            </Modal>
-        );
-    };
-
-    const renderThemeModal = () => {
-        const themes = [
-            { code: 'light', name: 'Light', icon: 'sunny-outline' },
-            { code: 'dark', name: 'Dark', icon: 'moon-outline' },
-            { code: 'system', name: 'System', icon: 'phone-portrait-outline' },
-        ];
-
-        return (
-            <Modal
-                visible={showThemeModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowThemeModal(false)}
-            >
-                <View style={styles.pickerModalOverlay}>
-                    <View style={styles.pickerModalContent}>
-                        <View style={styles.pickerModalHeader}>
-                            <Text style={styles.pickerModalTitle}>Select Theme</Text>
-                            <TouchableOpacity onPress={() => setShowThemeModal(false)}>
-                                <Ionicons name="close" size={24} color={grayColors[600]} />
-                            </TouchableOpacity>
-                        </View>
-                        {themes.map((theme) => (
-                            <TouchableOpacity
-                                key={theme.code}
-                                style={styles.pickerOption}
-                                onPress={() => {
-                                    handleUpdatePreference('themePreference', theme.code);
-                                    setShowThemeModal(false);
-                                }}
-                            >
-                                <View style={styles.pickerOptionLeft}>
-                                    <Ionicons name={theme.icon as any} size={20} color={grayColors[600]} />
-                                    <Text style={styles.pickerOptionText}>{theme.name}</Text>
-                                </View>
-                                {preferences?.themePreference === theme.code && (
-                                    <Ionicons name="checkmark" size={20} color={cskColors[500]} />
-                                )}
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-            </Modal>
-        );
-    };
-
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {renderHeader()}
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+            <SettingsHeader title={getHeaderTitle()} onBack={() => currentSection === 'main' ? router.back() : setCurrentSection('main')} />
             
             {currentSection === 'main' && renderMainSection()}
             {currentSection === 'security' && renderSecuritySection()}
@@ -2126,1267 +608,59 @@ export default function SettingsScreen() {
             {currentSection === 'danger' && renderDangerSection()}
             {currentSection === 'parentLink' && renderParentLinkSection()}
 
-            {render2FAModal()}
-            {renderDisable2FAModal()}
-            {renderDeactivateModal()}
-            {renderDeleteModal()}
-            {renderLanguageModal()}
-            {renderThemeModal()}
+            <TwoFAModal visible={show2FAModal} step={twoFAStep} isLoading={isLoading} qrCode={twoFASetupData?.qrCode} secret={twoFASetupData?.secret} verificationCode={verificationCode} backupCodes={backupCodes} onClose={() => { setShow2FAModal(false); setTwoFAStep('info'); setVerificationCode(''); }} onGetStarted={handleEnable2FA} onContinue={() => setTwoFAStep('verify')} onVerify={handleVerify2FA} onDone={() => { setShow2FAModal(false); setTwoFAStep('info'); setVerificationCode(''); fetch2FAStatus(); }} onCodeChange={setVerificationCode} onCopySecret={() => twoFASetupData?.secret && copyToClipboard(twoFASetupData.secret)} onCopyCode={copyToClipboard} onCopyAllCodes={() => copyToClipboard(backupCodes.join('\n'))} />
+
+            <ConfirmModal visible={showDisable2FAModal} icon="shield-outline" iconColor="#F59E0B" title="Disable 2FA?" description="This will remove the extra security from your account. Enter your password to confirm." confirmText="Disable" isLoading={isLoading} isDisabled={!disablePassword} onConfirm={handleDisable2FA} onCancel={() => { setShowDisable2FAModal(false); setDisablePassword(''); }} passwordInput={{ value: disablePassword, onChange: setDisablePassword, placeholder: 'Enter your password' }} />
+
+            <ConfirmModal visible={showDeactivateModal} icon="pause-circle" iconColor="#F59E0B" title="Deactivate Account?" description="Your account will be temporarily disabled. You can reactivate it anytime by logging in again." confirmText="Deactivate" isLoading={isLoading} onConfirm={handleDeactivateAccount} onCancel={() => setShowDeactivateModal(false)} />
+
+            <ConfirmModal visible={showDeleteModal} icon="trash" iconColor="#EF4444" title="Delete Account?" description="This action is permanent and cannot be undone. All your data will be permanently deleted." confirmText="Delete" confirmColor="#EF4444" isLoading={isLoading} isDisabled={user?.hasPassword !== false ? !deletePassword : deleteConfirmText !== 'DELETE'} onConfirm={handleDeleteAccount} onCancel={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteConfirmText(''); }} passwordInput={user?.hasPassword !== false ? { value: deletePassword, onChange: setDeletePassword, placeholder: 'Enter your password to confirm' } : undefined} textConfirmInput={user?.hasPassword === false ? { value: deleteConfirmText, onChange: setDeleteConfirmText, keyword: 'DELETE' } : undefined} />
+
+            <ConfirmModal visible={showUnlinkModal} icon="unlink" iconColor="#EF4444" title="Confirm Unlink" description={`Are you sure you want to send an unlink request to ${unlinkTargetParent?.name}? They will need to approve this request before the link is removed.`} confirmText="Send Request" confirmColor="#EF4444" isLoading={processingRequestId === unlinkTargetParent?.id} onConfirm={handleConfirmUnlink} onCancel={() => { setShowUnlinkModal(false); setUnlinkTargetParent(null); }} />
+
+            <SessionDetailsModal visible={showSessionModal} session={selectedSession} isLoading={loadingSessionId === selectedSession?.id} onClose={() => { setShowSessionModal(false); setSelectedSession(null); }} onRevoke={() => selectedSession && handleRevokeSession(selectedSession.id)} formatDate={formatDate} />
+
+            <SearchParentModal visible={showSearchModal} searchQuery={searchQuery} searchResults={searchResults} isSearching={isSearching} processingId={processingRequestId} onClose={() => { setShowSearchModal(false); setSearchQuery(''); setSearchResults([]); }} onSearchChange={setSearchQuery} onSendRequest={handleSendLinkRequest} />
+
+            <PickerModal visible={showLanguageModal} title="Select Language" options={languages} selectedValue={preferences?.language} onSelect={(v: string) => handleUpdatePreference('language', v)} onClose={() => setShowLanguageModal(false)} />
+
+            <PickerModal visible={showThemeModal} title="Select Theme" options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
         </View>
     );
 }
 
-
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    backButton: {
-        padding: 4,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    placeholder: {
-        width: 32,
-    },
-    content: {
-        flex: 1,
-    },
-    section: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[500],
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        marginBottom: 12,
-    },
-    dangerTitle: {
-        color: '#EF4444',
-    },
-    menuItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    menuIconContainer: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    menuTextContainer: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    menuText: {
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    menuSubtext: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 2,
-    },
-    dangerText: {
-        color: '#EF4444',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    infoCard: {
-        backgroundColor: cskColors[50],
-        borderRadius: 16,
-        padding: 24,
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    infoTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-        marginTop: 12,
-        marginBottom: 8,
-    },
-    infoText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        textAlign: 'center',
-        lineHeight: 20,
-    },
-    toggleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    toggleLabel: {
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    secondaryButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: cskColors[500],
-        marginTop: 16,
-        gap: 8,
-    },
-    secondaryButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: cskColors[500],
-    },
-    sessionCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 12,
-    },
-    currentSession: {
-        backgroundColor: cskColors[50],
-        borderWidth: 1,
-        borderColor: cskColors[200],
-    },
-    sessionIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    sessionInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    sessionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    sessionDevice: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    currentBadge: {
-        backgroundColor: cskColors[500],
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
-    },
-    currentBadgeText: {
-        fontSize: 11,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    sessionLocation: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        marginTop: 2,
-    },
-    sessionTime: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 2,
-    },
-    revokeButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-        backgroundColor: '#FEE2E2',
-    },
-    revokeButtonText: {
-        fontSize: 13,
-        fontFamily: Fonts.semiBold,
-        color: '#EF4444',
-    },
-    dangerButton: {
-        marginHorizontal: 16,
-        marginVertical: 20,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: '#FEE2E2',
-        alignItems: 'center',
-    },
-    dangerButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: '#EF4444',
-    },
-    activityItem: {
-        flexDirection: 'row',
-        paddingVertical: 14,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    activityIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: grayColors[100],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    activityInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    activityDescription: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    activityMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 4,
-        gap: 8,
-    },
-    activityLocation: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    activityTime: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[400],
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    emptyText: {
-        fontSize: 15,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 12,
-    },
-    warningCard: {
-        backgroundColor: '#FEF3C7',
-        borderRadius: 16,
-        padding: 20,
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    warningTitle: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#92400E',
-        marginTop: 8,
-    },
-    warningText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: '#92400E',
-        textAlign: 'center',
-        marginTop: 4,
-    },
-    dangerCard: {
-        backgroundColor: grayColors[50],
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 16,
-    },
-    deleteCard: {
-        backgroundColor: '#FEF2F2',
-    },
-    dangerCardTitle: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-        marginBottom: 8,
-    },
-    dangerCardText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        lineHeight: 20,
-        marginBottom: 16,
-    },
-    dangerOutlineButton: {
-        paddingVertical: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#F59E0B',
-        alignItems: 'center',
-    },
-    dangerOutlineButtonText: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
-        color: '#F59E0B',
-    },
-    deleteButton: {
-        paddingVertical: 12,
-        borderRadius: 10,
-        backgroundColor: '#EF4444',
-        alignItems: 'center',
-    },
-    deleteButtonText: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    modalContent: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 24,
-        width: '100%',
-        maxWidth: 360,
-        alignItems: 'center',
-    },
-    modalClose: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        padding: 4,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        marginTop: 16,
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    modalText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        textAlign: 'center',
-        lineHeight: 20,
-        marginBottom: 20,
-    },
-    qrCode: {
-        width: 200,
-        height: 200,
-        marginVertical: 16,
-    },
-    secretContainer: {
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        padding: 12,
-        width: '100%',
-        marginBottom: 20,
-    },
-    secretLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginBottom: 4,
-    },
-    secretRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    secretText: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-        letterSpacing: 1,
-    },
-    codeInput: {
-        width: '100%',
-        borderWidth: 1,
-        borderColor: grayColors[200],
-        borderRadius: 12,
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        fontSize: 24,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-        letterSpacing: 8,
-        marginBottom: 20,
-    },
-    backupCodesContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 8,
-        marginBottom: 16,
-    },
-    backupCodeItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: grayColors[100],
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 10,
-        gap: 8,
-    },
-    backupCode: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-        letterSpacing: 1,
-    },
-    copyAllButton: {
-        width: '100%',
-        backgroundColor: cskColors[500],
-        borderRadius: 12,
-        paddingVertical: 14,
-        marginBottom: 8,
-    },
-    copyAllContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-    },
-    copyAllText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    primaryButton: {
-        width: '100%',
-        backgroundColor: cskColors[500],
-        borderRadius: 12,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 8,
-    },
-    primaryButtonText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    buttonDisabled: {
-        opacity: 0.5,
-    },
-    passwordInput: {
-        width: '100%',
-        borderWidth: 1,
-        borderColor: grayColors[200],
-        borderRadius: 12,
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: grayColors[900],
-        marginBottom: 20,
-    },
-    confirmInstructions: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        marginBottom: 12,
-        textAlign: 'center',
-    },
-    confirmKeyword: {
-        fontFamily: Fonts.bold,
-        color: '#EF4444',
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        gap: 12,
-        width: '100%',
-    },
-    cancelButton: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: grayColors[100],
-        alignItems: 'center',
-    },
-    cancelButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[700],
-    },
-    confirmButton: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: '#F59E0B',
-        alignItems: 'center',
-    },
-    confirmButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    deleteConfirmButton: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: '#EF4444',
-        alignItems: 'center',
-    },
-    activityCard: {
-        backgroundColor: grayColors[50],
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-    },
-    activityCardHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginBottom: 16,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[200],
-    },
-    activityCardTitle: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    activityCardContent: {
-        gap: 12,
-    },
-    activityRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    activityLabel: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    activityValue: {
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    statsRow: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 16,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: cskColors[50],
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-    },
-    statNumber: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: cskColors[600],
-        marginBottom: 4,
-    },
-    statLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        textAlign: 'center',
-    },
-    // Improved Sessions Styles
-    sessionsSummary: {
-        alignItems: 'center',
-        paddingVertical: 24,
-        paddingHorizontal: 16,
-        marginBottom: 8,
-    },
-    sessionsSummaryIcon: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: cskColors[50],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    sessionsSummaryTitle: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        marginBottom: 4,
-    },
-    sessionsSummaryText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        textAlign: 'center',
-    },
-    sessionIconCurrent: {
-        backgroundColor: cskColors[50],
-    },
-    sessionDetails: {
-        marginTop: 4,
-    },
-    sessionBrowser: {
-        fontSize: 13,
-        fontFamily: Fonts.medium,
-        color: grayColors[600],
-    },
-    sessionLocationRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
-    },
-    sessionsActions: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-    },
-    revokeAllButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: '#FEE2E2',
-    },
-    revokeAllButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: '#EF4444',
-    },
-    securityTips: {
-        margin: 16,
-        padding: 16,
-        backgroundColor: cskColors[50],
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: cskColors[100],
-    },
-    securityTipHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 12,
-    },
-    securityTipTitle: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: cskColors[700],
-    },
-    securityTipText: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-        lineHeight: 20,
-    },
-    // Session Modal Styles
-    sessionModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    sessionModalContent: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingTop: 20,
-        paddingBottom: 40,
-        maxHeight: '90%',
-    },
-    sessionModalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    sessionModalTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-    },
-    sessionModalBody: {
-        paddingHorizontal: 20,
-        paddingTop: 20,
-    },
-    sessionModalSection: {
-        alignItems: 'center',
-        paddingBottom: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-        marginBottom: 20,
-    },
-    sessionModalIconLarge: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: grayColors[50],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    sessionModalDeviceName: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        textAlign: 'center',
-    },
-    sessionDetailsList: {
-        gap: 16,
-    },
-    sessionDetailRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    sessionDetailIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: grayColors[50],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    sessionDetailInfo: {
-        flex: 1,
-    },
-    sessionDetailLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginBottom: 2,
-    },
-    sessionDetailValue: {
-        fontSize: 15,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    revokeSessionButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        marginTop: 24,
-        marginBottom: 20,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: '#EF4444',
-    },
-    revokeSessionButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    // Trusted Badge
-    trustedBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: cskColors[50],
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    trustedBadgeText: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        color: cskColors[600],
-    },
-    trustedBadgeSmall: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: cskColors[50],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    // Activity Section Styles
-    activitySummary: {
-        alignItems: 'center',
-        paddingVertical: 24,
-        paddingHorizontal: 16,
-    },
-    activitySummaryIcon: {
-        marginBottom: 12,
-    },
-    activitySummaryTitle: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        marginBottom: 4,
-    },
-    activitySummaryText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    platformBreakdown: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        padding: 16,
-    },
-    platformItem: {
-        alignItems: 'center',
-        gap: 4,
-    },
-    platformCount: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-    },
-    platformLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    recentActivityItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    activityStatusDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginRight: 12,
-    },
-    recentActivityInfo: {
-        flex: 1,
-    },
-    recentActivityDevice: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    recentActivityMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 2,
-    },
-    recentActivityPlatform: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-    },
-    recentActivityDot: {
-        fontSize: 13,
-        color: grayColors[400],
-        marginHorizontal: 6,
-    },
-    recentActivityLocation: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[600],
-    },
-    recentActivityTime: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 2,
-    },
-    activityStatusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    activityStatusText: {
-        fontSize: 12,
-        fontFamily: Fonts.semiBold,
-    },
-    deviceItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    deviceIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    deviceInfo: {
-        flex: 1,
-    },
-    deviceName: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    deviceMeta: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 2,
-    },
-    // Picker Modal Styles
-    pickerModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    pickerModalContent: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingTop: 20,
-        paddingBottom: 40,
-    },
-    pickerModalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    pickerModalTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-    },
-    pickerOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    pickerOptionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    pickerOptionText: {
-        fontSize: 16,
-        fontFamily: Fonts.medium,
-        color: grayColors[900],
-    },
-    // Parent Link Styles
-    parentLinkHeader: {
-        alignItems: 'center',
-        paddingVertical: 24,
-        paddingHorizontal: 16,
-    },
-    parentLinkHeaderIcon: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: cskColors[50],
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    parentLinkHeaderTitle: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-        marginBottom: 4,
-    },
-    parentLinkHeaderText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        textAlign: 'center',
-    },
-    linkedAccountCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    linkedAccountAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-    },
-    linkedAccountAvatarPlaceholder: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: cskColors[100],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    linkedAccountAvatarText: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: cskColors[500],
-    },
-    linkedAccountInfo: {
-        flex: 1,
-        marginLeft: 12,
-    },
-    linkedAccountName: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    linkedAccountUsername: {
-        fontSize: 13,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-    },
-    unlinkButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#FEE2E2',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    pendingRequestCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: '#FEF3C7',
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    pendingRequestTime: {
-        fontSize: 12,
-        fontFamily: Fonts.regular,
-        color: grayColors[400],
-        marginTop: 2,
-    },
-    requestActions: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    acceptButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: cskColors[500],
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    declineButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#FEE2E2',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    pendingBadge: {
-        backgroundColor: '#FEF3C7',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#F59E0B',
-    },
-    pendingBadgeText: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        color: '#92400E',
-    },
-    addParentButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 14,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: cskColors[500],
-        borderStyle: 'dashed',
-    },
-    addParentButtonText: {
-        fontSize: 15,
-        fontFamily: Fonts.semiBold,
-        color: cskColors[500],
-    },
-    searchModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    searchModalContent: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingTop: 20,
-        paddingBottom: 40,
-        height: '70%',
-    },
-    searchModalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingBottom: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
-    },
-    searchModalTitle: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: grayColors[900],
-    },
-    searchInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        margin: 16,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        gap: 8,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: grayColors[900],
-    },
-    searchResults: {
-        flex: 1,
-        paddingHorizontal: 16,
-    },
-    searchResultItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        backgroundColor: grayColors[50],
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    sendRequestButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        backgroundColor: cskColors[500],
-        borderRadius: 8,
-    },
-    sendRequestButtonText: {
-        fontSize: 14,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
-    noResultsContainer: {
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    noResultsText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[600],
-        marginTop: 12,
-    },
-    noResultsSubtext: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[400],
-        marginTop: 4,
-    },
-    searchLoadingContainer: {
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    searchLoadingText: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        marginTop: 12,
-    },
-    unlinkConfirmContent: {
-        alignItems: 'center',
-        paddingVertical: 20,
-    },
-    unlinkConfirmText: {
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-        color: grayColors[700],
-        textAlign: 'center',
-        marginBottom: 8,
-        lineHeight: 24,
-    },
-    unlinkConfirmName: {
-        fontFamily: Fonts.semiBold,
-        color: grayColors[900],
-    },
-    unlinkConfirmSubtext: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        color: grayColors[500],
-        textAlign: 'center',
-        marginBottom: 24,
-    },
-    unlinkConfirmButtons: {
-        flexDirection: 'row',
-        gap: 12,
-        width: '100%',
-    },
-    unlinkCancelButton: {
-        flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        backgroundColor: grayColors[100],
-        alignItems: 'center',
-    },
-    unlinkCancelButtonText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: grayColors[700],
-    },
-    unlinkConfirmButton: {
-        flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-        backgroundColor: '#EF4444',
-        alignItems: 'center',
-    },
-    unlinkConfirmButtonText: {
-        fontSize: 16,
-        fontFamily: Fonts.semiBold,
-        color: '#FFFFFF',
-    },
+    container: { flex: 1 },
+    content: { flex: 1 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1 },
+    toggleLabel: { fontSize: 16, fontFamily: Fonts.medium },
+    secondaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, marginTop: 16, gap: 8 },
+    secondaryButtonText: { fontSize: 15, fontFamily: Fonts.semiBold },
+    summaryContainer: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16 },
+    summaryIcon: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+    summaryTitle: { fontSize: 20, fontFamily: Fonts.bold, marginBottom: 4 },
+    summaryText: { fontSize: 14, fontFamily: Fonts.regular, textAlign: 'center' },
+    actionsContainer: { paddingHorizontal: 16, paddingVertical: 8 },
+    revokeAllButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12 },
+    revokeAllText: { fontSize: 15, fontFamily: Fonts.semiBold },
+    tipsContainer: { margin: 16, padding: 16, borderRadius: 12, borderWidth: 1 },
+    tipsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    tipsTitle: { fontSize: 15, fontFamily: Fonts.semiBold },
+    tipsText: { fontSize: 13, fontFamily: Fonts.regular, lineHeight: 20 },
+    activityCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
+    activityCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1 },
+    activityCardTitle: { fontSize: 16, fontFamily: Fonts.semiBold },
+    activityCardContent: { gap: 12 },
+    activityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    activityLabel: { fontSize: 14, fontFamily: Fonts.regular },
+    activityValue: { fontSize: 14, fontFamily: Fonts.medium },
+    statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+    statCard: { flex: 1, borderRadius: 12, padding: 16, alignItems: 'center' },
+    statNumber: { fontSize: 18, fontFamily: Fonts.bold, marginBottom: 4 },
+    statLabel: { fontSize: 12, fontFamily: Fonts.regular, textAlign: 'center' },
+    emptyState: { alignItems: 'center', paddingVertical: 60 },
+    emptyText: { fontSize: 15, fontFamily: Fonts.regular, marginTop: 12 },
+    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
+    addButtonText: { fontSize: 15, fontFamily: Fonts.semiBold },
 });
