@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { Animated, ViewStyle, useColorScheme } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { Animated, ViewStyle } from 'react-native';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SkeletonBoxProps {
     width: number | string;
@@ -10,8 +10,7 @@ interface SkeletonBoxProps {
 
 export const SkeletonBox = ({ width, height, style }: SkeletonBoxProps) => {
     const animatedValue = useRef(new Animated.Value(0)).current;
-    const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
+    const { theme } = useTheme();
     
     useEffect(() => {
         const animation = Animated.loop(

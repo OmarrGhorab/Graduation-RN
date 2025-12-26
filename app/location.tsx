@@ -8,12 +8,12 @@ import {
     RefreshControl,
     ActivityIndicator,
     StatusBar,
-    useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Colors, Fonts } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/libs/auth';
 import { useToast } from '@/components/toast';
 import {
@@ -34,9 +34,7 @@ export default function LocationScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const toast = useToast();
-    const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
-    const isDark = colorScheme === 'dark';
+    const { theme, isDark } = useTheme();
     
     const { user } = useAuthStore();
     const isParent = user?.role === 'PARENT';
