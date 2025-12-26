@@ -8,16 +8,17 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme
 } from 'react-native';
-import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { Fonts, Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
+    const isDark = colorScheme === 'dark';
+    const theme = isDark ? Colors.dark : Colors.light;
 
     const handleStartNow = () => {
         // Navigate to next onboarding screen or login
@@ -26,15 +27,15 @@ export default function OnboardingScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             
             {/* Content */}
             <View style={styles.content}>
                 {/* Subtitle */}
-                <Text style={styles.subtitle}>Online Learning...</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>Online Learning...</Text>
                 
                 {/* Main Title */}
-                <Text style={styles.title}>The Easiest Way To Start Your Journey</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>The Easiest Way To Start Your Journey</Text>
                 
                 {/* Illustration */}
                 <Image
@@ -47,7 +48,7 @@ export default function OnboardingScreen() {
             {/* Start Button */}
             <View style={styles.buttonContainer}>
                 <TouchableOpacity
-                    style={styles.startButton}
+                    style={[styles.startButton, { backgroundColor: theme.primary }]}
                     onPress={handleStartNow}
                     activeOpacity={0.8}
                 >
@@ -70,17 +71,13 @@ const styles = StyleSheet.create({
     },
     subtitle: {
         fontSize: 24,
-        fontFamily: 'System',
-        fontWeight: '300',
-        color: cskColors[500],
+        fontFamily: Fonts.light,
         textAlign: 'left',
         marginBottom: 16,
     },
     title: {
         fontSize: 24,
-        fontFamily: 'System',
-        fontWeight: '700',
-        color: cskColors[500],
+        fontFamily: Fonts.bold,
         textAlign: 'left',
         paddingHorizontal: 0,
         lineHeight: 32,
@@ -99,7 +96,6 @@ const styles = StyleSheet.create({
         paddingBottom: height * 0.08,
     },
     startButton: {
-        backgroundColor: cskColors[500],
         paddingVertical: 18,
         paddingHorizontal: 40,
         borderRadius: 12,
@@ -115,8 +111,7 @@ const styles = StyleSheet.create({
     },
     startButtonText: {
         fontSize: 18,
-        fontFamily: 'System',
-        fontWeight: '700',
+        fontFamily: Fonts.bold,
         color: '#FFFFFF',
     },
 });

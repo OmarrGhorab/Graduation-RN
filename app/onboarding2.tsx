@@ -8,16 +8,17 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme
 } from 'react-native';
-import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { Fonts, Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function Onboarding2Screen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
+    const isDark = colorScheme === 'dark';
+    const theme = isDark ? Colors.dark : Colors.light;
 
     const handleHalfScreenPress = () => {
         // Navigate to next onboarding screen
@@ -26,7 +27,7 @@ export default function Onboarding2Screen() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
             
             {/* Main Content */}
             <View style={styles.content}>
@@ -40,8 +41,8 @@ export default function Onboarding2Screen() {
             
             {/* Text Content - Centered */}
             <View style={styles.textContainer}>
-                <Text style={styles.title}>Learn Any Time</Text>
-                <Text style={styles.subtitle}>Anywhere And Accelerate Your Future</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>Learn Any Time</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>Anywhere And Accelerate Your Future</Text>
             </View>
             
             {/* Progress Indicator - Bottom Right */}
@@ -103,17 +104,13 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 24,
-        fontFamily: 'System',
-        fontWeight: '300',
-        color: cskColors[500],
+        fontFamily: Fonts.light,
         textAlign: 'left',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 26,
-        fontFamily: 'System',
-        fontWeight: '700',
-        color: cskColors[500],
+        fontFamily: Fonts.bold,
         textAlign: 'left',
     },
     rightHalfTouch: {

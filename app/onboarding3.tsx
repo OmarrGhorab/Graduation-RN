@@ -8,9 +8,9 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme
 } from 'react-native';
-import { cskColors, Fonts, Colors } from '@/constants/theme';
+import { Fonts, Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { completeOnboarding } from '@/services/OnboardingService';
 
 const { width, height } = Dimensions.get('window');
@@ -18,7 +18,8 @@ const { width, height } = Dimensions.get('window');
 export default function Onboarding3Screen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
+    const isDark = colorScheme === 'dark';
+    const theme = isDark ? Colors.dark : Colors.light;
 
     const handleHalfScreenPress = async () => {
         // Mark intro onboarding as completed
@@ -30,7 +31,7 @@ export default function Onboarding3Screen() {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
             {/* Main Content */}
             <View style={styles.content}>
@@ -44,8 +45,8 @@ export default function Onboarding3Screen() {
 
             {/* Text Content - Centered */}
             <View style={styles.textContainer}>
-                <Text style={styles.title}>best platform for both</Text>
-                <Text style={styles.subtitle}>teachers & Learners</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>best platform for both</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>teachers & Learners</Text>
             </View>
 
             {/* Progress Indicator - Bottom Right */}
@@ -93,17 +94,13 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 24,
-        fontFamily: 'System',
-        fontWeight: '300',
-        color: cskColors[500],
+        fontFamily: Fonts.light,
         textAlign: 'left',
         marginBottom: 8,
     },
     subtitle: {
         fontSize: 26,
-        fontFamily: 'System',
-        fontWeight: '700',
-        color: cskColors[500],
+        fontFamily: Fonts.bold,
         textAlign: 'left',
     },
     progressContainer: {
