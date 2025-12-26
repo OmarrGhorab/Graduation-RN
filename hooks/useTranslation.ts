@@ -1,22 +1,15 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { I18nManager, TextStyle } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { TextStyle } from 'react-native';
 import * as Updates from 'expo-updates';
-import i18n, { changeLanguage, getCurrentLanguage, initializeI18n, t } from '@/libs/i18n';
+import { t } from '@/libs/i18n';
+import { useLanguageStore } from '@/libs/language';
 
 export function useTranslation() {
-  const [locale, setLocale] = useState(getCurrentLanguage());
-  const [isRTL, setIsRTL] = useState(I18nManager.isRTL);
-
-  useEffect(() => {
-    // Sync state with i18n
-    setLocale(getCurrentLanguage());
-    setIsRTL(I18nManager.isRTL);
-  }, []);
+  // Use global language store - all components share this state
+  const { locale, isRTL, setLocale } = useLanguageStore();
 
   const setLanguage = useCallback(async (languageCode: string) => {
-    const needsRestart = await changeLanguage(languageCode);
-    setLocale(languageCode);
-    setIsRTL(languageCode === 'ar');
+    const needsRestart = await setLocale(languageCode);
 
     if (needsRestart) {
       // RTL change requires app restart
@@ -32,12 +25,12 @@ export function useTranslation() {
       return true; // Indicates restart needed
     }
     return false;
-  }, []);
+  }, [setLocale]);
 
   // Translation function that triggers re-render on locale change
   const translate = useCallback((key: string, options?: Record<string, any>) => {
     return t(key, options);
-  }, [locale]);
+  }, [locale]); // Re-create when locale changes
 
   // Text alignment for inputs
   const textAlign = useMemo((): 'left' | 'right' => {
@@ -63,8 +56,10 @@ export function useTranslation() {
     textAlign,
     writingDirection,
     inputStyle,
-    i18n,
   };
 }
 
-export { initializeI18n };
+// Initialize language on app start
+export const initializeLanguage = async () => {
+  await useLanguageStore.getState().initialize();
+};

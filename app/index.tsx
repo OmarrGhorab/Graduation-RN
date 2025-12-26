@@ -16,6 +16,7 @@ import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/Onbo
 import { useAuthStore } from '@/libs/auth';
 import { getUserProfile } from '@/services/AuthService';
 import { useTheme } from '@/hooks/useTheme';
+import { t } from '@/libs/i18n';
 
 const { width, height } = Dimensions.get('window');
 
@@ -165,7 +166,7 @@ export default function WelcomeScreen() {
                     ]}
                 >
                     <Text style={styles.pathifyText}>
-                        Pathify<Text style={[styles.pathifyDot, { color: theme.warning[500] }]}>.</Text>
+                        {t('splash.appName')}<Text style={[styles.pathifyDot, { color: theme.warning[500] }]}>.</Text>
                     </Text>
                 </Animated.View>
 
@@ -201,7 +202,7 @@ export default function WelcomeScreen() {
 
                 {/* Tagline */}
                 <Animated.View style={[styles.taglineContainer, { opacity: fadeAnim }]}>
-                    <Text style={styles.taglineText}>Your Path to Easy Learning</Text>
+                    <Text style={styles.taglineText}>{t('splash.tagline')}</Text>
                 </Animated.View>
             </View>
         </View>

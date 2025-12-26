@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useFonts, Rubik_300Light, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black } from '@expo-google-fonts/rubik';
 import * as SplashScreen from 'expo-splash-screen';
-import { initializeI18n } from '@/hooks/useTranslation';
+import { initializeLanguage } from '@/hooks/useTranslation';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ToastProvider } from '@/components/toast';
@@ -61,7 +61,7 @@ export default function RootLayout() {
 
   // Initialize i18n
   useEffect(() => {
-    initializeI18n().then(() => {
+    initializeLanguage().then(() => {
       setI18nReady(true);
     });
   }, []);

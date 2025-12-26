@@ -304,7 +304,7 @@ export default function OnboardingStep1() {
             return;
         }
 
-        setStep1Data({
+        const step1Data = {
             dateOfBirth: dateOfBirth.toISOString(),
             gender: gender as 'MALE' | 'FEMALE' | 'OTHER',
             country,
@@ -314,7 +314,13 @@ export default function OnboardingStep1() {
                 themePreference: selectedTheme === 'system' ? 'light' : selectedTheme as 'light' | 'dark',
                 notifications: true,
             }
-        });
+        };
+
+        // Debug: Log the data being stored
+        console.log('[Onboarding Step1] Storing data:', JSON.stringify(step1Data, null, 2));
+        console.log('[Onboarding Step1] Language selected:', language);
+
+        setStep1Data(step1Data);
 
         router.push('/onboarding/step2');
     };

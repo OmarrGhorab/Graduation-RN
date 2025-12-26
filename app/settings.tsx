@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, ScrollView, ActivityIndicator, RefreshControl, Switch, BackHandler, Text, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, ScrollView, ActivityIndicator, RefreshControl, Switch, BackHandler, Text, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -92,6 +92,7 @@ export default function SettingsScreen() {
     const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
     const [showUnlinkModal, setShowUnlinkModal] = useState(false);
     const [unlinkTargetParent, setUnlinkTargetParent] = useState<{ id: string; name: string } | null>(null);
+    const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
     const isParent = user?.role === 'PARENT';
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -227,6 +228,8 @@ export default function SettingsScreen() {
     const handleUpdatePreference = (key: string, value: any) => updatePreferenceMutation.mutate({ [key]: value });
 
     const handleLanguageChange = async (languageCode: string) => {
+        setShowLanguageModal(false);
+        
         // Update preference in backend
         updatePreferenceMutation.mutate({ language: languageCode });
         
@@ -234,36 +237,35 @@ export default function SettingsScreen() {
         const needsRestart = await setLanguage(languageCode);
         
         if (needsRestart) {
-            // RTL change requires app restart
-            Alert.alert(
-                languageCode === 'ar' ? 'إعادة تشغيل مطلوبة' : 'Restart Required',
-                languageCode === 'ar' 
-                    ? 'يجب إعادة تشغيل التطبيق لتطبيق تغييرات اللغة'
-                    : 'The app needs to restart to apply language changes',
-                [
-                    {
-                        text: languageCode === 'ar' ? 'إعادة التشغيل الآن' : 'Restart Now',
-                        onPress: async () => {
-                            try {
-                                if (!__DEV__) {
-                                    await Updates.reloadAsync();
-                                } else {
-                                    toast.info('Development Mode', 'Please manually restart the app to see RTL changes');
-                                }
-                            } catch (e) {
-                                toast.info('Restart Required', 'Please manually restart the app');
-                            }
-                        }
-                    },
-                    {
-                        text: languageCode === 'ar' ? 'لاحقاً' : 'Later',
-                        style: 'cancel'
+            // Show loading overlay and auto-restart
+            setIsChangingLanguage(true);
+            
+            // Small delay to show the loading state
+            setTimeout(async () => {
+                try {
+                    if (!__DEV__) {
+                        await Updates.reloadAsync();
+                    } else {
+                        // In development, we can't auto-reload, so show a message
+                        setIsChangingLanguage(false);
+                        toast.info(
+                            languageCode === 'ar' ? 'وضع التطوير' : 'Development Mode',
+                            languageCode === 'ar' 
+                                ? 'يرجى إعادة تشغيل التطبيق يدوياً لرؤية تغييرات RTL'
+                                : 'Please manually restart the app to see RTL changes'
+                        );
                     }
-                ]
-            );
+                } catch (e) {
+                    setIsChangingLanguage(false);
+                    toast.info(
+                        languageCode === 'ar' ? 'إعادة التشغيل مطلوبة' : 'Restart Required',
+                        languageCode === 'ar' 
+                            ? 'يرجى إعادة تشغيل التطبيق يدوياً'
+                            : 'Please manually restart the app'
+                    );
+                }
+            }, 500);
         }
-        
-        setShowLanguageModal(false);
     };
 
     const onRefresh = useCallback(async () => {
@@ -772,6 +774,18 @@ export default function SettingsScreen() {
             <PickerModal visible={showLanguageModal} title={t('settings.selectLanguage')} options={languages} selectedValue={locale} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
 
             <PickerModal visible={showThemeModal} title={t('settings.selectTheme')} options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
+
+            {/* Language Change Loading Overlay */}
+            {isChangingLanguage && (
+                <View style={styles.languageOverlay}>
+                    <View style={[styles.languageOverlayContent, { backgroundColor: theme.surface }]}>
+                        <ActivityIndicator size="large" color={theme.primary} />
+                        <Text style={[styles.languageOverlayText, { color: theme.text }]}>
+                            {locale === 'ar' ? 'جاري تغيير اللغة...' : 'Changing language...'}
+                        </Text>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -813,4 +827,25 @@ const styles = StyleSheet.create({
     trustedDeviceIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
     statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
     statusText: { fontSize: 11, fontFamily: Fonts.medium, textTransform: 'capitalize' },
+    languageOverlay: { 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        zIndex: 9999,
+    },
+    languageOverlayContent: { 
+        padding: 32, 
+        borderRadius: 16, 
+        alignItems: 'center',
+        gap: 16,
+    },
+    languageOverlayText: { 
+        fontSize: 16, 
+        fontFamily: Fonts.medium,
+    },
 });

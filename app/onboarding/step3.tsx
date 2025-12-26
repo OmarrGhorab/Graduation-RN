@@ -36,6 +36,12 @@ export default function OnboardingStep3() {
     const { formData, setStep3Data } = useOnboardingStore();
     const toast = useToast();
 
+    // Debug: Log formData on mount
+    useEffect(() => {
+        console.log('[Onboarding Step3] formData on mount:', JSON.stringify(formData, null, 2));
+        console.log('[Onboarding Step3] Language from store:', formData.preferences?.language);
+    }, []);
+
     // Get goal keys (English) for storage
     const GOALS = GOALS_OPTIONS.map(g => g.key);
 
@@ -173,6 +179,10 @@ export default function OnboardingStep3() {
                 notifications: notifications,
             }
         } as ProfileCompletionBody;
+
+        // Debug: Log the data being sent
+        console.log('[Onboarding] Submitting data:', JSON.stringify(completeData, null, 2));
+        console.log('[Onboarding] Language being sent:', completeData.preferences?.language);
 
         setIsLoading(true);
         try {

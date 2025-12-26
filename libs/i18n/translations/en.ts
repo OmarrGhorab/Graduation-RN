@@ -1,4 +1,10 @@
 export default {
+  // Splash
+  splash: {
+    appName: 'Pathify',
+    tagline: 'Your Path to Easy Learning',
+  },
+
   // Common
   common: {
     loading: 'Loading...',
