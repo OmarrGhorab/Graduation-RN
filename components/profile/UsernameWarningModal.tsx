@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 
 interface UsernameWarningModalProps {
@@ -16,6 +17,7 @@ export default function UsernameWarningModal({
     onConfirm,
 }: UsernameWarningModalProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -28,11 +30,10 @@ export default function UsernameWarningModal({
                 >
                     <Ionicons name="warning" size={48} color="#F59E0B" />
                     <Text style={[styles.title, { color: isDark ? theme.text : theme.gray[900] }]}>
-                        Change Username?
+                        {t('profile.changeUsername')}
                     </Text>
                     <Text style={[styles.text, { color: isDark ? theme.gray[700] : theme.gray[600] }]}>
-                        You can only change your username once every 7 days. After changing it, you
-                        won't be able to change it again until the cooldown period ends.
+                        {t('profile.usernameWarningText')}
                     </Text>
                     <View style={styles.buttons}>
                         <TouchableOpacity
@@ -48,11 +49,11 @@ export default function UsernameWarningModal({
                                     { color: isDark ? theme.gray[800] : theme.gray[700] },
                                 ]}
                             >
-                                Cancel
+                                {t('common.cancel')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.confirmButton} onPress={onConfirm}>
-                            <Text style={styles.confirmButtonText}>Continue</Text>
+                            <Text style={styles.confirmButtonText}>{t('common.continue')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

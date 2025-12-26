@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ImageOptionsModalProps {
     visible: boolean;
@@ -18,6 +19,7 @@ export function ImageOptionsModal({
     onPickImage 
 }: ImageOptionsModalProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Modal
@@ -34,7 +36,7 @@ export function ImageOptionsModal({
                 <View style={[styles.container, { backgroundColor: theme.background }]}>
                     <View style={styles.content}>
                         <Text style={[styles.title, { color: theme.text }]}>
-                            Change Profile Picture
+                            {t('account.changeProfilePicture')}
                         </Text>
                         
                         <TouchableOpacity
@@ -43,7 +45,7 @@ export function ImageOptionsModal({
                         >
                             <Ionicons name="camera-outline" size={24} color={theme.gray[700]} />
                             <Text style={[styles.optionText, { color: theme.gray[700] }]}>
-                                Take Photo
+                                {t('account.takePhoto')}
                             </Text>
                         </TouchableOpacity>
 
@@ -53,7 +55,7 @@ export function ImageOptionsModal({
                         >
                             <Ionicons name="images-outline" size={24} color={theme.gray[700]} />
                             <Text style={[styles.optionText, { color: theme.gray[700] }]}>
-                                Choose from Gallery
+                                {t('account.chooseFromGallery')}
                             </Text>
                         </TouchableOpacity>
 
@@ -66,7 +68,7 @@ export function ImageOptionsModal({
                             onPress={onClose}
                         >
                             <Text style={[styles.cancelText, { color: theme.error[500] }]}>
-                                Cancel
+                                {t('common.cancel')}
                             </Text>
                         </TouchableOpacity>
                     </View>

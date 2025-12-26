@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
 import { useThemeStore } from '@/libs/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface ImageOptionsSheetProps {
@@ -30,6 +31,7 @@ export const ImageOptionsSheet = ({
 }: ImageOptionsSheetProps) => {
     const systemColorScheme = useColorScheme();
     const { themeMode } = useThemeStore();
+    const { t } = useTranslation();
     
     const currentTheme = themeMode === 'system'
         ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -48,7 +50,7 @@ export const ImageOptionsSheet = ({
                     color: isDark ? theme.text : '#11181C',
                     fontFamily: Fonts?.semiBold 
                 }]}>
-                    Profile Photo
+                    {t('onboarding.profilePhoto')}
                 </Text>
             </View>
             
@@ -60,7 +62,7 @@ export const ImageOptionsSheet = ({
                     color: isDark ? theme.text : '#11181C',
                     fontFamily: Fonts?.medium 
                 }]}>
-                    Take Photo
+                    {t('onboarding.takePhoto')}
                 </Text>
             </TouchableOpacity>
             
@@ -72,7 +74,7 @@ export const ImageOptionsSheet = ({
                     color: isDark ? theme.text : '#11181C',
                     fontFamily: Fonts?.medium 
                 }]}>
-                    Choose from Gallery
+                    {t('onboarding.chooseFromGallery')}
                 </Text>
             </TouchableOpacity>
             
@@ -85,7 +87,7 @@ export const ImageOptionsSheet = ({
                         color: '#EF4444',
                         fontFamily: Fonts?.medium 
                     }]}>
-                        Delete Photo
+                        {t('onboarding.deletePhoto')}
                     </Text>
                 </TouchableOpacity>
             )}

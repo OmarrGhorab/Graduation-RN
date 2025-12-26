@@ -20,7 +20,7 @@ export const getNotificationIcon = (type: string, isDark: boolean): Notification
     }
 };
 
-export const formatTimeAgo = (dateString: string): string => {
+export const formatTimeAgo = (dateString: string, t: (key: string, params?: Record<string, any>) => string): string => {
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -28,11 +28,15 @@ export const formatTimeAgo = (dateString: string): string => {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffMins < 1) return t('notifications.justNow');
+    if (diffMins < 60) return t('notifications.minAgo', { count: diffMins });
+    if (diffHours < 24) {
+        return diffHours === 1 
+            ? t('notifications.hourAgo', { count: diffHours })
+            : t('notifications.hoursAgo', { count: diffHours });
+    }
+    if (diffDays === 1) return t('notifications.yesterday');
+    if (diffDays < 7) return t('notifications.daysAgo', { count: diffDays });
     
     return date.toLocaleDateString();
 };

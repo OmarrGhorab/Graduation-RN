@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts } from '@/constants/theme';
 import { LocationData } from '@/hooks/useLocation';
+import { useTranslation } from '@/hooks/useTranslation';
 import { formatDateTime, getMapUrl, openInMaps } from './locationUtils';
 
 interface HistoryItemProps {
@@ -13,10 +14,11 @@ interface HistoryItemProps {
 
 export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
     const { date, time } = formatDateTime(item.timestamp);
     
     const handlePress = () => {
-        openInMaps(item.latitude, item.longitude, item.address || 'Location');
+        openInMaps(item.latitude, item.longitude, item.address || t('location.title'));
     };
     
     return (
@@ -61,7 +63,7 @@ export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
                         color: theme.gray[700], 
                         fontFamily: Fonts.regular 
                     }]} numberOfLines={2}>
-                        {item.address || 'Address unavailable'}
+                        {item.address || t('location.addressUnavailable')}
                     </Text>
                 </View>
                 
@@ -72,7 +74,7 @@ export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
                             color: theme.gray[400], 
                             fontFamily: Fonts.regular 
                         }]}>
-                            Within {Math.round(item.accuracy)}m
+                            {t('location.withinMeters', { meters: Math.round(item.accuracy) })}
                         </Text>
                     </View>
                 )}

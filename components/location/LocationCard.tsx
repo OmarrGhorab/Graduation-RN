@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { MapPreview } from './MapPreview';
 
 // Format timestamp to readable string
@@ -65,6 +66,7 @@ export const LocationCard = memo(({
     isRequestingLocation = false,
 }: LocationCardProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
     
     const hasLocation = location && location.latitude && location.longitude;
     const isPrecise = location?.accuracy && location.accuracy < 50;
@@ -110,7 +112,7 @@ export const LocationCard = memo(({
                                     fontFamily: Fonts?.medium 
                                 }
                             ]}>
-                                {isOnline ? 'Online' : 'Offline'}
+                                {isOnline ? t('location.online') : t('location.offline')}
                             </Text>
                         )}
                     </View>
@@ -139,7 +141,7 @@ export const LocationCard = memo(({
                                 fontFamily: Fonts?.medium 
                             }
                         ]}>
-                            {isPrecise ? 'Precise' : 'Approximate'}
+                            {isPrecise ? t('location.precise') : t('location.approximate')}
                         </Text>
                     </View>
                 )}
@@ -159,7 +161,7 @@ export const LocationCard = memo(({
                             color: theme.gray[700],
                             fontFamily: Fonts?.medium 
                         }]} numberOfLines={2}>
-                            {location.address || 'Address unavailable'}
+                            {location.address || t('location.addressUnavailable')}
                         </Text>
                     </View>
                     
@@ -170,7 +172,7 @@ export const LocationCard = memo(({
                                 color: theme.gray[500],
                                 fontFamily: Fonts?.regular 
                             }]}>
-                                Accurate within {Math.round(location.accuracy)} meters
+                                {t('location.accurateWithinMeters', { meters: Math.round(location.accuracy) })}
                             </Text>
                         </View>
                     )}
@@ -182,7 +184,7 @@ export const LocationCard = memo(({
                         color: theme.gray[500],
                         fontFamily: Fonts?.medium 
                     }]}>
-                        Location unavailable
+                        {t('location.locationUnavailable')}
                     </Text>
                 </View>
             )}
@@ -204,7 +206,7 @@ export const LocationCard = memo(({
                                         color: theme.primary,
                                         fontFamily: Fonts?.medium 
                                     }]}>
-                                        {isOnline ? 'Refresh Location' : 'Request Location'}
+                                        {isOnline ? t('location.refreshLocation') : t('location.requestLocation')}
                                     </Text>
                                 </>
                             )}
@@ -219,7 +221,7 @@ export const LocationCard = memo(({
                             color: theme.primary,
                             fontFamily: Fonts?.medium 
                         }]}>
-                            View history
+                            {t('location.viewHistory')}
                         </Text>
                         <Ionicons name="chevron-forward" size={16} color={theme.primary} />
                     </TouchableOpacity>

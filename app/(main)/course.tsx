@@ -1,13 +1,16 @@
 import React from 'react';
 import { StyleSheet, View, Text, StatusBar } from 'react-native';
+import { useTranslation } from '@/hooks/useTranslation';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 
 export default function CourseScreen() {
+    const { t } = useTranslation();
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-            <Text style={styles.title}>Courses</Text>
-            <Text style={styles.subtitle}>Your enrolled courses will appear here</Text>
+            <Text style={styles.title}>{t('course.title')}</Text>
+            <Text style={styles.subtitle}>{t('course.emptyState')}</Text>
         </View>
     );
 }

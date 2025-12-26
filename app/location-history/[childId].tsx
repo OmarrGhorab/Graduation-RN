@@ -17,6 +17,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
 import { GEOAPIFY_API_KEY } from '@/constants/config';
 import { useChildLocation, useChildLocationHistory, LocationData } from '@/hooks/useLocation';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Skeleton shimmer component
 const SkeletonBox = ({ width, height, style }: { width: number | string; height: number; style?: any }) => {
@@ -106,7 +107,7 @@ const getMapUrl = (latitude: number, longitude: number) => {
 };
 
 // Location History Item
-const HistoryItem = ({ item, isFirst }: { item: LocationData; isFirst: boolean }) => {
+const HistoryItem = ({ item, isFirst, t }: { item: LocationData; isFirst: boolean; t: (key: string, params?: any) => string }) => {
     const { date, time } = formatDateTime(item.timestamp);
     
     return (
@@ -137,7 +138,7 @@ const HistoryItem = ({ item, isFirst }: { item: LocationData; isFirst: boolean }
                 <View style={styles.historyLocation}>
                     <Ionicons name="location" size={14} color={cskColors[500]} />
                     <Text style={styles.historyAddress} numberOfLines={2}>
-                        {item.address || 'Address unavailable'}
+                        {item.address || t('location.addressUnavailable')}
                     </Text>
                 </View>
                 
@@ -145,7 +146,7 @@ const HistoryItem = ({ item, isFirst }: { item: LocationData; isFirst: boolean }
                     <View style={styles.historyAccuracy}>
                         <Ionicons name="radio-outline" size={12} color={grayColors[400]} />
                         <Text style={styles.historyAccuracyText}>
-                            Within {Math.round(item.accuracy)}m
+                            {t('location.withinMeters', { meters: Math.round(item.accuracy) })}
                         </Text>
                     </View>
                 )}
@@ -158,6 +159,7 @@ export default function LocationHistoryScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { childId } = useLocalSearchParams<{ childId: string }>();
+    const { t } = useTranslation();
     
     const [refreshing, setRefreshing] = useState(false);
     
@@ -201,8 +203,8 @@ export default function LocationHistoryScreen() {
     const isLoading = isLoadingCurrent || isLoadingHistory;
     
     const renderItem = useCallback(({ item, index }: { item: LocationData; index: number }) => (
-        <HistoryItem item={item} isFirst={index === 0} />
-    ), []);
+        <HistoryItem item={item} isFirst={index === 0} t={t} />
+    ), [t]);
     
     const keyExtractor = useCallback((item: LocationData, index: number) => 
         `${item.id || item.timestamp}-${index}`, []);
@@ -215,11 +217,11 @@ export default function LocationHistoryScreen() {
                     <View style={styles.currentHeader}>
                         <View style={styles.currentBadge}>
                             <View style={styles.liveDot} />
-                            <Text style={styles.liveText}>Current Location</Text>
+                            <Text style={styles.liveText}>{t('location.currentLocation')}</Text>
                         </View>
                         {currentLocation.accuracy && (
                             <Text style={styles.currentAccuracy}>
-                                Within {Math.round(currentLocation.accuracy)}m
+                                {t('location.withinMeters', { meters: Math.round(currentLocation.accuracy) })}
                             </Text>
                         )}
                     </View>
@@ -234,7 +236,7 @@ export default function LocationHistoryScreen() {
                     <View style={styles.currentLocation}>
                         <Ionicons name="location" size={20} color={cskColors[500]} />
                         <Text style={styles.currentAddress} numberOfLines={2}>
-                            {currentLocation.address || 'Address unavailable'}
+                            {currentLocation.address || t('location.addressUnavailable')}
                         </Text>
                     </View>
                 </View>
@@ -242,10 +244,10 @@ export default function LocationHistoryScreen() {
             
             {/* History Header */}
             <View style={styles.historyTitleRow}>
-                <Text style={styles.historyTitle}>Location History</Text>
+                <Text style={styles.historyTitle}>{t('location.locationHistory')}</Text>
                 {historyData?.pages?.[0]?.pagination && (
                     <Text style={styles.historyCount}>
-                        {historyData.pages[0].pagination.total} locations
+                        {t('location.locationsCount', { count: historyData.pages[0].pagination.total })}
                     </Text>
                 )}
             </View>
@@ -264,9 +266,9 @@ export default function LocationHistoryScreen() {
     const ListEmpty = () => (
         <View style={styles.emptyContainer}>
             <Ionicons name="time-outline" size={48} color={grayColors[300]} />
-            <Text style={styles.emptyText}>No location history</Text>
+            <Text style={styles.emptyText}>{t('location.noLocationHistory')}</Text>
             <Text style={styles.emptySubtext}>
-                Location history will appear here as the child moves
+                {t('location.childHistoryWillAppear')}
             </Text>
         </View>
     );
@@ -285,7 +287,7 @@ export default function LocationHistoryScreen() {
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
                     <Text style={styles.headerTitle}>
-                        {childInfo?.name || childInfo?.username || 'Location History'}
+                        {childInfo?.name || childInfo?.username || t('location.locationHistory')}
                     </Text>
                     {childInfo && (
                         <Text style={styles.headerSubtitle}>@{childInfo.username}</Text>

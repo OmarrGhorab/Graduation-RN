@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { ParentUser } from '@/services/ParentLinkService';
 
 interface SearchParentModalProps {
@@ -30,13 +31,14 @@ export function SearchParentModal({
     onSendRequest,
 }: SearchParentModalProps) {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <View style={[styles.content, { backgroundColor: theme.background }]}>
                     <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                        <Text style={[styles.title, { color: theme.text }]}>Find Parent</Text>
+                        <Text style={[styles.title, { color: theme.text }]}>{t('settings.findParent')}</Text>
                         <TouchableOpacity onPress={onClose}>
                             <Ionicons name="close" size={24} color={theme.gray[600]} />
                         </TouchableOpacity>
@@ -46,7 +48,7 @@ export function SearchParentModal({
                         <Ionicons name="search" size={20} color={theme.gray[400]} />
                         <TextInput
                             style={[styles.searchInput, { color: theme.text }]}
-                            placeholder="Search by name or username"
+                            placeholder={t('settings.searchByNameOrUsername')}
                             placeholderTextColor={theme.gray[400]}
                             value={searchQuery}
                             onChangeText={onSearchChange}
@@ -64,7 +66,7 @@ export function SearchParentModal({
                         {isSearching ? (
                             <View style={styles.emptyContainer}>
                                 <ActivityIndicator size="large" color={theme.primary} />
-                                <Text style={[styles.emptyText, { color: theme.gray[500] }]}>Searching...</Text>
+                                <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{t('settings.searching')}</Text>
                             </View>
                         ) : searchResults.length > 0 ? (
                             searchResults.map((parent) => (
@@ -90,7 +92,7 @@ export function SearchParentModal({
                                         {processingId === parent.id ? (
                                             <ActivityIndicator size="small" color="#FFFFFF" />
                                         ) : (
-                                            <Text style={styles.linkButtonText}>Link</Text>
+                                            <Text style={styles.linkButtonText}>{t('settings.link')}</Text>
                                         )}
                                     </TouchableOpacity>
                                 </View>
@@ -98,17 +100,17 @@ export function SearchParentModal({
                         ) : searchQuery.trim() ? (
                             <View style={styles.emptyContainer}>
                                 <Ionicons name="search-outline" size={48} color={theme.gray[300]} />
-                                <Text style={[styles.emptyTitle, { color: theme.gray[600] }]}>No parents found</Text>
+                                <Text style={[styles.emptyTitle, { color: theme.gray[600] }]}>{t('settings.noParentsFound')}</Text>
                                 <Text style={[styles.emptySubtext, { color: theme.gray[400] }]}>
-                                    Try a different name or username
+                                    {t('settings.tryDifferentNameOrUsername')}
                                 </Text>
                             </View>
                         ) : (
                             <View style={styles.emptyContainer}>
                                 <Ionicons name="people-outline" size={48} color={theme.gray[300]} />
-                                <Text style={[styles.emptyTitle, { color: theme.gray[600] }]}>Search for a parent</Text>
+                                <Text style={[styles.emptyTitle, { color: theme.gray[600] }]}>{t('settings.searchForParent')}</Text>
                                 <Text style={[styles.emptySubtext, { color: theme.gray[400] }]}>
-                                    Enter a name or username to find parents
+                                    {t('settings.enterNameOrUsernameToFind')}
                                 </Text>
                             </View>
                         )}

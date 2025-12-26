@@ -1,17 +1,19 @@
 import React, { memo } from 'react';
 import { View, Text, Pressable, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from '@/hooks/useTranslation';
 import { NotificationItemProps } from './types';
 import { getNotificationIcon, formatTimeAgo } from './utils';
 import { useNotificationStyles } from './useNotificationStyles';
 
 const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProps) => {
     const { styles, colors, isDark } = useNotificationStyles();
+    const { t } = useTranslation();
     
     const icon = getNotificationIcon(item.type, isDark);
     const profileImg = item.data.child?.profileImg;
-    const childName = item.data.child?.name || 'Someone';
-    const time = formatTimeAgo(item.createdAt);
+    const childName = item.data.child?.name || t('notifications.someone');
+    const time = formatTimeAgo(item.createdAt, t);
     const isParentLinkRequest = item.type === 'parent_link_request';
     
     // Check if this request has been responded to
@@ -26,11 +28,11 @@ const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProp
     
     if (isParentLinkRequest && hasResponded) {
         if (isAccepted) {
-            title = 'Link Request Accepted';
-            body = `You accepted ${childName}'s link request`;
+            title = t('notifications.linkRequestAccepted');
+            body = t('notifications.acceptedRequest', { name: childName });
         } else {
-            title = 'Link Request Declined';
-            body = `You declined ${childName}'s link request`;
+            title = t('notifications.linkRequestDeclined');
+            body = t('notifications.declinedRequest', { name: childName });
         }
     }
 
@@ -76,7 +78,7 @@ const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProp
                             styles.statusText,
                             isAccepted ? styles.statusTextAccepted : styles.statusTextDeclined
                         ]}>
-                            {isAccepted ? 'Accepted' : 'Declined'}
+                            {isAccepted ? t('notifications.accepted') : t('notifications.declined')}
                         </Text>
                     </View>
                 )}
@@ -85,7 +87,7 @@ const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProp
                     <View style={[styles.statusBadge, styles.statusPending]}>
                         <Ionicons name="time-outline" size={14} color={colors.statusPendingText} />
                         <Text style={[styles.statusText, styles.statusTextPending]}>
-                            Pending
+                            {t('notifications.pending')}
                         </Text>
                     </View>
                 )}

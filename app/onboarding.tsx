@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const handleStartNow = () => {
         // Navigate to next onboarding screen or login
@@ -30,10 +32,10 @@ export default function OnboardingScreen() {
             {/* Content */}
             <View style={styles.content}>
                 {/* Subtitle */}
-                <Text style={[styles.subtitle, { color: theme.primary }]}>Online Learning...</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>{t('onboarding.onlineLearning')}</Text>
                 
                 {/* Main Title */}
-                <Text style={[styles.title, { color: theme.primary }]}>The Easiest Way To Start Your Journey</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('onboarding.easiestWay')}</Text>
                 
                 {/* Illustration */}
                 <Image
@@ -50,7 +52,7 @@ export default function OnboardingScreen() {
                     onPress={handleStartNow}
                     activeOpacity={0.8}
                 >
-                    <Text style={styles.startButtonText}>Start Now</Text>
+                    <Text style={styles.startButtonText}>{t('onboarding.startNow')}</Text>
                 </TouchableOpacity>
             </View>
         </View>

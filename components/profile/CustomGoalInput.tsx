@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 
 interface CustomGoalInputProps {
@@ -12,6 +13,7 @@ interface CustomGoalInputProps {
 
 export default function CustomGoalInput({ value, onChangeText, onSubmit }: CustomGoalInputProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <View style={styles.container}>
@@ -24,7 +26,7 @@ export default function CustomGoalInput({ value, onChangeText, onSubmit }: Custo
                         color: isDark ? theme.text : theme.gray[900],
                     },
                 ]}
-                placeholder="Enter your custom goal..."
+                placeholder={t('profile.customGoalPlaceholder')}
                 placeholderTextColor={isDark ? theme.gray[500] : theme.gray[400]}
                 value={value}
                 onChangeText={onChangeText}

@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Modal, TextInput, ActivityInd
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ConfirmModalProps {
     visible: boolean;
@@ -44,6 +45,7 @@ export function ConfirmModal({
     textConfirmInput,
 }: ConfirmModalProps) {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Modal
@@ -62,9 +64,9 @@ export function ConfirmModal({
 
                     {textConfirmInput && (
                         <Text style={[styles.confirmInstructions, { color: theme.gray[600] }]}>
-                            Type <Text style={[styles.keyword, { color: theme.error[500] }]}>
+                            {t('settings.typeToConfirm')} <Text style={[styles.keyword, { color: theme.error[500] }]}>
                                 {textConfirmInput.keyword}
-                            </Text> to confirm
+                            </Text> {t('settings.toConfirm')}
                         </Text>
                     )}
 
@@ -92,7 +94,7 @@ export function ConfirmModal({
                             }]}
                             value={textConfirmInput.value}
                             onChangeText={textConfirmInput.onChange}
-                            placeholder={`Type ${textConfirmInput.keyword}`}
+                            placeholder={`${t('settings.typeToConfirm')} ${textConfirmInput.keyword}`}
                             placeholderTextColor={theme.gray[400]}
                             autoCapitalize="characters"
                         />
@@ -104,7 +106,7 @@ export function ConfirmModal({
                             onPress={onCancel}
                         >
                             <Text style={[styles.cancelText, { color: theme.gray[700] }]}>
-                                Cancel
+                                {t('common.cancel')}
                             </Text>
                         </TouchableOpacity>
                         <TouchableOpacity

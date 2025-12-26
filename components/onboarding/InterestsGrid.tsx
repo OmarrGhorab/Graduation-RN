@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { InterestChip } from './InterestChip';
 
@@ -16,14 +17,15 @@ export const InterestsGrid = ({
     onToggleInterest 
 }: InterestsGridProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
     
     return (
         <View style={styles.container}>
             <Text style={[styles.title, { color: theme.text, fontFamily: Fonts.semiBold }]}>
-                Select Your Interests
+                {t('onboarding.selectYourInterests')}
             </Text>
             <Text style={[styles.subtitle, { color: theme.gray[500], fontFamily: Fonts.regular }]}>
-                Choose up to 5 topics you're interested in
+                {t('onboarding.chooseUpTo5')}
             </Text>
             
             <View style={styles.grid}>

@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
 export default function Onboarding2Screen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const handleHalfScreenPress = () => {
         // Navigate to next onboarding screen
@@ -39,8 +41,8 @@ export default function Onboarding2Screen() {
             
             {/* Text Content - Centered */}
             <View style={styles.textContainer}>
-                <Text style={[styles.title, { color: theme.primary }]}>Learn Any Time</Text>
-                <Text style={[styles.subtitle, { color: theme.primary }]}>Anywhere And Accelerate Your Future</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('onboarding.learnAnyTime')}</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>{t('onboarding.anywhereAccelerate')}</Text>
             </View>
             
             {/* Progress Indicator - Bottom Right */}

@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, ActivityIndicator } fr
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ParentLinkCardProps {
     name: string;
@@ -32,6 +33,7 @@ export function ParentLinkCard({
     onDecline,
 }: ParentLinkCardProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const bgColor = isPending 
         ? (isDark ? '#3D2A11' : '#FEF3C7')
@@ -99,7 +101,7 @@ export function ParentLinkCard({
                     borderColor: '#F59E0B' 
                 }]}>
                     <Text style={[styles.pendingText, { color: isDark ? '#FCD34D' : '#92400E' }]}>
-                        Pending
+                        {t('settings.pending')}
                     </Text>
                 </View>
             )}

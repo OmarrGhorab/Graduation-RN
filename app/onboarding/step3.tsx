@@ -18,6 +18,7 @@ import { ParentSearchSection } from '@/components/onboarding/ParentSearchSection
 import { GoalsSection } from '@/components/onboarding/GoalsSection';
 import { PreferenceToggle } from '@/components/onboarding/PreferenceToggle';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { useOnboardingStore } from '@/libs/onboarding';
 import { submitOnboarding, searchParents } from '@/services/AuthService';
@@ -27,16 +28,17 @@ import { ProfileCompletionBody } from '@/types/auth';
 
 type Parent = { id: string; username: string; name: string; profileImg?: string };
 
-const GOALS = [
-    'Career Advancement', 'Personal Growth', 'Skill Development', 'Hobby',
-    'Start a Business', 'Get Certified', 'Teach Others', 'Stay Updated', 'Others',
-];
-
 export default function OnboardingStep3() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const { formData, setStep3Data } = useOnboardingStore();
     const toast = useToast();
+
+    const GOALS = [
+        t('onboarding.careerAdvancement'), t('onboarding.personalGrowth'), t('onboarding.skillDevelopment'), t('onboarding.hobby'),
+        t('onboarding.startBusiness'), t('onboarding.getCertified'), t('onboarding.teachOthers'), t('onboarding.stayUpdated'), t('onboarding.others'),
+    ];
 
     // Initialize from Zustand store
     const storedGoals = formData.goals || [];
@@ -98,14 +100,14 @@ export default function OnboardingStep3() {
 
     const handleSelectParent = useCallback((parent: Parent) => {
         if (selectedParents.some(p => p.id === parent.id)) {
-            toast.warning('Already Selected', `${parent.name} is already in your list`);
+            toast.warning(t('onboarding.alreadySelected'), `${parent.name} ${t('onboarding.isAlreadyInList')}`);
             return;
         }
         
         setSelectedParents(prev => [...prev, parent]);
         setSearchResults(prev => prev.filter(p => p.id !== parent.id));
-        toast.success('Parent Selected', `${parent.name} has been added`);
-    }, [toast, selectedParents]);
+        toast.success(t('onboarding.parentSelected'), `${parent.name} ${t('onboarding.hasBeenAdded')}`);
+    }, [toast, selectedParents, t]);
 
     const handleRemoveParent = useCallback((parentId: string) => {
         setSelectedParents(prev => prev.filter(p => p.id !== parentId));
@@ -132,12 +134,12 @@ export default function OnboardingStep3() {
     }, [customGoals, selectedGoals]);
 
     const toggleGoal = useCallback((goal: string) => {
-        if (goal === 'Others') {
+        if (goal === t('onboarding.others')) {
             setShowCustomInput(!showCustomInput);
-            if (!selectedGoals.includes('Others')) {
-                setSelectedGoals([...selectedGoals, 'Others']);
+            if (!selectedGoals.includes(t('onboarding.others'))) {
+                setSelectedGoals([...selectedGoals, t('onboarding.others')]);
             } else {
-                setSelectedGoals(selectedGoals.filter(g => g !== 'Others'));
+                setSelectedGoals(selectedGoals.filter(g => g !== t('onboarding.others')));
                 setCustomGoals([]);
             }
         } else {
@@ -147,19 +149,19 @@ export default function OnboardingStep3() {
                 if (selectedGoals.length < 3) {
                     setSelectedGoals([...selectedGoals, goal]);
                 } else {
-                    toast.error('Limit Reached', 'You can select up to 3 goals');
+                    toast.error(t('onboarding.limitReached'), t('onboarding.maxGoals'));
                 }
             }
         }
-    }, [selectedGoals, showCustomInput, toast]);
+    }, [selectedGoals, showCustomInput, toast, t]);
 
     const handleComplete = async () => {
         if (selectedGoals.length === 0) {
-            toast.error('Required', 'Please select at least one goal');
+            toast.error(t('onboarding.required'), t('onboarding.selectGoal'));
             return;
         }
 
-        const finalGoals = [...selectedGoals.filter(g => g !== 'Others'), ...customGoals];
+        const finalGoals = [...selectedGoals.filter(g => g !== t('onboarding.others')), ...customGoals];
         const parentIds = selectedParents.length > 0 ? selectedParents.map(p => p.id) : undefined;
 
         const completeData = {
@@ -189,11 +191,11 @@ export default function OnboardingStep3() {
                 newsletterEnabled: newsletter,
             });
 
-            toast.success('Success', 'Profile setup complete!');
+            toast.success(t('onboarding.success'), t('onboarding.profileSetupComplete'));
             router.replace('/home' as Href);
         } catch (err: any) {
             console.error('Onboarding submission error:', err);
-            toast.error('Submission Failed', err.message || 'Something went wrong');
+            toast.error(t('onboarding.submissionFailed'), err.message || 'Something went wrong');
         } finally {
             setIsLoading(false);
         }
@@ -224,9 +226,9 @@ export default function OnboardingStep3() {
 
                 {/* Header */}
                 <View style={styles.headerContainer}>
-                    <Text style={[styles.title, { color: theme.text }]}>Almost done!</Text>
+                    <Text style={[styles.title, { color: theme.text }]}>{t('onboarding.almostDone')}</Text>
                     <Text style={[styles.subtitle, { color: theme.gray[500] }]}>
-                        Let's customize your learning experience
+                        {t('onboarding.customizeExperience')}
                     </Text>
                 </View>
 
@@ -256,18 +258,18 @@ export default function OnboardingStep3() {
 
                 {/* Preferences Section */}
                 <View style={styles.sectionContainer}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferences</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('onboarding.preferences')}</Text>
 
                     <PreferenceToggle
-                        title="Push Notifications"
-                        description="Get updates about your courses"
+                        title={t('onboarding.pushNotifications')}
+                        description={t('onboarding.pushNotificationsDesc')}
                         value={notifications}
                         onToggle={() => setNotifications(!notifications)}
                     />
 
                     <PreferenceToggle
-                        title="Newsletter"
-                        description="Receive tips and updates via email"
+                        title={t('onboarding.newsletter')}
+                        description={t('onboarding.newsletterDesc')}
                         value={newsletter}
                         onToggle={() => setNewsletter(!newsletter)}
                     />
@@ -284,7 +286,7 @@ export default function OnboardingStep3() {
                         <ActivityIndicator color="#FFFFFF" />
                     ) : (
                         <>
-                            <Text style={styles.completeButtonText}>Complete Setup</Text>
+                            <Text style={styles.completeButtonText}>{t('onboarding.completeSetup')}</Text>
                             <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={styles.buttonIcon} />
                         </>
                     )}

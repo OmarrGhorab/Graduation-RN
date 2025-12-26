@@ -2,10 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export const EmptyChildrenState = () => {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
+    const { t } = useTranslation();
     
     return (
         <View style={[styles.emptyContainer, { backgroundColor: theme.surface }]}>
@@ -18,13 +20,13 @@ export const EmptyChildrenState = () => {
                 color: theme.gray[500],
                 fontFamily: Fonts?.semiBold 
             }]}>
-                No linked children
+                {t('location.noLinkedChildren')}
             </Text>
             <Text style={[styles.emptySubtext, { 
                 color: theme.gray[400],
                 fontFamily: Fonts?.regular 
             }]}>
-                Link with your children to track their location
+                {t('location.linkChildrenToTrack')}
             </Text>
         </View>
     );

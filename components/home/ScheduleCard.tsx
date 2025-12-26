@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts, warningColors } from '@/constants/theme';
 
 interface ScheduleCardProps {
@@ -28,6 +29,7 @@ export default function ScheduleCard({
     onPress,
 }: ScheduleCardProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const cardBg = isHighlighted
         ? theme.primary
@@ -90,7 +92,7 @@ export default function ScheduleCard({
             </View>
             <View style={styles.content}>
                 <Text style={[styles.title, { color: titleColor }]}>{title}</Text>
-                <Text style={[styles.lessons, { color: lessonsColor }]}>{lessons} lessons</Text>
+                <Text style={[styles.lessons, { color: lessonsColor }]}>{t('home.lessons', { count: lessons })}</Text>
                 <View style={styles.ratingRow}>
                     <Ionicons name="star" size={14} color={warningColors[500]} />
                     <Text style={[styles.ratingText, { color: ratingColor }]}>{rating}</Text>

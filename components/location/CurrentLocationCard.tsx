@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts } from '@/constants/theme';
 import { LocationData } from '@/hooks/useLocation';
+import { useTranslation } from '@/hooks/useTranslation';
 import { getMapUrl, openInMaps } from './locationUtils';
 
 interface CurrentLocationCardProps {
@@ -12,9 +13,10 @@ interface CurrentLocationCardProps {
 
 export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     
     const handlePress = () => {
-        openInMaps(location.latitude, location.longitude, location.address || 'My Location');
+        openInMaps(location.latitude, location.longitude, location.address || t('location.myLocation'));
     };
     
     return (
@@ -30,7 +32,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
                 <View style={[styles.currentBadge, { backgroundColor: theme.primary }]}>
                     <View style={styles.liveDot} />
                     <Text style={[styles.liveText, { fontFamily: Fonts.medium }]}>
-                        Current Location
+                        {t('location.currentLocation')}
                     </Text>
                 </View>
                 {location.accuracy && (
@@ -38,7 +40,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
                         color: theme.csk[600], 
                         fontFamily: Fonts.medium 
                     }]}>
-                        Within {Math.round(location.accuracy)}m
+                        {t('location.withinMeters', { meters: Math.round(location.accuracy) })}
                     </Text>
                 )}
             </View>
@@ -55,7 +57,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
                     color: isDark ? theme.gray[900] : theme.gray[800], 
                     fontFamily: Fonts.medium 
                 }]} numberOfLines={2}>
-                    {location.address || 'Address unavailable'}
+                    {location.address || t('location.addressUnavailable')}
                 </Text>
             </View>
             
@@ -65,7 +67,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
                     color: theme.primary, 
                     fontFamily: Fonts.medium 
                 }]}>
-                    Tap to open in Maps
+                    {t('location.tapToOpenInMaps')}
                 </Text>
             </View>
         </TouchableOpacity>

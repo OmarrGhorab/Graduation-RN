@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface LogoutButtonProps {
     onPress: () => void;
@@ -10,6 +11,7 @@ interface LogoutButtonProps {
 
 export function LogoutButton({ onPress }: LogoutButtonProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <TouchableOpacity 
@@ -21,7 +23,7 @@ export function LogoutButton({ onPress }: LogoutButtonProps) {
             activeOpacity={0.7}
         >
             <Ionicons name="log-out-outline" size={24} color={theme.error[500]} />
-            <Text style={[styles.text, { color: theme.error[500] }]}>Logout</Text>
+            <Text style={[styles.text, { color: theme.error[500] }]}>{t('account.logout')}</Text>
         </TouchableOpacity>
     );
 }

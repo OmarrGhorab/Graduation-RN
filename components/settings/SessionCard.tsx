@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { getDeviceIcon, getPlatformDisplayName } from '@/services/SecurityService';
 
 interface SessionCardProps {
@@ -28,6 +29,7 @@ export function SessionCard({
     formatTime,
 }: SessionCardProps) {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <TouchableOpacity
@@ -52,11 +54,11 @@ export function SessionCard({
             <View style={styles.info}>
                 <View style={styles.header}>
                     <Text style={[styles.device, { color: theme.text }]} numberOfLines={1}>
-                        {deviceName || 'Unknown Device'}
+                        {deviceName || t('settings.unknownDevice')}
                     </Text>
                     {isCurrent && (
                         <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-                            <Text style={styles.badgeText}>This device</Text>
+                            <Text style={styles.badgeText}>{t('settings.thisDevice')}</Text>
                         </View>
                     )}
                 </View>
@@ -71,7 +73,7 @@ export function SessionCard({
                         </View>
                     )}
                     <Text style={[styles.time, { color: theme.gray[500] }]}>
-                        {isCurrent ? 'Active now' : formatTime(lastActivityAt)}
+                        {isCurrent ? t('settings.activeNow') : formatTime(lastActivityAt)}
                     </Text>
                 </View>
             </View>

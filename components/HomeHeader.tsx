@@ -13,6 +13,7 @@ import Animated, {
     withSpring,
 } from 'react-native-reanimated';
 import { useAuthStore } from '@/libs/auth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts, grayColors } from '@/constants/theme';
 
 interface HomeHeaderProps {
@@ -25,6 +26,7 @@ interface HomeHeaderProps {
 export default function HomeHeader({ onNotificationPress, onSearchSubmit, notificationCount = 0, scrollY }: HomeHeaderProps) {
     const { user } = useAuthStore();
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -112,7 +114,7 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
                         </View>
                         <View style={styles.textContainer}>
                             <Text style={styles.userName}>{displayName}</Text>
-                            <Text style={styles.subtitle}>Ready To Learn Something Today?</Text>
+                            <Text style={styles.subtitle}>{t('home.readyToLearn')}</Text>
                         </View>
                     </View>
 
@@ -152,7 +154,7 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
                         <TextInput
                             ref={inputRef}
                             style={styles.searchInput}
-                            placeholder="Search course here...."
+                            placeholder={t('home.searchPlaceholder')}
                             placeholderTextColor={grayColors[400]}
                             value={searchQuery}
                             onChangeText={setSearchQuery}

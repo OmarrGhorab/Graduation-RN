@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { GoalChip } from './GoalChip';
 
@@ -29,12 +30,13 @@ export const GoalsSection = ({
     onAddCustomGoal,
 }: GoalsSectionProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <View style={styles.container}>
-            <Text style={[styles.title, { color: theme.text }]}>Your Goals</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('onboarding.yourGoals')}</Text>
             <Text style={[styles.subtitle, { color: theme.gray[500] }]}>
-                What do you want to achieve? (Select up to 3)
+                {t('onboarding.goalsSubtitle')}
             </Text>
 
             <View style={styles.goalsGrid}>
@@ -62,7 +64,7 @@ export const GoalsSection = ({
             {showCustomInput && customGoals.length < 1 && (
                 <View style={styles.customInputWrapper}>
                     <View style={[styles.labelContainer, { backgroundColor: theme.background }]}>
-                        <Text style={[styles.label, { color: theme.icon }]}>Custom Goal</Text>
+                        <Text style={[styles.label, { color: theme.icon }]}>{t('onboarding.customGoal')}</Text>
                     </View>
                     <View style={styles.customInputRow}>
                         <TextInput
@@ -74,7 +76,7 @@ export const GoalsSection = ({
                                     backgroundColor: theme.background,
                                 }
                             ]}
-                            placeholder="Enter your custom goal..."
+                            placeholder={t('onboarding.customGoalPlaceholder')}
                             placeholderTextColor={theme.icon}
                             value={customGoalInput}
                             onChangeText={onCustomGoalInputChange}

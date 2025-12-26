@@ -17,6 +17,7 @@ import { useToast } from '@/components/toast';
 import { useOnboardingStore } from '@/libs/onboarding';
 import { useThemeStore } from '@/libs/theme';
 import { useAuthStore } from '@/libs/auth';
+import { useTranslation } from '@/hooks/useTranslation';
 import { deleteProfileImage } from '@/services/AuthService';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -42,22 +43,10 @@ const LANGUAGES = [
     { id: 'ru', label: 'Русский' },
 ];
 
-const THEMES = [
-    { id: 'light', label: 'Light', icon: 'sunny-outline' as const },
-    { id: 'dark', label: 'Dark', icon: 'moon-outline' as const },
-    { id: 'system', label: 'System', icon: 'settings-outline' as const },
-];
-
-const GENDERS = [
-    { id: 'MALE', label: 'Male' },
-    { id: 'FEMALE', label: 'Female' },
-    { id: 'OTHER', label: 'Other' },
-    { id: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
-];
-
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
+    const { t } = useTranslation();
     const systemColorScheme = useColorScheme();
     const { themeMode, setThemeMode } = useThemeStore();
     const { user } = useAuthStore();
@@ -68,6 +57,19 @@ export default function OnboardingStep1() {
         : themeMode;
     const theme = Colors[currentTheme as 'light' | 'dark'];
     const isDark = currentTheme === 'dark';
+
+    const GENDERS = [
+        { id: 'MALE', label: t('onboarding.male') },
+        { id: 'FEMALE', label: t('onboarding.female') },
+        { id: 'OTHER', label: t('onboarding.other') },
+        { id: 'PREFER_NOT_TO_SAY', label: t('onboarding.preferNotToSay') },
+    ];
+
+    const THEMES = [
+        { id: 'light', label: t('onboarding.themeLight'), icon: 'sunny-outline' as const },
+        { id: 'dark', label: t('onboarding.themeDark'), icon: 'moon-outline' as const },
+        { id: 'system', label: t('onboarding.themeSystem'), icon: 'settings-outline' as const },
+    ];
 
     // Form state
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
@@ -124,7 +126,7 @@ export default function OnboardingStep1() {
             }
 
             setProfileImg(`data:image/jpeg;base64,${manipResult.base64}`);
-            toast.success('Success', 'Profile image selected');
+            toast.success(t('onboarding.success'), t('onboarding.profileImageSelected'));
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to process image');
         } finally {
@@ -137,7 +139,7 @@ export default function OnboardingStep1() {
         try {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
             if (status !== 'granted') {
-                toast.error('Permission Denied', 'We need camera permissions to take a photo');
+                toast.error(t('onboarding.permissionDenied'), t('onboarding.cameraPermission'));
                 return;
             }
             const result = await ImagePicker.launchCameraAsync({
@@ -158,7 +160,7 @@ export default function OnboardingStep1() {
         try {
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
-                toast.error('Permission Denied', 'We need camera roll permissions');
+                toast.error(t('onboarding.permissionDenied'), t('onboarding.galleryPermission'));
                 return;
             }
             const result = await ImagePicker.launchImageLibraryAsync({
@@ -182,7 +184,7 @@ export default function OnboardingStep1() {
             const result = await deleteProfileImage();
             if (result.success) {
                 setProfileImg('');
-                toast.success('Deleted', 'Profile image removed');
+                toast.success(t('onboarding.deleted'), t('onboarding.profileImageRemoved'));
             }
         } catch (error: any) {
             toast.error('Error', error.message || 'Failed to delete image');
@@ -223,15 +225,15 @@ export default function OnboardingStep1() {
 
     const handleContinue = () => {
         if (!dateOfBirth) {
-            toast.error('Required', 'Please select your date of birth');
+            toast.error(t('onboarding.required'), t('onboarding.selectDob'));
             return;
         }
         if (!gender) {
-            toast.error('Required', 'Please select your gender');
+            toast.error(t('onboarding.required'), t('onboarding.selectGenderRequired'));
             return;
         }
         if (!country) {
-            toast.error('Required', 'Please select your country');
+            toast.error(t('onboarding.required'), t('onboarding.selectCountryRequired'));
             return;
         }
 
@@ -281,38 +283,38 @@ export default function OnboardingStep1() {
                 />
 
                 <SelectInput
-                    label="Date Of Birth"
+                    label={t('onboarding.dateOfBirth')}
                     value={formatDate(dateOfBirth)}
-                    placeholder="Select your date of birth"
+                    placeholder={t('onboarding.selectDateOfBirth')}
                     onPress={() => setShowDatePicker(true)}
                     icon="calendar-outline"
                 />
 
                 <SelectInput
-                    label="Select Gender"
+                    label={t('onboarding.selectGender')}
                     value={GENDERS.find(g => g.id === gender)?.label || ''}
-                    placeholder="Select Gender"
+                    placeholder={t('onboarding.selectGender')}
                     onPress={() => setShowGenderPicker(true)}
                 />
 
                 <SelectInput
-                    label="Country"
+                    label={t('onboarding.country')}
                     value={country}
-                    placeholder="Select Country"
+                    placeholder={t('onboarding.selectCountry')}
                     onPress={() => setShowCountryPicker(true)}
                 />
 
                 <SelectInput
-                    label="Language"
+                    label={t('onboarding.language')}
                     value={LANGUAGES.find(l => l.id === language)?.label || ''}
-                    placeholder="Select Language"
+                    placeholder={t('onboarding.selectLanguage')}
                     onPress={() => setShowLanguagePicker(true)}
                 />
 
                 <SelectInput
-                    label="Theme"
+                    label={t('onboarding.theme')}
                     value={THEMES.find(t => t.id === selectedTheme)?.label || ''}
-                    placeholder="Select Theme"
+                    placeholder={t('onboarding.selectTheme')}
                     onPress={() => setShowThemePicker(true)}
                 />
 
@@ -322,7 +324,7 @@ export default function OnboardingStep1() {
                     activeOpacity={0.8}
                 >
                     <Text style={[styles.continueButtonText, { fontFamily: Fonts?.semiBold }]}>
-                        Continue
+                        {t('onboarding.continue')}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>
@@ -334,7 +336,7 @@ export default function OnboardingStep1() {
                 onDateChange={handleDateChange}
                 onDone={() => {
                     if (dateOfBirth) setShowDatePicker(false);
-                    else toast.warning('Select Date', 'Please select a date');
+                    else toast.warning(t('onboarding.selectDate'), t('onboarding.pleaseSelectDate'));
                 }}
                 isReady={datePickerReady}
             />
@@ -342,7 +344,7 @@ export default function OnboardingStep1() {
             <OptionPickerSheet
                 visible={showGenderPicker}
                 onClose={() => setShowGenderPicker(false)}
-                title="Select Gender"
+                title={t('onboarding.selectGender')}
                 options={GENDERS}
                 selectedValue={gender}
                 onSelect={setGender}
@@ -358,7 +360,7 @@ export default function OnboardingStep1() {
             <OptionPickerSheet
                 visible={showLanguagePicker}
                 onClose={() => setShowLanguagePicker(false)}
-                title="Select Language"
+                title={t('onboarding.selectLanguage')}
                 options={LANGUAGES}
                 selectedValue={language}
                 onSelect={setLanguage}
@@ -368,7 +370,7 @@ export default function OnboardingStep1() {
             <OptionPickerSheet
                 visible={showThemePicker}
                 onClose={() => setShowThemePicker(false)}
-                title="Select Theme"
+                title={t('onboarding.selectTheme')}
                 options={THEMES}
                 selectedValue={selectedTheme}
                 onSelect={handleThemeSelect}

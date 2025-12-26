@@ -16,6 +16,7 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/libs/auth';
 import { useMyLocation, useMyLocationHistory, LocationData } from '@/hooks/useLocation';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
     SkeletonBox,
     SkeletonHistoryItem,
@@ -29,6 +30,7 @@ export default function MyLocationHistoryScreen() {
     const router = useRouter();
     const { user } = useAuthStore();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     
     const [refreshing, setRefreshing] = useState(false);
     
@@ -80,14 +82,14 @@ export default function MyLocationHistoryScreen() {
                     color: theme.text, 
                     fontFamily: Fonts.semiBold 
                 }]}>
-                    My Location History
+                    {t('location.myLocationHistory')}
                 </Text>
                 {historyData?.pages?.[0]?.pagination && (
                     <Text style={[styles.historyCount, { 
                         color: theme.gray[500], 
                         fontFamily: Fonts.regular 
                     }]}>
-                        {historyData.pages[0].pagination.total} locations
+                        {t('location.locationsCount', { count: historyData.pages[0].pagination.total })}
                     </Text>
                 )}
             </View>
@@ -110,13 +112,13 @@ export default function MyLocationHistoryScreen() {
                 color: theme.gray[500], 
                 fontFamily: Fonts.semiBold 
             }]}>
-                No location history
+                {t('location.noLocationHistory')}
             </Text>
             <Text style={[styles.emptySubtext, { 
                 color: theme.gray[400], 
                 fontFamily: Fonts.regular 
             }]}>
-                Your location history will appear here
+                {t('location.historyWillAppear')}
             </Text>
         </View>
     );
@@ -140,13 +142,13 @@ export default function MyLocationHistoryScreen() {
                         color: theme.text, 
                         fontFamily: Fonts.semiBold 
                     }]}>
-                        {user?.name || 'My Location'}
+                        {user?.name || t('location.myLocation')}
                     </Text>
                     <Text style={[styles.headerSubtitle, { 
                         color: theme.gray[500], 
                         fontFamily: Fonts.regular 
                     }]}>
-                        Location History
+                        {t('location.locationHistory')}
                     </Text>
                 </View>
                 <View style={styles.placeholder} />

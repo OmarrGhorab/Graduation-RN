@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { getDeviceIcon, getPlatformDisplayName, SessionDetails } from '@/services/SecurityService';
 
 interface SessionDetailsModalProps {
@@ -25,6 +26,7 @@ export function SessionDetailsModal({
     formatDate,
 }: SessionDetailsModalProps) {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     if (!session) return null;
 
@@ -45,6 +47,13 @@ export function SessionDetailsModal({
         </View>
     );
 
+    const getStatusText = () => {
+        if (session.status.isActive) return t('settings.statusActive');
+        if (session.status.isRevoked) return t('settings.statusRevoked');
+        if (session.status.isExpired) return t('settings.statusExpired');
+        return t('settings.statusInactive');
+    };
+
     return (
         <Modal
             visible={visible}
@@ -55,7 +64,7 @@ export function SessionDetailsModal({
             <View style={styles.overlay}>
                 <View style={[styles.content, { backgroundColor: theme.background }]}>
                     <View style={[styles.header, { borderBottomColor: theme.border }]}>
-                        <Text style={[styles.title, { color: theme.text }]}>Session Details</Text>
+                        <Text style={[styles.title, { color: theme.text }]}>{t('settings.sessionDetails')}</Text>
                         <TouchableOpacity onPress={onClose}>
                             <Ionicons name="close" size={24} color={theme.gray[600]} />
                         </TouchableOpacity>
@@ -71,18 +80,18 @@ export function SessionDetailsModal({
                                 />
                             </View>
                             <Text style={[styles.deviceName, { color: theme.text }]}>
-                                {session.device.name || 'Unknown Device'}
+                                {session.device.name || t('settings.unknownDevice')}
                             </Text>
                             {session.isCurrent && (
                                 <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-                                    <Text style={styles.badgeText}>Current Session</Text>
+                                    <Text style={styles.badgeText}>{t('settings.currentSession')}</Text>
                                 </View>
                             )}
                             {session.device.isTrusted && (
                                 <View style={[styles.trustedBadge, { backgroundColor: theme.csk[50] }]}>
                                     <Ionicons name="shield-checkmark" size={12} color={theme.csk[600]} />
                                     <Text style={[styles.trustedText, { color: theme.csk[600] }]}>
-                                        Trusted Device
+                                        {t('settings.trustedDevice')}
                                     </Text>
                                 </View>
                             )}
@@ -91,58 +100,54 @@ export function SessionDetailsModal({
                         <View style={styles.detailsList}>
                             <DetailRow 
                                 icon="phone-portrait-outline" 
-                                label="Platform" 
+                                label={t('settings.platform')} 
                                 value={getPlatformDisplayName(session.device.platform)} 
                             />
                             {session.device.browser && (
                                 <DetailRow 
                                     icon="globe-outline" 
-                                    label="Browser" 
+                                    label={t('settings.browser')} 
                                     value={session.device.browser} 
                                 />
                             )}
                             {session.device.os && (
                                 <DetailRow 
                                     icon="laptop-outline" 
-                                    label="Operating System" 
+                                    label={t('settings.operatingSystem')} 
                                     value={session.device.os} 
                                 />
                             )}
                             <DetailRow 
                                 icon="wifi-outline" 
-                                label="IP Address" 
+                                label={t('settings.ipAddress')} 
                                 value={session.network.ipAddress} 
                             />
                             {session.network.location && (
                                 <DetailRow 
                                     icon="location-outline" 
-                                    label="Location" 
+                                    label={t('settings.locationLabel')} 
                                     value={session.network.location} 
                                 />
                             )}
                             <DetailRow 
                                 icon="time-outline" 
-                                label="Last Activity" 
-                                value={session.isCurrent ? 'Active now' : formatDate(session.timestamps.lastActivityAt)} 
+                                label={t('settings.lastActivity')} 
+                                value={session.isCurrent ? t('settings.activeNow') : formatDate(session.timestamps.lastActivityAt)} 
                             />
                             <DetailRow 
                                 icon="calendar-outline" 
-                                label="Signed In" 
+                                label={t('settings.signedIn')} 
                                 value={formatDate(session.timestamps.createdAt)} 
                             />
                             <DetailRow 
                                 icon="hourglass-outline" 
-                                label="Expires" 
+                                label={t('settings.expires')} 
                                 value={formatDate(session.timestamps.expiresAt)} 
                             />
                             <DetailRow 
                                 icon={session.status.isActive ? "checkmark-circle" : "close-circle"} 
-                                label="Status" 
-                                value={
-                                    session.status.isActive ? 'Active' : 
-                                    session.status.isRevoked ? 'Revoked' : 
-                                    session.status.isExpired ? 'Expired' : 'Inactive'
-                                }
+                                label={t('settings.status')} 
+                                value={getStatusText()}
                                 valueColor={session.status.isActive ? '#10B981' : '#EF4444'}
                             />
                         </View>
@@ -158,7 +163,7 @@ export function SessionDetailsModal({
                                 ) : (
                                     <>
                                         <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-                                        <Text style={styles.revokeText}>Sign out this device</Text>
+                                        <Text style={styles.revokeText}>{t('settings.signOutThisDevice')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>

@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
 import { GEOAPIFY_API_KEY } from '@/constants/config';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // Generate static map URL
 const getMapUrl = (latitude: number, longitude: number) => {
@@ -52,6 +53,7 @@ interface MapPreviewProps {
 export const MapPreview = memo(({ latitude, longitude, label }: MapPreviewProps) => {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
+    const { t } = useTranslation();
     
     const mapUrl = useMemo(() => getMapUrl(latitude, longitude), [latitude, longitude]);
     const handlePress = useCallback(() => openInMaps(latitude, longitude, label), [latitude, longitude, label]);
@@ -70,7 +72,7 @@ export const MapPreview = memo(({ latitude, longitude, label }: MapPreviewProps)
             <View style={styles.openMapBadge}>
                 <Ionicons name="open-outline" size={12} color="#FFFFFF" />
                 <Text style={[styles.openMapText, { fontFamily: Fonts?.medium }]}>
-                    Open in Maps
+                    {t('location.openInMaps')}
                 </Text>
             </View>
         </TouchableOpacity>

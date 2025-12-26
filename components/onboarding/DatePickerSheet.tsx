@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
 import { useThemeStore } from '@/libs/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 import BottomSheetModal from '@/components/BottomSheetModal';
 
 interface DatePickerSheetProps {
@@ -36,6 +37,7 @@ export const DatePickerSheet = ({
 }: DatePickerSheetProps) => {
     const systemColorScheme = useColorScheme();
     const { themeMode } = useThemeStore();
+    const { t } = useTranslation();
     
     const currentTheme = themeMode === 'system'
         ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -98,14 +100,14 @@ export const DatePickerSheet = ({
                         color: isDark ? theme.gray[500] : '#696F77',
                         fontFamily: Fonts?.regular 
                     }]}>
-                        Cancel
+                        {t('common.cancel')}
                     </Text>
                 </TouchableOpacity>
                 <Text style={[styles.title, { 
                     color: isDark ? theme.text : '#11181C',
                     fontFamily: Fonts?.semiBold 
                 }]}>
-                    Select Date of Birth
+                    {t('onboarding.selectDateOfBirthTitle')}
                 </Text>
                 <TouchableOpacity onPress={onDone}>
                     <Text style={[
@@ -116,7 +118,7 @@ export const DatePickerSheet = ({
                             opacity: dateOfBirth ? 1 : 0.4 
                         }
                     ]}>
-                        Done
+                        {t('common.done')}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -128,7 +130,7 @@ export const DatePickerSheet = ({
                         color: isDark ? theme.csk[600] : '#07673A',
                         fontFamily: Fonts?.regular 
                     }]}>
-                        Scroll to select your birth date
+                        {t('onboarding.scrollToSelect')}
                     </Text>
                 </View>
             )}
@@ -259,15 +261,15 @@ export const DatePickerSheet = ({
                         <Text style={[styles.label, { 
                             color: isDark ? theme.gray[500] : '#696F77',
                             fontFamily: Fonts?.medium 
-                        }]}>Day</Text>
+                        }]}>{t('onboarding.day')}</Text>
                         <Text style={[styles.label, { 
                             color: isDark ? theme.gray[500] : '#696F77',
                             fontFamily: Fonts?.medium 
-                        }]}>Month</Text>
+                        }]}>{t('onboarding.month')}</Text>
                         <Text style={[styles.label, { 
                             color: isDark ? theme.gray[500] : '#696F77',
                             fontFamily: Fonts?.medium 
-                        }]}>Year</Text>
+                        }]}>{t('onboarding.year')}</Text>
                     </View>
                 </>
             ) : (

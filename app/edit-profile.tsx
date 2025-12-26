@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { checkUsername } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
@@ -41,6 +42,7 @@ export default function EditProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const toast = useToast();
 
     // Use cached profile data
@@ -150,7 +152,7 @@ export default function EditProfileScreen() {
             } else if (selectedGoals.length < 3) {
                 setSelectedGoals([...selectedGoals, goal]);
             } else {
-                toast.warning('Limit Reached', 'You can select up to 3 goals');
+                toast.warning(t('profile.limitReached'), t('profile.goalsLimitReached'));
             }
         }
     };
@@ -174,23 +176,23 @@ export default function EditProfileScreen() {
         } else if (selectedInterests.length < 5) {
             setSelectedInterests([...selectedInterests, interest]);
         } else {
-            toast.warning('Limit Reached', 'You can select up to 5 interests');
+            toast.warning(t('profile.limitReached'), t('profile.interestsLimitReached'));
         }
     };
 
     const handleSave = async () => {
-        if (!name.trim()) return toast.error('Error', 'Name is required');
-        if (!username.trim()) return toast.error('Error', 'Username is required');
-        if (usernameError) return toast.error('Error', 'Please fix username errors');
-        if (bio && bio.length > 200) return toast.error('Error', 'Bio must be 200 characters or less');
-        if (newPassword && newPassword !== confirmPassword) return toast.error('Error', 'Passwords do not match');
+        if (!name.trim()) return toast.error(t('common.error'), t('profile.nameRequired'));
+        if (!username.trim()) return toast.error(t('common.error'), t('profile.usernameRequired'));
+        if (usernameError) return toast.error(t('common.error'), t('profile.fixUsernameErrors'));
+        if (bio && bio.length > 200) return toast.error(t('common.error'), t('profile.bioTooLong'));
+        if (newPassword && newPassword !== confirmPassword) return toast.error(t('common.error'), t('profile.passwordsDoNotMatch'));
         if (newPassword && hasPassword && !currentPassword) {
-            return toast.error('Error', 'Current password is required to change password');
+            return toast.error(t('common.error'), t('profile.currentPasswordRequired'));
         }
 
         if (username !== profile?.username) {
             if (!canChangeUsername) {
-                return toast.error('Error', `You can change your username again on ${nextUsernameChangeDate}`);
+                return toast.error(t('common.error'), t('profile.usernameChangeWarning', { date: nextUsernameChangeDate }));
             }
             setShowUsernameWarning(true);
             return;
@@ -221,16 +223,16 @@ export default function EditProfileScreen() {
         }
 
         if (Object.keys(updateData).length === 0) {
-            return toast.info('Info', 'No changes to save');
+            return toast.info(t('common.info') || 'Info', t('profile.noChangesToSave'));
         }
 
         updateProfileMutation.mutate(updateData, {
             onSuccess: (response) => {
-                toast.success('Success', response.message || 'Profile updated successfully');
+                toast.success(t('common.success'), response.message || t('profile.profileUpdated'));
                 setTimeout(() => router.back(), 1000);
             },
             onError: (error: any) => {
-                toast.error('Error', error.message || 'Failed to update profile');
+                toast.error(t('common.error'), error.message || t('profile.failedToUpdate'));
             },
         });
     };
@@ -248,7 +250,7 @@ export default function EditProfileScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={headerTextColor} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: headerTextColor }]}>Edit Profile</Text>
+                <Text style={[styles.headerTitle, { color: headerTextColor }]}>{t('profile.editProfile')}</Text>
                 <View style={styles.placeholder} />
             </View>
 
@@ -256,7 +258,7 @@ export default function EditProfileScreen() {
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.primary} />
                     <Text style={[styles.loadingText, { color: isDark ? theme.gray[600] : theme.gray[500] }]}>
-                        Loading profile...
+                        {t('profile.loadingProfile')}
                     </Text>
                 </View>
             ) : (
@@ -266,13 +268,13 @@ export default function EditProfileScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <FormInput label="Name" value={name} onChangeText={setName} placeholder="Enter your name" />
+                    <FormInput label={t('profile.name')} value={name} onChangeText={setName} placeholder={t('profile.namePlaceholder')} />
 
                     <FormInput
-                        label="Username"
+                        label={t('profile.username')}
                         value={username}
                         onChangeText={setUsername}
-                        placeholder="Enter username"
+                        placeholder={t('profile.usernamePlaceholder')}
                         autoCapitalize="none"
                         editable={canChangeUsername}
                         error={usernameError}
@@ -283,20 +285,20 @@ export default function EditProfileScreen() {
                             ) : usernameAvailable && username !== profile?.username ? (
                                 <View style={styles.availableBadge}>
                                     <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                                    <Text style={styles.availableText}>Available</Text>
+                                    <Text style={styles.availableText}>{t('profile.usernameAvailable')}</Text>
                                 </View>
                             ) : null
                         }
                     />
                     {!canChangeUsername && (
                         <Text style={[styles.warningText, { color: '#F59E0B' }]}>
-                            You can change your username again on {nextUsernameChangeDate}
+                            {t('profile.usernameChangeWarning', { date: nextUsernameChangeDate })}
                         </Text>
                     )}
                     {usernameSuggestions.length > 0 && (
                         <View style={styles.suggestionsContainer}>
                             <Text style={[styles.suggestionsTitle, { color: isDark ? theme.gray[700] : theme.gray[600] }]}>
-                                Suggestions:
+                                {t('profile.suggestions')}
                             </Text>
                             <View style={styles.suggestionsRow}>
                                 {usernameSuggestions.map((suggestion, index) => (
@@ -321,52 +323,52 @@ export default function EditProfileScreen() {
                     )}
 
                     <FormInput
-                        label="Email"
+                        label={t('profile.email')}
                         disabled
                         disabledValue={profile?.email}
-                        helperText="Email cannot be changed"
+                        helperText={t('profile.emailCannotChange')}
                     />
 
                     {!hasPassword && (
                         <View style={[styles.infoBox, { backgroundColor: isDark ? theme.csk[100] : theme.csk[50] }]}>
                             <Ionicons name="information-circle" size={20} color={theme.primary} />
                             <Text style={[styles.infoText, { color: isDark ? theme.gray[800] : theme.gray[700] }]}>
-                                You signed in with Google. Set a password to enable email login. No current password required.
+                                {t('profile.googleSignInInfo')}
                             </Text>
                         </View>
                     )}
 
                     {hasPassword && (
                         <FormInput
-                            label="Current Password"
+                            label={t('profile.currentPassword')}
                             value={currentPassword}
                             onChangeText={setCurrentPassword}
-                            placeholder="Enter current password"
+                            placeholder={t('profile.currentPasswordPlaceholder')}
                             secureTextEntry
                         />
                     )}
 
                     <FormInput
-                        label="New Password"
+                        label={t('profile.newPassword')}
                         value={newPassword}
                         onChangeText={setNewPassword}
-                        placeholder="Enter new password"
+                        placeholder={t('profile.newPasswordPlaceholder')}
                         secureTextEntry
                     />
 
                     <FormInput
-                        label="Confirm New Password"
+                        label={t('profile.confirmNewPassword')}
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
-                        placeholder="Confirm new password"
+                        placeholder={t('profile.confirmNewPasswordPlaceholder')}
                         secureTextEntry
                     />
 
                     <FormInput
-                        label="Bio"
+                        label={t('profile.bio')}
                         value={bio}
                         onChangeText={setBio}
-                        placeholder="Tell us about yourself..."
+                        placeholder={t('profile.bioPlaceholder')}
                         multiline
                         numberOfLines={4}
                         maxLength={200}
@@ -379,7 +381,7 @@ export default function EditProfileScreen() {
                     />
 
                     <ChipSelector
-                        label="Goals (Select up to 3)"
+                        label={t('profile.goalsLabel')}
                         items={GOALS}
                         selectedItems={selectedGoals}
                         onToggle={toggleGoal}
@@ -395,7 +397,7 @@ export default function EditProfileScreen() {
                     )}
 
                     <ChipSelector
-                        label="Interests (Select up to 5)"
+                        label={t('profile.interestsLabel')}
                         items={INTERESTS}
                         selectedItems={selectedInterests}
                         onToggle={toggleInterest}
@@ -409,7 +411,7 @@ export default function EditProfileScreen() {
                         {updateProfileMutation.isPending ? (
                             <ActivityIndicator color="#FFFFFF" />
                         ) : (
-                            <Text style={styles.saveButtonText}>Save Changes</Text>
+                            <Text style={styles.saveButtonText}>{t('profile.saveChanges')}</Text>
                         )}
                     </TouchableOpacity>
                 </ScrollView>

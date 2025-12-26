@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 
 type Parent = { 
@@ -39,6 +40,7 @@ export const ParentSearchSection = ({
     onRemoveParent,
 }: ParentSearchSectionProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     // Filter out already selected parents from results
     const selectedIds = new Set(selectedParents.map(p => p.id));
@@ -73,21 +75,21 @@ export const ParentSearchSection = ({
 
     return (
         <View style={styles.container}>
-            <Text style={[styles.title, { color: theme.text }]}>Search Parent</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{t('onboarding.searchParent')}</Text>
             <Text style={[styles.subtitle, { color: theme.gray[500] }]}>
-                Search for parent or guardian by name or username
+                {t('onboarding.searchParentSubtitle')}
             </Text>
 
             {/* Search Input with floating label */}
             <View style={styles.inputWrapper}>
                 <View style={[styles.labelContainer, { backgroundColor: theme.background }]}>
-                    <Text style={[styles.label, { color: theme.icon }]}>Parent Name / Username</Text>
+                    <Text style={[styles.label, { color: theme.icon }]}>{t('onboarding.parentNameUsername')}</Text>
                 </View>
                 <View style={[styles.searchInputContainer, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     <Ionicons name="search" size={20} color={theme.icon} style={styles.searchIcon} />
                     <TextInput
                         style={[styles.searchInput, { color: theme.text }]}
-                        placeholder="Search by name or username..."
+                        placeholder={t('onboarding.searchPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={searchQuery}
                         onChangeText={onSearchChange}
@@ -108,7 +110,7 @@ export const ParentSearchSection = ({
             {selectedParents.length > 0 && (
                 <View style={[styles.selectedContainer, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.selectedLabel, { color: theme.gray[500] }]}>
-                        Selected Parents ({selectedParents.length}):
+                        {t('onboarding.selectedParents')} ({selectedParents.length}):
                     </Text>
                     {selectedParents.map((parent) => (
                         <View 
@@ -140,7 +142,7 @@ export const ParentSearchSection = ({
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={theme.primary} />
                     <Text style={[styles.loadingText, { color: theme.gray[500] }]}>
-                        Searching...
+                        {t('onboarding.searching')}
                     </Text>
                 </View>
             ) : (
@@ -166,7 +168,7 @@ export const ParentSearchSection = ({
                                         onPress={() => onSelectParent(user)}
                                     >
                                         <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
-                                        <Text style={styles.selectButtonText}>Select</Text>
+                                        <Text style={styles.selectButtonText}>{t('onboarding.select')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             ))}
@@ -176,7 +178,7 @@ export const ParentSearchSection = ({
                             <View style={[styles.emptyContainer, { backgroundColor: theme.surface }]}>
                                 <Ionicons name="search-outline" size={40} color={theme.gray[300]} />
                                 <Text style={[styles.emptyText, { color: theme.gray[400] }]}>
-                                    No users found for "{searchQuery}"
+                                    {t('onboarding.noUsersFound')} "{searchQuery}"
                                 </Text>
                             </View>
                         )

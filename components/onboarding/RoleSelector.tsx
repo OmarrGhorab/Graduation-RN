@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { RoleOption } from './RolePickerModal';
 
@@ -13,6 +14,7 @@ interface RoleSelectorProps {
 
 export const RoleSelector = ({ roles, selectedRole, onPress }: RoleSelectorProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
     const selectedRoleLabel = roles.find(r => r.id === selectedRole)?.label;
     
     return (
@@ -20,7 +22,7 @@ export const RoleSelector = ({ roles, selectedRole, onPress }: RoleSelectorProps
             <View style={styles.inputWrapper}>
                 <View style={[styles.labelContainer, { backgroundColor: theme.background }]}>
                     <Text style={[styles.label, { color: theme.icon, fontFamily: Fonts.medium }]}>
-                        Role
+                        {t('onboarding.role')}
                     </Text>
                 </View>
                 <TouchableOpacity
@@ -37,7 +39,7 @@ export const RoleSelector = ({ roles, selectedRole, onPress }: RoleSelectorProps
                             fontFamily: Fonts.regular,
                         }
                     ]}>
-                        {selectedRoleLabel || 'Select your role'}
+                        {selectedRoleLabel || t('onboarding.selectYourRole')}
                     </Text>
                     <Ionicons name="chevron-down" size={20} color={theme.icon} />
                 </TouchableOpacity>

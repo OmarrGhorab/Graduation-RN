@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 
 interface BioInputProps {
@@ -11,13 +12,14 @@ interface BioInputProps {
 
 export const BioInput = ({ value, onChangeText, maxLength = 200 }: BioInputProps) => {
     const { theme } = useTheme();
+    const { t } = useTranslation();
     
     return (
         <View style={styles.container}>
             <View style={styles.inputWrapper}>
                 <View style={[styles.labelContainer, { backgroundColor: theme.background }]}>
                     <Text style={[styles.label, { color: theme.icon, fontFamily: Fonts.medium }]}>
-                        Bio (Optional)
+                        {t('onboarding.bioOptional')}
                     </Text>
                 </View>
                 <TextInput
@@ -27,7 +29,7 @@ export const BioInput = ({ value, onChangeText, maxLength = 200 }: BioInputProps
                         fontFamily: Fonts.regular,
                         backgroundColor: theme.background,
                     }]}
-                    placeholder="Share something about yourself..."
+                    placeholder={t('onboarding.bioPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={value}
                     onChangeText={onChangeText}

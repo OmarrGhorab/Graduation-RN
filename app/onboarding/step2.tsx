@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, Href } from 'expo-router';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/components/toast';
 import { useOnboardingStore } from '@/libs/onboarding';
 import {
@@ -31,19 +32,20 @@ const INTERESTS = [
     'Language Learning', 'Fitness', 'Nutrition', 'Psychology', 'Philosophy',
 ];
 
-const ROLES: RoleOption[] = [
-    { id: 'student', label: 'Student', description: 'Learning and growing' },
-    { id: 'teacher', label: 'Teacher', description: 'Educating others' },
-    { id: 'parent', label: 'Parent', description: 'Supporting learning' },
-    { id: 'instructor', label: 'Instructor', description: 'Teaching specific skills' },
-    { id: 'assistant', label: 'Assistant', description: 'Helping teachers and instructors' },
-];
-
 export default function OnboardingStep2() {
     const router = useRouter();
     const toast = useToast();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const { formData, setStep2Data } = useOnboardingStore();
+
+    const ROLES: RoleOption[] = [
+        { id: 'student', label: t('onboarding.student'), description: t('onboarding.studentDesc') },
+        { id: 'teacher', label: t('onboarding.teacher'), description: t('onboarding.teacherDesc') },
+        { id: 'parent', label: t('onboarding.parent'), description: t('onboarding.parentDesc') },
+        { id: 'instructor', label: t('onboarding.instructor'), description: t('onboarding.instructorDesc') },
+        { id: 'assistant', label: t('onboarding.assistant'), description: t('onboarding.assistantDesc') },
+    ];
 
     const [selectedInterests, setSelectedInterests] = useState<string[]>(
         formData.interests || []
@@ -61,22 +63,22 @@ export default function OnboardingStep2() {
             if (selectedInterests.length < 5) {
                 setSelectedInterests([...selectedInterests, interest]);
             } else {
-                toast.error('Limit Reached', 'You can select up to 5 interests');
+                toast.error(t('onboarding.limitReached'), t('onboarding.maxInterests'));
             }
         }
     };
 
     const handleContinue = () => {
         if (selectedInterests.length === 0) {
-            toast.error('Required', 'Please select at least one interest');
+            toast.error(t('onboarding.required'), t('onboarding.selectInterest'));
             return;
         }
         if (!selectedRole) {
-            toast.error('Required', 'Please select your role');
+            toast.error(t('onboarding.required'), t('onboarding.selectRoleRequired'));
             return;
         }
         if (bio.length > 0 && bio.length < 10) {
-            toast.error('Short Bio', 'Bio should be at least 10 characters if provided');
+            toast.error(t('onboarding.required'), t('onboarding.shortBio'));
             return;
         }
 
@@ -121,10 +123,10 @@ export default function OnboardingStep2() {
 
                 <View style={styles.headerContainer}>
                     <Text style={[styles.title, { color: theme.text, fontFamily: Fonts.bold }]}>
-                        Tell us about yourself
+                        {t('onboarding.tellUsAboutYourself')}
                     </Text>
                     <Text style={[styles.subtitle, { color: theme.gray[500], fontFamily: Fonts.regular }]}>
-                        This helps us personalize your experience
+                        {t('onboarding.personalizeExperience')}
                     </Text>
                 </View>
 
@@ -154,7 +156,7 @@ export default function OnboardingStep2() {
                     activeOpacity={0.8}
                 >
                     <Text style={[styles.continueButtonText, { fontFamily: Fonts.semiBold }]}>
-                        Continue
+                        {t('onboarding.continue')}
                     </Text>
                 </TouchableOpacity>
             </ScrollView>

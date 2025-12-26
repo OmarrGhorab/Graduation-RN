@@ -10,6 +10,7 @@ import { logout } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { usePrefetchPreferences } from '@/hooks/usePreferences';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { 
     ProfileHeader, 
     MenuItem, 
@@ -23,6 +24,7 @@ export default function AccountScreen() {
     const insets = useSafeAreaInsets();
     const toast = useToast();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const [isUploading, setIsUploading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
     const { prefetch: prefetchPreferences } = usePrefetchPreferences();
@@ -146,12 +148,12 @@ export default function AccountScreen() {
                 />
 
                 <View style={styles.menuContainer}>
-                    <MenuItem icon="person-outline" label="Profile" />
-                    <MenuItem icon="create-outline" label="Edit Profile" onPress={handleEditProfile} />
-                    <MenuItem icon="grid-outline" label="Dashboard" />
-                    <MenuItem icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} />
-                    <MenuItem icon="location-outline" label="Location" onPress={() => router.push('/location')} />
-                    <MenuItem icon="help-circle-outline" label="Help & Support" />
+                    <MenuItem icon="person-outline" label={t('account.profile')} />
+                    <MenuItem icon="create-outline" label={t('account.editProfile')} onPress={handleEditProfile} />
+                    <MenuItem icon="grid-outline" label={t('account.dashboard')} />
+                    <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
+                    <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />
+                    <MenuItem icon="help-circle-outline" label={t('account.helpSupport')} />
                 </View>
 
                 <LogoutButton onPress={handleLogout} />

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { completeOnboarding } from '@/services/OnboardingService';
 
 const { width, height } = Dimensions.get('window');
@@ -18,6 +19,7 @@ const { width, height } = Dimensions.get('window');
 export default function Onboarding3Screen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const handleHalfScreenPress = async () => {
         // Mark intro onboarding as completed
@@ -43,8 +45,8 @@ export default function Onboarding3Screen() {
 
             {/* Text Content - Centered */}
             <View style={styles.textContainer}>
-                <Text style={[styles.title, { color: theme.primary }]}>best platform for both</Text>
-                <Text style={[styles.subtitle, { color: theme.primary }]}>teachers & Learners</Text>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('onboarding.bestPlatform')}</Text>
+                <Text style={[styles.subtitle, { color: theme.primary }]}>{t('onboarding.teachersLearners')}</Text>
             </View>
 
             {/* Progress Indicator - Bottom Right */}

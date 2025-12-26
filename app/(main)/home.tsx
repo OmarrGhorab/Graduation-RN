@@ -6,6 +6,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts, cskColors } from '@/constants/theme';
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
@@ -58,6 +59,7 @@ const schedule = [
 export default function MainHomeScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const [showNotifications, setShowNotifications] = React.useState(false);
 
     // Scroll tracking for header animation
@@ -162,10 +164,10 @@ export default function MainHomeScreen() {
                 {/* My Subjects Section */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        My Subjects
+                        {t('home.mySubjects')}
                     </Text>
                     <Text style={[styles.sectionSubtitle, { color: sectionSubtitleColor }]}>
-                        Recommendations For You
+                        {t('home.recommendationsForYou')}
                     </Text>
                     <FlatList
                         data={subjects}
@@ -180,7 +182,7 @@ export default function MainHomeScreen() {
                 {/* My Teachers Section */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        My Teachers
+                        {t('home.myTeachers')}
                     </Text>
                     <FlatList
                         data={teachers}
@@ -195,10 +197,10 @@ export default function MainHomeScreen() {
                 {/* Your Schedule Section */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        Your Schedule
+                        {t('home.yourSchedule')}
                     </Text>
                     <Text style={[styles.sectionSubtitle, { color: sectionSubtitleColor }]}>
-                        Next Lessons
+                        {t('home.nextLessons')}
                     </Text>
                     {schedule.map((item) => (
                         <ScheduleCard key={item.id} {...item} />

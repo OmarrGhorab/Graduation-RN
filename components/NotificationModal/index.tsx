@@ -19,6 +19,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiNotification } from '@/services/NotificationService';
+import { useTranslation } from '@/hooks/useTranslation';
 import { NotificationModalProps } from './types';
 import { useNotificationStyles } from './useNotificationStyles';
 import NotificationItem from './NotificationItem';
@@ -39,6 +40,7 @@ export default function NotificationModal({
 }: NotificationModalProps) {
     const insets = useSafeAreaInsets();
     const { styles, colors } = useNotificationStyles();
+    const { t } = useTranslation();
     const unreadCount = notifications.filter((n) => !n.read).length;
     
     // Toast state for iOS
@@ -140,7 +142,7 @@ export default function NotificationModal({
                     {/* Header */}
                     <View style={styles.header}>
                         <View style={styles.headerLeft}>
-                            <Text style={styles.headerTitle}>Notifications</Text>
+                            <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
                             {unreadCount > 0 && (
                                 <View style={styles.badge}>
                                     <Text style={styles.badgeText}>
@@ -155,7 +157,7 @@ export default function NotificationModal({
                                     onPress={onMarkAllAsRead}
                                     style={styles.markAllButton}
                                 >
-                                    <Text style={styles.markAllText}>Mark all read</Text>
+                                    <Text style={styles.markAllText}>{t('notifications.markAllRead')}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -168,7 +170,7 @@ export default function NotificationModal({
                     {loading ? (
                         <View style={styles.loadingState}>
                             <ActivityIndicator size="large" color={colors.csk[500]} />
-                            <Text style={styles.loadingText}>Loading notifications...</Text>
+                            <Text style={styles.loadingText}>{t('notifications.loading')}</Text>
                         </View>
                     ) : notifications.length > 0 ? (
                         <FlatList
@@ -186,9 +188,9 @@ export default function NotificationModal({
                     ) : (
                         <View style={styles.emptyState}>
                             <Ionicons name="notifications-off-outline" size={64} color={colors.gray[300]} />
-                            <Text style={styles.emptyTitle}>No notifications</Text>
+                            <Text style={styles.emptyTitle}>{t('notifications.empty')}</Text>
                             <Text style={styles.emptyMessage}>
-                                You're all caught up! Check back later.
+                                {t('notifications.emptyMessage')}
                             </Text>
                         </View>
                     )}

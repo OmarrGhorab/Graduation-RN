@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type TwoFAStep = 'info' | 'qr' | 'verify' | 'backup';
 
@@ -47,6 +48,7 @@ export function TwoFAModal({
     onCopyAllCodes,
 }: TwoFAModalProps) {
     const { theme } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Modal
@@ -65,11 +67,10 @@ export function TwoFAModal({
                         <>
                             <Ionicons name="shield-checkmark" size={60} color={theme.primary} />
                             <Text style={[styles.title, { color: theme.text }]}>
-                                Enable Two-Factor Authentication
+                                {t('settings.enable2FATitle')}
                             </Text>
                             <Text style={[styles.description, { color: theme.gray[600] }]}>
-                                Two-factor authentication adds an extra layer of security to your account.
-                                You'll need to enter a code from your authenticator app each time you sign in.
+                                {t('settings.enable2FADescription')}
                             </Text>
                             <TouchableOpacity
                                 style={[styles.primaryButton, { backgroundColor: theme.primary }]}
@@ -79,7 +80,7 @@ export function TwoFAModal({
                                 {isLoading ? (
                                     <ActivityIndicator color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.primaryButtonText}>Get Started</Text>
+                                    <Text style={styles.primaryButtonText}>{t('settings.getStarted')}</Text>
                                 )}
                             </TouchableOpacity>
                         </>
@@ -87,9 +88,9 @@ export function TwoFAModal({
 
                     {step === 'qr' && qrCode && (
                         <>
-                            <Text style={[styles.title, { color: theme.text }]}>Scan QR Code</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>{t('settings.scanQRCode')}</Text>
                             <Text style={[styles.description, { color: theme.gray[600] }]}>
-                                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                                {t('settings.scanQRCodeDescription')}
                             </Text>
                             <Image source={{ uri: qrCode }} style={styles.qrCode} resizeMode="contain" />
                             <TouchableOpacity
@@ -97,7 +98,7 @@ export function TwoFAModal({
                                 onPress={onCopySecret}
                             >
                                 <Text style={[styles.secretLabel, { color: theme.gray[500] }]}>
-                                    Manual entry code:
+                                    {t('settings.manualEntryCode')}
                                 </Text>
                                 <View style={styles.secretRow}>
                                     <Text style={[styles.secretText, { color: theme.text }]}>{secret}</Text>
@@ -108,16 +109,16 @@ export function TwoFAModal({
                                 style={[styles.primaryButton, { backgroundColor: theme.primary }]}
                                 onPress={onContinue}
                             >
-                                <Text style={styles.primaryButtonText}>Continue</Text>
+                                <Text style={styles.primaryButtonText}>{t('common.continue')}</Text>
                             </TouchableOpacity>
                         </>
                     )}
 
                     {step === 'verify' && (
                         <>
-                            <Text style={[styles.title, { color: theme.text }]}>Verify Setup</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>{t('settings.verifySetup')}</Text>
                             <Text style={[styles.description, { color: theme.gray[600] }]}>
-                                Enter the 6-digit code from your authenticator app to complete setup.
+                                {t('settings.verifySetupDescription')}
                             </Text>
                             <TextInput
                                 style={[styles.codeInput, { 
@@ -145,7 +146,7 @@ export function TwoFAModal({
                                 {isLoading ? (
                                     <ActivityIndicator color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.primaryButtonText}>Verify</Text>
+                                    <Text style={styles.primaryButtonText}>{t('auth.verify')}</Text>
                                 )}
                             </TouchableOpacity>
                         </>
@@ -154,9 +155,9 @@ export function TwoFAModal({
                     {step === 'backup' && (
                         <>
                             <Ionicons name="checkmark-circle" size={60} color={theme.primary} />
-                            <Text style={[styles.title, { color: theme.text }]}>Save Backup Codes</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>{t('settings.saveBackupCodes')}</Text>
                             <Text style={[styles.description, { color: theme.gray[600] }]}>
-                                Save these backup codes in a safe place. You can use them to access your account if you lose your authenticator.
+                                {t('settings.saveBackupCodesDescription')}
                             </Text>
                             <View style={styles.backupCodesContainer}>
                                 {backupCodes.map((code, index) => (
@@ -178,14 +179,14 @@ export function TwoFAModal({
                             >
                                 <View style={styles.copyAllContent}>
                                     <Ionicons name="documents-outline" size={22} color="#FFFFFF" />
-                                    <Text style={styles.copyAllText}>Copy All Codes</Text>
+                                    <Text style={styles.copyAllText}>{t('settings.copyAllCodes')}</Text>
                                 </View>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.primaryButton, { backgroundColor: theme.primary }]}
                                 onPress={onDone}
                             >
-                                <Text style={styles.primaryButtonText}>Done</Text>
+                                <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
                             </TouchableOpacity>
                         </>
                     )}

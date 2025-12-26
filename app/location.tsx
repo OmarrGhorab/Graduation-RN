@@ -16,6 +16,7 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/libs/auth';
 import { useToast } from '@/components/toast';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
     useMyLocation,
     useChildrenLocations,
@@ -35,6 +36,7 @@ export default function LocationScreen() {
     const router = useRouter();
     const toast = useToast();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     
     const { user } = useAuthStore();
     const isParent = user?.role === 'PARENT';
@@ -101,9 +103,9 @@ export default function LocationScreen() {
                 .catch(() => {});
             
             await Promise.all(refetchPromises);
-            toast.success('Updated', 'Location refreshed');
+            toast.success(t('location.updated'), t('location.locationRefreshed'));
         } catch (error: any) {
-            toast.error('Error', error.message || 'Failed to refresh');
+            toast.error(t('common.error'), error.message || t('location.failedToRefresh'));
         } finally {
             setRefreshing(false);
         }
@@ -119,17 +121,17 @@ export default function LocationScreen() {
         setRequestingChildId(childId);
         try {
             await requestLocationMutation.mutateAsync(childId);
-            toast.success('Request Sent', 'Location request sent. Waiting for response...');
+            toast.success(t('location.requestSent'), t('location.locationRequestSent'));
             
             setTimeout(async () => {
                 await refetchChildren();
                 setRequestingChildId(null);
             }, 5000);
         } catch (error: any) {
-            toast.error('Error', error.message || 'Failed to request location');
+            toast.error(t('common.error'), error.message || t('location.failedToRequestLocation'));
             setRequestingChildId(null);
         }
-    }, [requestLocationMutation, refetchChildren, toast]);
+    }, [requestLocationMutation, refetchChildren, toast, t]);
 
     return (
         <View style={[styles.container, { 
@@ -153,7 +155,7 @@ export default function LocationScreen() {
                     color: theme.text,
                     fontFamily: Fonts?.semiBold 
                 }]}>
-                    Location
+                    {t('location.title')}
                 </Text>
                 <TouchableOpacity 
                     style={styles.refreshButton}
@@ -187,7 +189,7 @@ export default function LocationScreen() {
                         color: theme.text,
                         fontFamily: Fonts?.semiBold 
                     }]}>
-                        My Location
+                        {t('location.myLocation')}
                     </Text>
                     {isLoadingMyLocation && !myLocation ? (
                         <SkeletonLocationCard />
@@ -208,7 +210,7 @@ export default function LocationScreen() {
                             color: theme.text,
                             fontFamily: Fonts?.semiBold 
                         }]}>
-                            Children ({childrenLocations?.length || 0})
+                            {t('location.children')} ({childrenLocations?.length || 0})
                         </Text>
                         
                         {isLoadingChildren ? (
