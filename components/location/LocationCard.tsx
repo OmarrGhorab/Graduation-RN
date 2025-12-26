@@ -5,10 +5,10 @@ import {
     TouchableOpacity, 
     StyleSheet, 
     ActivityIndicator,
-    useColorScheme 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Fonts } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { MapPreview } from './MapPreview';
 
 // Format timestamp to readable string
@@ -64,8 +64,7 @@ export const LocationCard = memo(({
     onRequestLocation,
     isRequestingLocation = false,
 }: LocationCardProps) => {
-    const colorScheme = useColorScheme();
-    const theme = Colors[colorScheme || 'light'];
+    const { theme } = useTheme();
     
     const hasLocation = location && location.latitude && location.longitude;
     const isPrecise = location?.accuracy && location.accuracy < 50;
