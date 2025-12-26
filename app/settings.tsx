@@ -521,7 +521,112 @@ export default function SettingsScreen() {
                                 <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Total Devices</Text>
                             </View>
                         </View>
+                        <View style={styles.statsRow}>
+                            <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
+                                <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.devices.trusted}</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Trusted Devices</Text>
+                            </View>
+                            <View style={[styles.statCard, { backgroundColor: theme.csk[50] }]}>
+                                <Text style={[styles.statNumber, { color: theme.csk[600] }]}>{activityData.sessions.mostRecentActivity ? formatRelativeTime(activityData.sessions.mostRecentActivity) : 'N/A'}</Text>
+                                <Text style={[styles.statLabel, { color: theme.gray[600] }]}>Last Activity</Text>
+                            </View>
+                        </View>
                     </SettingsSection>
+                    <SettingsSection title="Sessions by Platform">
+                        <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
+                            <View style={styles.activityCardContent}>
+                                {activityData.sessions.byPlatform.IOS !== undefined && (
+                                    <View style={styles.activityRow}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Ionicons name="phone-portrait-outline" size={18} color={theme.gray[500]} />
+                                            <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>iOS</Text>
+                                        </View>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.IOS} {activityData.sessions.byPlatform.IOS === 1 ? 'session' : 'sessions'}</Text>
+                                    </View>
+                                )}
+                                {activityData.sessions.byPlatform.ANDROID !== undefined && (
+                                    <View style={styles.activityRow}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Ionicons name="phone-portrait-outline" size={18} color={theme.gray[500]} />
+                                            <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>Android</Text>
+                                        </View>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.ANDROID} {activityData.sessions.byPlatform.ANDROID === 1 ? 'session' : 'sessions'}</Text>
+                                    </View>
+                                )}
+                                {activityData.sessions.byPlatform.WEB !== undefined && (
+                                    <View style={styles.activityRow}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                            <Ionicons name="desktop-outline" size={18} color={theme.gray[500]} />
+                                            <Text style={[styles.activityLabel, { color: theme.gray[500] }]}>Web</Text>
+                                        </View>
+                                        <Text style={[styles.activityValue, { color: theme.text }]}>{activityData.sessions.byPlatform.WEB} {activityData.sessions.byPlatform.WEB === 1 ? 'session' : 'sessions'}</Text>
+                                    </View>
+                                )}
+                                {!activityData.sessions.byPlatform.IOS && !activityData.sessions.byPlatform.ANDROID && !activityData.sessions.byPlatform.WEB && (
+                                    <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>No platform data available</Text>
+                                )}
+                            </View>
+                        </View>
+                    </SettingsSection>
+                    {activityData.devices.list && activityData.devices.list.length > 0 && (
+                        <SettingsSection title="Trusted Devices">
+                            <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
+                                <View style={styles.activityCardContent}>
+                                    {activityData.devices.list.filter(d => d.isTrusted).length > 0 ? (
+                                        activityData.devices.list.filter(d => d.isTrusted).map((device) => (
+                                            <View key={device.id} style={[styles.activityRow, { paddingVertical: 8 }]}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                                    <View style={[styles.trustedDeviceIcon, { backgroundColor: theme.csk[50] }]}>
+                                                        <Ionicons name={getDeviceIcon(device.platform) as any} size={18} color={theme.primary} />
+                                                    </View>
+                                                    <View>
+                                                        <Text style={[styles.activityValue, { color: theme.text }]}>{device.name}</Text>
+                                                        <Text style={[styles.activityLabel, { color: theme.gray[500], fontSize: 12 }]}>{getPlatformDisplayName(device.platform)}</Text>
+                                                    </View>
+                                                </View>
+                                                <View style={{ alignItems: 'flex-end' }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                        <Ionicons name="shield-checkmark" size={14} color={theme.csk[600]} />
+                                                        <Text style={[styles.activityLabel, { color: theme.csk[600], fontSize: 12 }]}>Trusted</Text>
+                                                    </View>
+                                                    <Text style={[styles.activityLabel, { color: theme.gray[400], fontSize: 11 }]}>{formatRelativeTime(device.lastLoginAt)}</Text>
+                                                </View>
+                                            </View>
+                                        ))
+                                    ) : (
+                                        <Text style={[styles.activityLabel, { color: theme.gray[500], textAlign: 'center' }]}>No trusted devices</Text>
+                                    )}
+                                </View>
+                            </View>
+                        </SettingsSection>
+                    )}
+                    {activityData.recentActivity && activityData.recentActivity.length > 0 && (
+                        <SettingsSection title="Recent Activity">
+                            <View style={[styles.activityCard, { backgroundColor: theme.surface }]}>
+                                <View style={styles.activityCardContent}>
+                                    {activityData.recentActivity.slice(0, 5).map((activity) => (
+                                        <View key={activity.sessionId} style={[styles.activityRow, { paddingVertical: 8 }]}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                                                <View style={[styles.trustedDeviceIcon, { backgroundColor: activity.status === 'active' ? theme.csk[50] : theme.gray[100] }]}>
+                                                    <Ionicons name={getDeviceIcon(activity.platform) as any} size={18} color={activity.status === 'active' ? theme.primary : theme.gray[400]} />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={[styles.activityValue, { color: theme.text }]} numberOfLines={1}>{activity.deviceName}</Text>
+                                                    <Text style={[styles.activityLabel, { color: theme.gray[500], fontSize: 12 }]} numberOfLines={1}>{activity.location || activity.ipAddress}</Text>
+                                                </View>
+                                            </View>
+                                            <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                                                <View style={[styles.statusBadge, { backgroundColor: activity.status === 'active' ? theme.csk[50] : activity.status === 'expired' ? '#FEF3C7' : '#FEE2E2' }]}>
+                                                    <Text style={[styles.statusText, { color: activity.status === 'active' ? theme.csk[600] : activity.status === 'expired' ? '#D97706' : '#DC2626' }]}>{activity.status}</Text>
+                                                </View>
+                                                <Text style={[styles.activityLabel, { color: theme.gray[400], fontSize: 11, marginTop: 4 }]}>{formatRelativeTime(activity.lastActivityAt)}</Text>
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        </SettingsSection>
+                    )}
                 </>
             ) : null}
         </ScrollView>
@@ -545,7 +650,7 @@ export default function SettingsScreen() {
                         <SettingsSection title={isParent ? 'Your Children' : 'Your Parents'}>
                             {linkedAccounts.map((link) => {
                                 const account = isParent ? link.child : link.parent;
-                                return <ParentLinkCard key={link.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg} showUnlink={!isParent} isProcessing={processingRequestId === account?.id} onUnlink={() => { setUnlinkTargetParent({ id: account?.id || '', name: account?.name || '' }); setShowUnlinkModal(true); }} />;
+                                return <ParentLinkCard key={link.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg ?? undefined} showUnlink={!isParent} isProcessing={processingRequestId === account?.id} onUnlink={() => { setUnlinkTargetParent({ id: account?.id || '', name: account?.name || '' }); setShowUnlinkModal(true); }} />;
                             })}
                         </SettingsSection>
                     )}
@@ -554,7 +659,7 @@ export default function SettingsScreen() {
                         <SettingsSection title={isParent ? 'Incoming Requests' : 'Sent Requests'}>
                             {pendingRequests.map((request) => {
                                 const account = isParent ? request.child : request.parent;
-                                return <ParentLinkCard key={request.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg} isPending pendingTime={formatRelativeTime(request.createdAt)} showActions={isParent} isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToRequest(request.id, 'accept')} onDecline={() => handleRespondToRequest(request.id, 'decline')} />;
+                                return <ParentLinkCard key={request.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg ?? undefined} isPending pendingTime={formatRelativeTime(request.createdAt)} showActions={isParent} isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToRequest(request.id, 'accept')} onDecline={() => handleRespondToRequest(request.id, 'decline')} />;
                             })}
                         </SettingsSection>
                     )}
@@ -562,7 +667,7 @@ export default function SettingsScreen() {
                     {isParent && pendingUnlinkRequests.length > 0 && (
                         <SettingsSection title="Unlink Requests">
                             {pendingUnlinkRequests.map((request) => (
-                                <ParentLinkCard key={request.id} name={request.child?.name || ''} username="wants to unlink" profileImg={request.child?.profileImg} showActions isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToUnlinkRequest(request.id, 'accept')} onDecline={() => handleRespondToUnlinkRequest(request.id, 'decline')} />
+                                <ParentLinkCard key={request.id} name={request.child?.name || ''} username="wants to unlink" profileImg={request.child?.profileImg ?? undefined} showActions isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToUnlinkRequest(request.id, 'accept')} onDecline={() => handleRespondToUnlinkRequest(request.id, 'decline')} />
                             ))}
                         </SettingsSection>
                     )}
@@ -663,4 +768,7 @@ const styles = StyleSheet.create({
     emptyText: { fontSize: 15, fontFamily: Fonts.regular, marginTop: 12 },
     addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
     addButtonText: { fontSize: 15, fontFamily: Fonts.semiBold },
+    trustedDeviceIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+    statusText: { fontSize: 11, fontFamily: Fonts.medium, textTransform: 'capitalize' },
 });
