@@ -2,16 +2,19 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { translateInterest, translateGoal } from '@/libs/i18n/options';
 import { Fonts } from '@/constants/theme';
 
 interface ChipSelectorProps {
     label: string;
-    items: string[];
+    items: string[]; // English keys
     selectedItems: string[];
     onToggle: (item: string) => void;
     maxItems?: number;
     customItems?: string[];
     onRemoveCustom?: (item: string) => void;
+    type?: 'interests' | 'goals'; // To determine which translator to use
 }
 
 export default function ChipSelector({
@@ -21,12 +24,22 @@ export default function ChipSelector({
     onToggle,
     customItems = [],
     onRemoveCustom,
+    type = 'interests',
 }: ChipSelectorProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     const chipBg = isDark ? theme.surfaceVariant : theme.gray[50];
     const chipBorder = isDark ? theme.border : theme.gray[200];
     const chipText = isDark ? theme.gray[800] : theme.gray[700];
+
+    // Translate item based on type
+    const translateItem = (item: string) => {
+        if (type === 'goals') {
+            return translateGoal(item, t);
+        }
+        return translateInterest(item, t);
+    };
 
     return (
         <View style={styles.container}>
@@ -55,7 +68,7 @@ export default function ChipSelector({
                                     { color: isSelected ? '#FFFFFF' : chipText },
                                 ]}
                             >
-                                {item}
+                                {translateItem(item)}
                             </Text>
                         </TouchableOpacity>
                     );

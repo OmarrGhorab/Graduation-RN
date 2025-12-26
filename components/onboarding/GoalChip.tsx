@@ -2,10 +2,12 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { translateGoal } from '@/libs/i18n/options';
 import { Fonts } from '@/constants/theme';
 
 interface GoalChipProps {
-    label: string;
+    label: string; // This is the English key
     selected: boolean;
     onPress: () => void;
     isCustom?: boolean;
@@ -20,6 +22,10 @@ export const GoalChip = ({
     showRemoveIcon = false,
 }: GoalChipProps) => {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
+    
+    // Translate the label for display (custom goals stay as-is)
+    const displayLabel = isCustom ? label : translateGoal(label, t);
     
     const getChipStyle = () => {
         if (isCustom) {
@@ -47,7 +53,7 @@ export const GoalChip = ({
         >
             <View style={styles.chipContent}>
                 <Text style={[styles.chipText, { color: getTextColor() }]}>
-                    {label}
+                    {displayLabel}
                 </Text>
                 {showRemoveIcon && (
                     <Ionicons 

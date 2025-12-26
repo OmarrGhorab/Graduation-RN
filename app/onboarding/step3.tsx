@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { useOnboardingStore } from '@/libs/onboarding';
+import { GOALS_OPTIONS } from '@/libs/i18n/options';
 import { submitOnboarding, searchParents } from '@/services/AuthService';
 import { completeOnboarding } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
@@ -35,10 +36,8 @@ export default function OnboardingStep3() {
     const { formData, setStep3Data } = useOnboardingStore();
     const toast = useToast();
 
-    const GOALS = [
-        t('onboarding.careerAdvancement'), t('onboarding.personalGrowth'), t('onboarding.skillDevelopment'), t('onboarding.hobby'),
-        t('onboarding.startBusiness'), t('onboarding.getCertified'), t('onboarding.teachOthers'), t('onboarding.stayUpdated'), t('onboarding.others'),
-    ];
+    // Get goal keys (English) for storage
+    const GOALS = GOALS_OPTIONS.map(g => g.key);
 
     // Initialize from Zustand store
     const storedGoals = formData.goals || [];

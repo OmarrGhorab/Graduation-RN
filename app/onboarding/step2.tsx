@@ -16,6 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/components/toast';
 import { useOnboardingStore } from '@/libs/onboarding';
+import { INTERESTS_OPTIONS, translateInterest } from '@/libs/i18n/options';
 import {
     InterestsGrid,
     BioInput,
@@ -24,20 +25,15 @@ import {
     RoleOption,
 } from '@/components/onboarding';
 
-const INTERESTS = [
-    'Web Development', 'Mobile Development', 'Data Science', 'Machine Learning',
-    'Artificial Intelligence', 'Cloud Computing', 'DevOps', 'Cybersecurity',
-    'Blockchain', 'Game Development', 'UI/UX Design', 'Digital Marketing',
-    'Business', 'Finance', 'Photography', 'Music Production', 'Writing',
-    'Language Learning', 'Fitness', 'Nutrition', 'Psychology', 'Philosophy',
-];
-
 export default function OnboardingStep2() {
     const router = useRouter();
     const toast = useToast();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const { formData, setStep2Data } = useOnboardingStore();
+
+    // Get interest keys (English) for storage, translated labels for display
+    const INTERESTS = INTERESTS_OPTIONS.map(i => i.key);
 
     const ROLES: RoleOption[] = [
         { id: 'student', label: t('onboarding.student'), description: t('onboarding.studentDesc') },

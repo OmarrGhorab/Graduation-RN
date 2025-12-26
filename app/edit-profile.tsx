@@ -18,6 +18,7 @@ import { Fonts } from '@/constants/theme';
 import { checkUsername } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
 import { useProfile, useUpdateProfileMutation } from '@/hooks/useProfile';
+import { INTERESTS_OPTIONS, GOALS_OPTIONS } from '@/libs/i18n/options';
 import {
     FormInput,
     ChipSelector,
@@ -25,18 +26,9 @@ import {
     UsernameWarningModal,
 } from '@/components/profile';
 
-const INTERESTS = [
-    'Web Development', 'Mobile Development', 'Data Science', 'Machine Learning',
-    'Artificial Intelligence', 'Cloud Computing', 'DevOps', 'Cybersecurity',
-    'Blockchain', 'Game Development', 'UI/UX Design', 'Digital Marketing',
-    'Business', 'Finance', 'Photography', 'Music Production', 'Writing',
-    'Language Learning', 'Fitness', 'Nutrition', 'Psychology', 'Philosophy',
-];
-
-const GOALS = [
-    'Career Advancement', 'Personal Growth', 'Skill Development', 'Hobby',
-    'Start a Business', 'Get Certified', 'Teach Others', 'Stay Updated', 'Others',
-];
+// Get keys (English) for storage/API
+const INTERESTS = INTERESTS_OPTIONS.map(i => i.key);
+const GOALS = GOALS_OPTIONS.map(g => g.key);
 
 export default function EditProfileScreen() {
     const router = useRouter();
@@ -387,6 +379,7 @@ export default function EditProfileScreen() {
                         onToggle={toggleGoal}
                         customItems={customGoals}
                         onRemoveCustom={removeCustomGoal}
+                        type="goals"
                     />
                     {showCustomGoalInput && customGoals.length < 1 && (
                         <CustomGoalInput
@@ -401,6 +394,7 @@ export default function EditProfileScreen() {
                         items={INTERESTS}
                         selectedItems={selectedInterests}
                         onToggle={toggleInterest}
+                        type="interests"
                     />
 
                     <TouchableOpacity
