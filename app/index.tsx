@@ -11,21 +11,17 @@ import {
     Text,
     View
 } from 'react-native';
-import { Colors, Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
+import { Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
 import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
 import { getUserProfile } from '@/services/AuthService';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/useTheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    
-    // Get theme colors
-    const theme = isDark ? Colors.dark : Colors.light;
+    const { theme, isDark } = useTheme();
     const gradient = isDark ? primaryGradientDark : primaryGradient;
 
     // Animation values

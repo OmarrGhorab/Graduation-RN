@@ -9,16 +9,14 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Fonts, Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
     const router = useRouter();
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const theme = isDark ? Colors.dark : Colors.light;
+    const { theme, isDark } = useTheme();
 
     const handleStartNow = () => {
         // Navigate to next onboarding screen or login
