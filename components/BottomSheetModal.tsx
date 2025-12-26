@@ -2,13 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import {
     Modal,
     View,
-    TouchableOpacity,
     StyleSheet,
     Animated,
     PanResponder,
     Dimensions,
     TouchableWithoutFeedback,
 } from 'react-native';
+import { useTheme } from '@/hooks/useTheme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 50;
@@ -26,6 +26,8 @@ export default function BottomSheetModal({
     children,
     height = SCREEN_HEIGHT * 0.6,
 }: BottomSheetModalProps) {
+    const { theme, isDark } = useTheme();
+    
     const translateY = useRef(new Animated.Value(height)).current;
     const opacity = useRef(new Animated.Value(0)).current;
 
@@ -33,21 +35,17 @@ export default function BottomSheetModal({
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
             onMoveShouldSetPanResponder: (_, gestureState) => {
-                // Only respond to vertical swipes
                 return Math.abs(gestureState.dy) > 5;
             },
             onPanResponderMove: (_, gestureState) => {
-                // Only allow downward swipes
                 if (gestureState.dy > 0) {
                     translateY.setValue(gestureState.dy);
                 }
             },
             onPanResponderRelease: (_, gestureState) => {
                 if (gestureState.dy > SWIPE_THRESHOLD || gestureState.vy > 0.5) {
-                    // Close if swiped down enough
                     closeModal();
                 } else {
-                    // Snap back to open position with smooth animation
                     Animated.timing(translateY, {
                         toValue: 0,
                         duration: 200,
@@ -62,7 +60,6 @@ export default function BottomSheetModal({
         if (visible) {
             openModal();
         } else {
-            // Reset position when closed
             translateY.setValue(height);
             opacity.setValue(0);
         }
@@ -114,9 +111,7 @@ export default function BottomSheetModal({
                     <Animated.View
                         style={[
                             styles.backdrop,
-                            {
-                                opacity: opacity,
-                            },
+                            { opacity },
                         ]}
                     />
                 </TouchableWithoutFeedback>
@@ -127,6 +122,7 @@ export default function BottomSheetModal({
                         styles.bottomSheet,
                         {
                             height,
+                            backgroundColor: isDark ? theme.background : '#FFFFFF',
                             transform: [{ translateY }],
                         },
                     ]}
@@ -134,7 +130,10 @@ export default function BottomSheetModal({
                 >
                     {/* Drag Handle */}
                     <View style={styles.dragHandleContainer}>
-                        <View style={styles.dragHandle} />
+                        <View style={[
+                            styles.dragHandle, 
+                            { backgroundColor: isDark ? theme.gray[600] : '#D1D5DB' }
+                        ]} />
                     </View>
 
                     {/* Content */}
@@ -155,7 +154,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
     },
     bottomSheet: {
-        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         shadowColor: '#000',
@@ -174,7 +172,6 @@ const styles = StyleSheet.create({
     dragHandle: {
         width: 40,
         height: 4,
-        backgroundColor: '#D1D5DB',
         borderRadius: 2,
     },
     content: {
