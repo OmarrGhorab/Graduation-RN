@@ -1,3 +1,11 @@
 export { LoginHeader } from './LoginHeader';
 export { LoginLogo } from './LoginLogo';
 export { LoginButtons } from './LoginButtons';
+export { SignInHeader } from './SignInHeader';
+export { SignInForm } from './SignInForm';
+export { SignInFooter } from './SignInFooter';
+export { SignUpHeader } from './SignUpHeader';
+export { SignUpForm } from './SignUpForm';
+export { SignUpFooter } from './SignUpFooter';
+export { ResetPasswordHeader } from './ResetPasswordHeader';
+export { ResetPasswordForm } from './ResetPasswordForm';
