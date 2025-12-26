@@ -111,6 +111,9 @@ export default function OnboardingStep1() {
     const { user } = useAuthStore();
     const { formData, setStep1Data } = useOnboardingStore();
 
+    // Check if this is first time (no dateOfBirth means user hasn't completed step1 before)
+    const isFirstTime = !formData.dateOfBirth;
+
     // Convert Western numerals to Arabic-Indic numerals
     const toArabicNumerals = (num: number | string): string => {
         const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
@@ -136,6 +139,27 @@ export default function OnboardingStep1() {
         { id: 'system', label: t('onboarding.themeSystem'), icon: 'settings-outline' as const },
     ];
 
+    // Get initial language - use system locale if first time, otherwise use saved preference
+    const getInitialLanguage = (): string => {
+        if (!isFirstTime && formData.preferences?.language) {
+            return formData.preferences.language;
+        }
+        // First time: use system locale if Arabic or English, otherwise default to English
+        if (locale === 'ar' || locale === 'en') {
+            return locale;
+        }
+        return 'en';
+    };
+
+    // Get initial theme - use 'system' if first time to follow device theme
+    const getInitialTheme = (): string => {
+        if (!isFirstTime && formData.preferences?.themePreference) {
+            return formData.preferences.themePreference;
+        }
+        // First time: default to 'system' to follow device theme
+        return 'system';
+    };
+
     // Form state
     const [dateOfBirth, setDateOfBirth] = useState<Date | null>(
         formData.dateOfBirth ? new Date(formData.dateOfBirth) : null
@@ -145,12 +169,15 @@ export default function OnboardingStep1() {
     );
     const [gender, setGender] = useState<string>(formData.gender || '');
     const [country, setCountry] = useState<string>(formData.country || '');
-    const [language, setLanguage] = useState<string>(
-        formData.preferences?.language || 'en'
-    );
-    const [selectedTheme, setSelectedTheme] = useState<string>(
-        formData.preferences?.themePreference || themeMode
-    );
+    const [language, setLanguage] = useState<string>(getInitialLanguage);
+    const [selectedTheme, setSelectedTheme] = useState<string>(getInitialTheme);
+
+    // Sync theme mode on mount for first-time users
+    useEffect(() => {
+        if (isFirstTime && themeMode !== 'system') {
+            setThemeMode('system');
+        }
+    }, []);
 
     // Modal state
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -315,10 +342,6 @@ export default function OnboardingStep1() {
                 notifications: true,
             }
         };
-
-        // Debug: Log the data being stored
-        console.log('[Onboarding Step1] Storing data:', JSON.stringify(step1Data, null, 2));
-        console.log('[Onboarding Step1] Language selected:', language);
 
         setStep1Data(step1Data);
 

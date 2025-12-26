@@ -29,11 +29,7 @@ interface OnboardingFormState {
 
 export const useOnboardingStore = create<OnboardingFormState>((set) => ({
     formData: {
-        preferences: {
-            language: 'en',
-            themePreference: 'light',
-            notifications: true,
-        },
+        // Don't set default preferences - let step1 detect system settings
         newsletterEnabled: false,
         goals: [],
         interests: [],
@@ -49,11 +45,7 @@ export const useOnboardingStore = create<OnboardingFormState>((set) => ({
     })),
     resetForm: () => set({
         formData: {
-            preferences: {
-                language: 'en',
-                themePreference: 'light',
-                notifications: true,
-            },
+            // Don't set default preferences - let step1 detect system settings
             newsletterEnabled: false,
             goals: [],
             interests: [],
