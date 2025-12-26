@@ -9,6 +9,10 @@ export { SignUpForm } from './SignUpForm';
 export { SignUpFooter } from './SignUpFooter';
 export { Verify2FAHeader } from './Verify2FAHeader';
 export { Verify2FAContent } from './Verify2FAContent';
+export { ReactivateIcon } from './ReactivateIcon';
+export { ReactivateText } from './ReactivateText';
+export { ReactivateCards } from './ReactivateCards';
+export { ReactivateButtons } from './ReactivateButtons';
 export { Verify2FAForm } from './Verify2FAForm';
 export { ResetPasswordHeader } from './ResetPasswordHeader';
 export { ResetPasswordForm } from './ResetPasswordForm';
@@ -19,3 +23,5 @@ export { ForgotPasswordHeader } from './ForgotPasswordHeader';
 export { ForgotPasswordForm } from './ForgotPasswordForm';
 export { VerificationHeader } from './VerificationHeader';
 export { VerificationForm } from './VerificationForm';
+
+export { DeviceVerificationHeader } from './DeviceVerificationHeader';
