@@ -53,7 +53,7 @@ export default function RootLayout() {
         const { accessToken } = useAuthStore.getState();
         if (accessToken) {
           try {
-            await LocationService.updateLocation(true); // Record to history
+            await LocationService.updateLocation();
             console.log('[Location] Periodic update sent');
           } catch (e) {
             // Silent fail - location updates are best-effort
@@ -69,7 +69,7 @@ export default function RootLayout() {
         const { accessToken } = useAuthStore.getState();
         if (accessToken) {
           DeviceService.getPreciseLocation({ accuracy: 'highest', forceRefresh: true });
-          LocationService.updateLocation(false).catch(() => {});
+          LocationService.updateLocation().catch(() => {});
         }
         startLocationUpdates();
       } else if (nextAppState.match(/inactive|background/)) {

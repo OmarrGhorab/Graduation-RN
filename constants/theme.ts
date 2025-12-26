@@ -170,7 +170,7 @@ export const Colors = {
   dark: {
     // Text and background colors
     text: '#ECEDEE',
-    background: '#0A0A0A',
+    background: '#121212', // Softer dark gray instead of pure black
     
     // Primary color (CSK Green - lighter for dark mode)
     primary: '#0A8F51',
