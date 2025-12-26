@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, View, ScrollView, ActivityIndicator, RefreshControl, Switch, BackHandler, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ScrollView, ActivityIndicator, RefreshControl, Switch, BackHandler, Text, TouchableOpacity, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import * as Updates from 'expo-updates';
 import { useAuthStore } from '@/libs/auth';
 import { Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
     get2FAStatus, enable2FA, verify2FASetup, disable2FA, regenerateBackupCodes,
     getSessions, getSessionDetails, revokeSession, revokeAllSessions,
@@ -37,6 +39,7 @@ export default function SettingsScreen() {
     const toast = useToast();
     const { user } = useAuthStore();
     const { theme, isDark } = useTheme();
+    const { t, locale, setLanguage } = useTranslation();
     const { data: preferences } = usePreferences();
     const updatePreferenceMutation = useUpdatePreference();
 
@@ -223,6 +226,46 @@ export default function SettingsScreen() {
 
     const handleUpdatePreference = (key: string, value: any) => updatePreferenceMutation.mutate({ [key]: value });
 
+    const handleLanguageChange = async (languageCode: string) => {
+        // Update preference in backend
+        updatePreferenceMutation.mutate({ language: languageCode });
+        
+        // Update i18n locale
+        const needsRestart = await setLanguage(languageCode);
+        
+        if (needsRestart) {
+            // RTL change requires app restart
+            Alert.alert(
+                languageCode === 'ar' ? 'إعادة تشغيل مطلوبة' : 'Restart Required',
+                languageCode === 'ar' 
+                    ? 'يجب إعادة تشغيل التطبيق لتطبيق تغييرات اللغة'
+                    : 'The app needs to restart to apply language changes',
+                [
+                    {
+                        text: languageCode === 'ar' ? 'إعادة التشغيل الآن' : 'Restart Now',
+                        onPress: async () => {
+                            try {
+                                if (!__DEV__) {
+                                    await Updates.reloadAsync();
+                                } else {
+                                    toast.info('Development Mode', 'Please manually restart the app to see RTL changes');
+                                }
+                            } catch (e) {
+                                toast.info('Restart Required', 'Please manually restart the app');
+                            }
+                        }
+                    },
+                    {
+                        text: languageCode === 'ar' ? 'لاحقاً' : 'Later',
+                        style: 'cancel'
+                    }
+                ]
+            );
+        }
+        
+        setShowLanguageModal(false);
+    };
+
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         if (currentSection === 'sessions') await fetchSessions();
@@ -380,9 +423,8 @@ export default function SettingsScreen() {
     };
 
     const languages = [
-        { code: 'en', name: 'English' }, { code: 'ar', name: 'العربية' },
-        { code: 'es', name: 'Español' }, { code: 'fr', name: 'Français' },
-        { code: 'de', name: 'Deutsch' }, { code: 'korean', name: '한국어' },
+        { code: 'en', name: 'English' },
+        { code: 'ar', name: 'العربية' },
     ];
 
     const themes = [
@@ -393,32 +435,32 @@ export default function SettingsScreen() {
 
     const renderMainSection = () => (
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <SettingsSection title="Security">
-                <SettingsMenuItem icon="shield-checkmark-outline" label="Two-Factor Authentication" subtitle="Add extra security to your account" onPress={() => setCurrentSection('security')} />
-                <SettingsMenuItem icon="phone-portrait-outline" label="Active Sessions" subtitle="Manage your logged-in devices" onPress={() => setCurrentSection('sessions')} />
+            <SettingsSection title={t('settings.security')}>
+                <SettingsMenuItem icon="shield-checkmark-outline" label={t('settings.twoFactorAuth')} subtitle={t('settings.twoFactorAuthSubtitle')} onPress={() => setCurrentSection('security')} />
+                <SettingsMenuItem icon="phone-portrait-outline" label={t('settings.activeSessions')} subtitle={t('settings.activeSessionsSubtitle')} onPress={() => setCurrentSection('sessions')} />
             </SettingsSection>
 
-            <SettingsSection title="Activity">
-                <SettingsMenuItem icon="time-outline" label="Activity Log" subtitle="View your recent account activity" onPress={() => setCurrentSection('activity')} />
+            <SettingsSection title={t('settings.activity')}>
+                <SettingsMenuItem icon="time-outline" label={t('settings.activityLog')} subtitle={t('settings.activityLogSubtitle')} onPress={() => setCurrentSection('activity')} />
             </SettingsSection>
 
-            <SettingsSection title="Family">
-                <SettingsMenuItem icon="people-outline" label={isParent ? 'My Children' : 'Parent Link'} subtitle={isParent ? 'View and manage linked children' : 'Link with your parent'} onPress={() => setCurrentSection('parentLink')} />
+            <SettingsSection title={t('settings.family')}>
+                <SettingsMenuItem icon="people-outline" label={isParent ? t('settings.myChildren') : t('settings.parentLink')} subtitle={isParent ? t('settings.viewManageChildren') : t('settings.linkWithParent')} onPress={() => setCurrentSection('parentLink')} />
             </SettingsSection>
 
-            <SettingsSection title="Preferences">
-                <SettingsMenuItem icon="color-palette-outline" label="Theme" subtitle={preferences?.themePreference === 'dark' ? 'Dark' : preferences?.themePreference === 'light' ? 'Light' : 'System'} onPress={() => setShowThemeModal(true)} />
-                <SettingsMenuItem icon="language-outline" label="Language" subtitle={preferences?.language === 'ar' ? 'العربية' : preferences?.language === 'es' ? 'Español' : preferences?.language === 'fr' ? 'Français' : preferences?.language === 'de' ? 'Deutsch' : preferences?.language === 'korean' ? '한국어' : 'English'} onPress={() => setShowLanguageModal(true)} />
-                <SettingsMenuItem icon="notifications-outline" label="Notifications" subtitle="Receive push notifications" rightElement={
+            <SettingsSection title={t('settings.preferences')}>
+                <SettingsMenuItem icon="color-palette-outline" label={t('settings.theme')} subtitle={preferences?.themePreference === 'dark' ? t('settings.themeDark') : preferences?.themePreference === 'light' ? t('settings.themeLight') : t('settings.themeSystem')} onPress={() => setShowThemeModal(true)} />
+                <SettingsMenuItem icon="language-outline" label={t('settings.language')} subtitle={locale === 'ar' ? 'العربية' : 'English'} onPress={() => setShowLanguageModal(true)} />
+                <SettingsMenuItem icon="notifications-outline" label={t('settings.notifications')} subtitle={t('settings.notificationsSubtitle')} rightElement={
                     <Switch value={preferences?.notifications ?? true} onValueChange={(v) => handleUpdatePreference('notifications', v)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={preferences?.notifications ? theme.primary : theme.gray[50]} />
                 } />
-                <SettingsMenuItem icon="mail-outline" label="Newsletter" subtitle="Receive email updates" rightElement={
+                <SettingsMenuItem icon="mail-outline" label={t('settings.newsletter')} subtitle={t('settings.newsletterSubtitle')} rightElement={
                     <Switch value={preferences?.newsletterEnabled ?? false} onValueChange={(v) => handleUpdatePreference('newsletterEnabled', v)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={preferences?.newsletterEnabled ? theme.primary : theme.gray[50]} />
                 } />
             </SettingsSection>
 
-            <SettingsSection title="Danger Zone" isDanger>
-                <SettingsMenuItem icon="warning-outline" label="Account Management" subtitle="Deactivate or delete account" onPress={() => setCurrentSection('danger')} isDanger />
+            <SettingsSection title={t('settings.dangerZone')} isDanger>
+                <SettingsMenuItem icon="warning-outline" label={t('settings.accountManagement')} subtitle={t('settings.accountManagementSubtitle')} onPress={() => setCurrentSection('danger')} isDanger />
             </SettingsSection>
         </ScrollView>
     );
@@ -727,7 +769,7 @@ export default function SettingsScreen() {
 
             <SearchParentModal visible={showSearchModal} searchQuery={searchQuery} searchResults={searchResults} isSearching={isSearching} processingId={processingRequestId} onClose={() => { setShowSearchModal(false); setSearchQuery(''); setSearchResults([]); }} onSearchChange={setSearchQuery} onSendRequest={handleSendLinkRequest} />
 
-            <PickerModal visible={showLanguageModal} title="Select Language" options={languages} selectedValue={preferences?.language} onSelect={(v: string) => handleUpdatePreference('language', v)} onClose={() => setShowLanguageModal(false)} />
+            <PickerModal visible={showLanguageModal} title="Select Language" options={languages} selectedValue={locale} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
 
             <PickerModal visible={showThemeModal} title="Select Theme" options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
         </View>

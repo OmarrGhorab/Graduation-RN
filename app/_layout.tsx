@@ -3,10 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useFonts, Rubik_300Light, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black } from '@expo-google-fonts/rubik';
 import * as SplashScreen from 'expo-splash-screen';
+import { initializeI18n } from '@/hooks/useTranslation';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ToastProvider } from '@/components/toast';
@@ -38,6 +39,7 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appState = useRef(AppState.currentState);
+  const [i18nReady, setI18nReady] = useState(false);
 
   // Load Rubik fonts from Expo Google Fonts
   const [fontsLoaded, fontsError] = useFonts({
@@ -56,6 +58,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontsError]);
+
+  // Initialize i18n
+  useEffect(() => {
+    initializeI18n().then(() => {
+      setI18nReady(true);
+    });
+  }, []);
 
   useEffect(() => {
     // Initialize device service (pre-fetches location and device info)
@@ -116,8 +125,8 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Don't render anything until fonts are loaded
-  if (!fontsLoaded && !fontsError) {
+  // Don't render anything until fonts are loaded and i18n is ready
+  if ((!fontsLoaded && !fontsError) || !i18nReady) {
     return null;
   }
 
