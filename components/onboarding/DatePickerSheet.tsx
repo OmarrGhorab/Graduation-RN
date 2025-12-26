@@ -14,6 +14,12 @@ import { useThemeStore } from '@/libs/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import BottomSheetModal from '@/components/BottomSheetModal';
 
+// Convert Western numerals to Arabic-Indic numerals
+const toArabicNumerals = (num: number | string): string => {
+    const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    return String(num).replace(/[0-9]/g, (d) => arabicNumerals[parseInt(d)]);
+};
+
 interface DatePickerSheetProps {
     visible: boolean;
     onClose: () => void;
@@ -37,7 +43,13 @@ export const DatePickerSheet = ({
 }: DatePickerSheetProps) => {
     const systemColorScheme = useColorScheme();
     const { themeMode } = useThemeStore();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
+    const isArabic = locale === 'ar';
+    
+    // Format number based on locale
+    const formatNumber = (num: number | string): string => {
+        return isArabic ? toArabicNumerals(num) : String(num);
+    };
     
     const currentTheme = themeMode === 'system'
         ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -48,11 +60,17 @@ export const DatePickerSheet = ({
     const allDays = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), []);
     
     const months = useMemo(() => {
+        // Use translation keys for month names
+        const monthKeys = [
+            'months.jan', 'months.feb', 'months.mar', 'months.apr',
+            'months.may', 'months.jun', 'months.jul', 'months.aug',
+            'months.sep', 'months.oct', 'months.nov', 'months.dec'
+        ];
         return Array.from({ length: 12 }, (_, i) => ({
             value: i + 1,
-            label: new Date(2000, i, 1).toLocaleString('default', { month: 'short' })
+            label: t(monthKeys[i])
         }));
-    }, []);
+    }, [t]);
 
     const years = useMemo(() => {
         const currentYear = new Date().getFullYear();
@@ -171,7 +189,7 @@ export const DatePickerSheet = ({
                                             fontFamily: Fonts?.semiBold 
                                         },
                                     ]}>
-                                        {day}
+                                        {formatNumber(day)}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -250,7 +268,7 @@ export const DatePickerSheet = ({
                                             fontFamily: Fonts?.semiBold 
                                         },
                                     ]}>
-                                        {year}
+                                        {formatNumber(year)}
                                     </Text>
                                 </TouchableOpacity>
                             )}

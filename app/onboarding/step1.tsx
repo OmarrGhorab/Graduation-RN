@@ -30,27 +30,92 @@ import {
     ImageOptionsSheet,
 } from '@/components/onboarding';
 
+// Country key to translation key mapping
+const COUNTRY_TRANSLATION_MAP: Record<string, string> = {
+    'United States': 'countries.unitedStates',
+    'United Kingdom': 'countries.unitedKingdom',
+    'Canada': 'countries.canada',
+    'Australia': 'countries.australia',
+    'Germany': 'countries.germany',
+    'France': 'countries.france',
+    'Italy': 'countries.italy',
+    'Spain': 'countries.spain',
+    'Netherlands': 'countries.netherlands',
+    'Belgium': 'countries.belgium',
+    'Switzerland': 'countries.switzerland',
+    'Austria': 'countries.austria',
+    'Sweden': 'countries.sweden',
+    'Norway': 'countries.norway',
+    'Denmark': 'countries.denmark',
+    'Finland': 'countries.finland',
+    'Poland': 'countries.poland',
+    'Portugal': 'countries.portugal',
+    'Greece': 'countries.greece',
+    'Ireland': 'countries.ireland',
+    'Czech Republic': 'countries.czechRepublic',
+    'Romania': 'countries.romania',
+    'Hungary': 'countries.hungary',
+    'Egypt': 'countries.egypt',
+    'Saudi Arabia': 'countries.saudiArabia',
+    'UAE': 'countries.uae',
+    'Kuwait': 'countries.kuwait',
+    'Qatar': 'countries.qatar',
+    'Jordan': 'countries.jordan',
+    'Lebanon': 'countries.lebanon',
+    'Morocco': 'countries.morocco',
+    'Tunisia': 'countries.tunisia',
+    'Algeria': 'countries.algeria',
+    'South Africa': 'countries.southAfrica',
+    'Nigeria': 'countries.nigeria',
+    'Kenya': 'countries.kenya',
+    'India': 'countries.india',
+    'China': 'countries.china',
+    'Japan': 'countries.japan',
+    'South Korea': 'countries.southKorea',
+    'Singapore': 'countries.singapore',
+    'Malaysia': 'countries.malaysia',
+    'Thailand': 'countries.thailand',
+    'Indonesia': 'countries.indonesia',
+    'Philippines': 'countries.philippines',
+    'Vietnam': 'countries.vietnam',
+    'Brazil': 'countries.brazil',
+    'Mexico': 'countries.mexico',
+    'Argentina': 'countries.argentina',
+    'Chile': 'countries.chile',
+    'Colombia': 'countries.colombia',
+    'Peru': 'countries.peru',
+    'Turkey': 'countries.turkey',
+    'Russia': 'countries.russia',
+};
+
 const LANGUAGES = [
-    { id: 'en', label: 'English' },
-    { id: 'ar', label: 'العربية' },
-    { id: 'es', label: 'Español' },
-    { id: 'fr', label: 'Français' },
-    { id: 'de', label: 'Deutsch' },
-    { id: 'zh', label: '中文' },
-    { id: 'ja', label: '日本語' },
-    { id: 'ko', label: '한국어' },
-    { id: 'pt', label: 'Português' },
-    { id: 'ru', label: 'Русский' },
+    { id: 'en', translationKey: 'languages.english', nativeLabel: 'English' },
+    { id: 'ar', translationKey: 'languages.arabic', nativeLabel: 'العربية' },
+    { id: 'es', translationKey: 'languages.spanish', nativeLabel: 'Español' },
+    { id: 'fr', translationKey: 'languages.french', nativeLabel: 'Français' },
+    { id: 'de', translationKey: 'languages.german', nativeLabel: 'Deutsch' },
+    { id: 'zh', translationKey: 'languages.chinese', nativeLabel: '中文' },
+    { id: 'ja', translationKey: 'languages.japanese', nativeLabel: '日本語' },
+    { id: 'ko', translationKey: 'languages.korean', nativeLabel: '한국어' },
+    { id: 'pt', translationKey: 'languages.portuguese', nativeLabel: 'Português' },
+    { id: 'ru', translationKey: 'languages.russian', nativeLabel: 'Русский' },
 ];
 
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
+    const isArabic = locale === 'ar';
     const systemColorScheme = useColorScheme();
     const { themeMode, setThemeMode } = useThemeStore();
     const { user } = useAuthStore();
     const { formData, setStep1Data } = useOnboardingStore();
+
+    // Convert Western numerals to Arabic-Indic numerals
+    const toArabicNumerals = (num: number | string): string => {
+        const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+        return String(num).replace(/[0-9]/g, (d) => arabicNumerals[parseInt(d)]);
+    };
 
     const currentTheme = themeMode === 'system'
         ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -220,7 +285,9 @@ export default function OnboardingStep1() {
         if (!date) return '';
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        return `${day}/${month}/${date.getFullYear()}`;
+        const year = date.getFullYear().toString();
+        const formattedDate = `${day}/${month}/${year}`;
+        return isArabic ? toArabicNumerals(formattedDate) : formattedDate;
     };
 
     const handleContinue = () => {
@@ -299,14 +366,17 @@ export default function OnboardingStep1() {
 
                 <SelectInput
                     label={t('onboarding.country')}
-                    value={country}
+                    value={country ? t(COUNTRY_TRANSLATION_MAP[country] || country) : ''}
                     placeholder={t('onboarding.selectCountry')}
                     onPress={() => setShowCountryPicker(true)}
                 />
 
                 <SelectInput
                     label={t('onboarding.language')}
-                    value={LANGUAGES.find(l => l.id === language)?.label || ''}
+                    value={(() => {
+                        const lang = LANGUAGES.find(l => l.id === language);
+                        return lang ? t(lang.translationKey) : '';
+                    })()}
                     placeholder={t('onboarding.selectLanguage')}
                     onPress={() => setShowLanguagePicker(true)}
                 />
@@ -361,7 +431,7 @@ export default function OnboardingStep1() {
                 visible={showLanguagePicker}
                 onClose={() => setShowLanguagePicker(false)}
                 title={t('onboarding.selectLanguage')}
-                options={LANGUAGES}
+                options={LANGUAGES.map(lang => ({ id: lang.id, label: t(lang.translationKey) }))}
                 selectedValue={language}
                 onSelect={setLanguage}
                 height={500}
