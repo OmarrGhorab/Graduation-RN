@@ -39,7 +39,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
     onVerify,
     onToggleMode,
 }) => {
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const inputRefs = useRef<(TextInput | null)[]>([]);
     const styles = createStyles(theme, isDark);
 
@@ -114,7 +114,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
             {/* Code Input */}
             {isBackupMode ? (
                 <TextInput
-                    style={styles.backupInput}
+                    style={[styles.backupInput, { textAlign }]}
                     value={backupCode}
                     onChangeText={onBackupCodeChange}
                     placeholder={t('auth.backupCodeTitle')}

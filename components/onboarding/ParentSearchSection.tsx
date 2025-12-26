@@ -40,7 +40,7 @@ export const ParentSearchSection = ({
     onRemoveParent,
 }: ParentSearchSectionProps) => {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     // Filter out already selected parents from results
     const selectedIds = new Set(selectedParents.map(p => p.id));
@@ -88,7 +88,7 @@ export const ParentSearchSection = ({
                 <View style={[styles.searchInputContainer, { borderColor: theme.border, backgroundColor: theme.background }]}>
                     <Ionicons name="search" size={20} color={theme.icon} style={styles.searchIcon} />
                     <TextInput
-                        style={[styles.searchInput, { color: theme.text }]}
+                        style={[styles.searchInput, { color: theme.text, textAlign }]}
                         placeholder={t('onboarding.searchPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={searchQuery}

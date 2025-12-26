@@ -31,7 +31,7 @@ export function SearchParentModal({
     onSendRequest,
 }: SearchParentModalProps) {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -47,7 +47,7 @@ export function SearchParentModal({
                     <View style={[styles.searchContainer, { backgroundColor: theme.surface }]}>
                         <Ionicons name="search" size={20} color={theme.gray[400]} />
                         <TextInput
-                            style={[styles.searchInput, { color: theme.text }]}
+                            style={[styles.searchInput, { color: theme.text, textAlign }]}
                             placeholder={t('settings.searchByNameOrUsername')}
                             placeholderTextColor={theme.gray[400]}
                             value={searchQuery}

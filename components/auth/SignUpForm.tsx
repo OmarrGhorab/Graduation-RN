@@ -56,7 +56,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
     onSuggestionClick,
     onSignUp,
 }) => {
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -67,7 +67,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                     <Text style={styles.label}>{t('auth.fullName')}</Text>
                 </View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, { textAlign }]}
                     placeholder={t('auth.fullNamePlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={fullName}
@@ -85,6 +85,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                     <TextInput
                         style={[
                             styles.input,
+                            { textAlign },
                             usernameError && styles.inputError,
                             usernameAvailable && username && styles.inputSuccess,
                         ]}
@@ -143,7 +144,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                     <Text style={styles.label}>{t('auth.email')}</Text>
                 </View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, { textAlign }]}
                     placeholder={t('auth.emailInputPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}
@@ -160,7 +161,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
-                        style={styles.passwordInput}
+                        style={[styles.passwordInput, { textAlign }]}
                         placeholder={t('auth.createPassword')}
                         placeholderTextColor={theme.icon}
                         value={password}

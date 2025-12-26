@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { I18nManager } from 'react-native';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { I18nManager, TextStyle } from 'react-native';
 import * as Updates from 'expo-updates';
 import i18n, { changeLanguage, getCurrentLanguage, initializeI18n, t } from '@/libs/i18n';
 
@@ -39,11 +39,30 @@ export function useTranslation() {
     return t(key, options);
   }, [locale]);
 
+  // Text alignment for inputs
+  const textAlign = useMemo((): 'left' | 'right' => {
+    return locale === 'ar' ? 'right' : 'left';
+  }, [locale]);
+
+  // Writing direction
+  const writingDirection = useMemo((): 'ltr' | 'rtl' => {
+    return locale === 'ar' ? 'rtl' : 'ltr';
+  }, [locale]);
+
+  // Input style helper - use this for TextInput style prop
+  const inputStyle = useMemo((): TextStyle => ({
+    textAlign: locale === 'ar' ? 'right' : 'left',
+    writingDirection: locale === 'ar' ? 'rtl' : 'ltr',
+  }), [locale]);
+
   return {
     t: translate,
     locale,
     isRTL,
     setLanguage,
+    textAlign,
+    writingDirection,
+    inputStyle,
     i18n,
   };
 }

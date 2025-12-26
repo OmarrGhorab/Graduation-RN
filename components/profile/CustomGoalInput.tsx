@@ -13,7 +13,7 @@ interface CustomGoalInputProps {
 
 export default function CustomGoalInput({ value, onChangeText, onSubmit }: CustomGoalInputProps) {
     const { theme, isDark } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     return (
         <View style={styles.container}>
@@ -24,6 +24,7 @@ export default function CustomGoalInput({ value, onChangeText, onSubmit }: Custo
                         backgroundColor: isDark ? theme.surface : '#FFFFFF',
                         borderColor: isDark ? theme.border : theme.gray[200],
                         color: isDark ? theme.text : theme.gray[900],
+                        textAlign,
                     },
                 ]}
                 placeholder={t('profile.customGoalPlaceholder')}

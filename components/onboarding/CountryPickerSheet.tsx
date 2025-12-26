@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
 import { useThemeStore } from '@/libs/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 import BottomSheetModal from '@/components/BottomSheetModal';
 
 const COUNTRIES = [
@@ -40,6 +41,7 @@ export const CountryPickerSheet = ({
 }: CountryPickerSheetProps) => {
     const systemColorScheme = useColorScheme();
     const { themeMode } = useThemeStore();
+    const { textAlign } = useTranslation();
     
     const currentTheme = themeMode === 'system'
         ? (systemColorScheme === 'dark' ? 'dark' : 'light')
@@ -82,7 +84,8 @@ export const CountryPickerSheet = ({
                 <TextInput
                     style={[styles.searchInput, { 
                         color: isDark ? theme.text : '#11181C',
-                        fontFamily: Fonts?.regular 
+                        fontFamily: Fonts?.regular,
+                        textAlign,
                     }]}
                     placeholder="Search country..."
                     placeholderTextColor={isDark ? theme.gray[500] : '#696F77'}

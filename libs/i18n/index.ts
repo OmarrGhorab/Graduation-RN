@@ -85,4 +85,14 @@ export const t = (key: string, options?: Record<string, any>): string => {
   return i18n.t(key, options);
 };
 
+// Get text alignment based on locale (for TextInput)
+export const getTextAlign = (): 'left' | 'right' => {
+  return i18n.locale === 'ar' ? 'right' : 'left';
+};
+
+// Get writing direction
+export const getWritingDirection = (): 'ltr' | 'rtl' => {
+  return i18n.locale === 'ar' ? 'rtl' : 'ltr';
+};
+
 export default i18n;

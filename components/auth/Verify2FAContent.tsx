@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -41,6 +42,7 @@ export const Verify2FAContent: React.FC<Verify2FAContentProps> = ({
     onToggleBackupMode,
     inputRefs,
 }) => {
+    const { textAlign } = useTranslation();
     const styles = createStyles(theme, isDark);
     const codeLength = isBackupMode ? backupCode.length : code.join('').length;
     const requiredLength = isBackupMode ? 8 : 6;
@@ -64,7 +66,7 @@ export const Verify2FAContent: React.FC<Verify2FAContentProps> = ({
             {/* Code Input */}
             {isBackupMode ? (
                 <TextInput
-                    style={styles.backupInput}
+                    style={[styles.backupInput, { textAlign }]}
                     value={backupCode}
                     onChangeText={onBackupCodeChange}
                     placeholder="Enter backup code"

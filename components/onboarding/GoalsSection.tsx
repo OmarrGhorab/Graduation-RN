@@ -30,7 +30,7 @@ export const GoalsSection = ({
     onAddCustomGoal,
 }: GoalsSectionProps) => {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     return (
         <View style={styles.container}>
@@ -74,6 +74,7 @@ export const GoalsSection = ({
                                     borderColor: theme.border,
                                     color: theme.text,
                                     backgroundColor: theme.background,
+                                    textAlign,
                                 }
                             ]}
                             placeholder={t('onboarding.customGoalPlaceholder')}

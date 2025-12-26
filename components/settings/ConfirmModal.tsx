@@ -45,7 +45,7 @@ export function ConfirmModal({
     textConfirmInput,
 }: ConfirmModalProps) {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     return (
         <Modal
@@ -76,6 +76,7 @@ export function ConfirmModal({
                                 borderColor: theme.border, 
                                 color: theme.text,
                                 backgroundColor: theme.surface,
+                                textAlign,
                             }]}
                             value={passwordInput.value}
                             onChangeText={passwordInput.onChange}
@@ -91,6 +92,7 @@ export function ConfirmModal({
                                 borderColor: theme.border, 
                                 color: theme.text,
                                 backgroundColor: theme.surface,
+                                textAlign,
                             }]}
                             value={textConfirmInput.value}
                             onChangeText={textConfirmInput.onChange}

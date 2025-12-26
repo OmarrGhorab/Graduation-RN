@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TextInput, TextInputProps } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 
 interface FormInputProps extends TextInputProps {
@@ -25,6 +26,7 @@ export default function FormInput({
     ...props
 }: FormInputProps) {
     const { theme, isDark } = useTheme();
+    const { textAlign } = useTranslation();
 
     const inputBg = disabled
         ? isDark
@@ -57,7 +59,7 @@ export default function FormInput({
                         { backgroundColor: inputBg, borderColor },
                     ]}
                 >
-                    <Text style={[styles.disabledText, { color: isDark ? theme.gray[600] : theme.gray[500] }]}>
+                    <Text style={[styles.disabledText, { color: isDark ? theme.gray[600] : theme.gray[500], textAlign }]}>
                         {disabledValue}
                     </Text>
                 </View>
@@ -65,7 +67,7 @@ export default function FormInput({
                 <TextInput
                     style={[
                         styles.input,
-                        { backgroundColor: inputBg, borderColor, color: isDark ? theme.text : theme.gray[900] },
+                        { backgroundColor: inputBg, borderColor, color: isDark ? theme.text : theme.gray[900], textAlign },
                         style,
                     ]}
                     placeholderTextColor={isDark ? theme.gray[500] : theme.gray[400]}

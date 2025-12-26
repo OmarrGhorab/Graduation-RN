@@ -42,7 +42,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
     onToggleConfirmPassword,
     onConfirm,
 }) => {
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -54,7 +54,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
-                        style={styles.passwordInput}
+                        style={[styles.passwordInput, { textAlign }]}
                         placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={password}
@@ -78,7 +78,7 @@ export const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
-                        style={styles.passwordInput}
+                        style={[styles.passwordInput, { textAlign }]}
                         placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={confirmPassword}

@@ -40,7 +40,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
     onForgotPassword,
     onLogin,
 }) => {
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -51,7 +51,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
                     <Text style={styles.label}>{t('auth.emailUsername')}</Text>
                 </View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, { textAlign }]}
                     placeholder={t('auth.emailPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}
@@ -68,7 +68,7 @@ export const SignInForm: React.FC<SignInFormProps> = ({
                 </View>
                 <View style={styles.passwordContainer}>
                     <TextInput
-                        style={styles.passwordInput}
+                        style={[styles.passwordInput, { textAlign }]}
                         placeholder={t('auth.passwordPlaceholder')}
                         placeholderTextColor={theme.icon}
                         value={password}

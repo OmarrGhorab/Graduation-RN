@@ -29,7 +29,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
     onEmailChange,
     onContinue,
 }) => {
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const styles = createStyles(theme, isDark);
 
     return (
@@ -40,7 +40,7 @@ export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
                     <Text style={styles.label}>{t('auth.emailUsername')}</Text>
                 </View>
                 <TextInput
-                    style={styles.input}
+                    style={[styles.input, { textAlign }]}
                     placeholder={t('auth.emailPlaceholder')}
                     placeholderTextColor={theme.icon}
                     value={email}

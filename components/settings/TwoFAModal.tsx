@@ -48,7 +48,7 @@ export function TwoFAModal({
     onCopyAllCodes,
 }: TwoFAModalProps) {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
 
     return (
         <Modal
@@ -125,6 +125,7 @@ export function TwoFAModal({
                                     borderColor: theme.border, 
                                     color: theme.text,
                                     backgroundColor: theme.surface,
+                                    textAlign: 'center',
                                 }]}
                                 value={verificationCode}
                                 onChangeText={onCodeChange}
@@ -132,7 +133,6 @@ export function TwoFAModal({
                                 placeholderTextColor={theme.gray[400]}
                                 keyboardType="number-pad"
                                 maxLength={6}
-                                textAlign="center"
                             />
                             <TouchableOpacity
                                 style={[

@@ -26,7 +26,7 @@ interface HomeHeaderProps {
 export default function HomeHeader({ onNotificationPress, onSearchSubmit, notificationCount = 0, scrollY }: HomeHeaderProps) {
     const { user } = useAuthStore();
     const insets = useSafeAreaInsets();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -153,7 +153,7 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
                         <Ionicons name="search" size={20} color={grayColors[400]} />
                         <TextInput
                             ref={inputRef}
-                            style={styles.searchInput}
+                            style={[styles.searchInput, { textAlign }]}
                             placeholder={t('home.searchPlaceholder')}
                             placeholderTextColor={grayColors[400]}
                             value={searchQuery}

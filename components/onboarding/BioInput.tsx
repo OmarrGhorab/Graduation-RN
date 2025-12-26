@@ -12,7 +12,7 @@ interface BioInputProps {
 
 export const BioInput = ({ value, onChangeText, maxLength = 200 }: BioInputProps) => {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, textAlign } = useTranslation();
     
     return (
         <View style={styles.container}>
@@ -28,6 +28,7 @@ export const BioInput = ({ value, onChangeText, maxLength = 200 }: BioInputProps
                         color: theme.text,
                         fontFamily: Fonts.regular,
                         backgroundColor: theme.background,
+                        textAlign,
                     }]}
                     placeholder={t('onboarding.bioPlaceholder')}
                     placeholderTextColor={theme.icon}
