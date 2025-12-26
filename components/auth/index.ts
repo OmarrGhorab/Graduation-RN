@@ -9,3 +9,6 @@ export { SignUpForm } from './SignUpForm';
 export { SignUpFooter } from './SignUpFooter';
 export { ResetPasswordHeader } from './ResetPasswordHeader';
 export { ResetPasswordForm } from './ResetPasswordForm';
+export { VerifyOTPHeader } from './VerifyOTPHeader';
+export { OTPInput } from './OTPInput';
+export { OTPActions } from './OTPActions';

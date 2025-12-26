@@ -1,7 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+
+const { height } = Dimensions.get('window');
 
 type Theme = typeof Colors.light | typeof Colors.dark;
 
@@ -28,6 +30,7 @@ export const ForgotPasswordHeader: React.FC<ForgotPasswordHeaderProps> = ({ them
 
 const styles = StyleSheet.create({
     header: {
+        marginTop: height * 0.05,
         marginBottom: 30,
     },
     backButton: {
@@ -35,7 +38,7 @@ const styles = StyleSheet.create({
         marginLeft: -4,
     },
     titleContainer: {
-        marginBottom: 40,
+        marginBottom: 30,
     },
     title: {
         fontSize: 28,
