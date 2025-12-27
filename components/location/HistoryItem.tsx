@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -12,14 +12,16 @@ interface HistoryItemProps {
     isFirst: boolean;
 }
 
-export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
+export const HistoryItem = memo(({ item, isFirst }: HistoryItemProps) => {
     const { theme } = useTheme();
     const { t } = useTranslation();
-    const { date, time } = formatDateTime(item.timestamp);
+    const { date, time } = useMemo(() => formatDateTime(item.timestamp), [item.timestamp]);
     
-    const handlePress = () => {
+    const mapUrl = useMemo(() => getMapUrl(item.latitude, item.longitude), [item.latitude, item.longitude]);
+    
+    const handlePress = useCallback(() => {
         openInMaps(item.latitude, item.longitude, item.address || t('location.title'));
-    };
+    }, [item.latitude, item.longitude, item.address, t]);
     
     return (
         <View style={styles.historyItem}>
@@ -52,7 +54,7 @@ export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
                 </View>
                 
                 <Image 
-                    source={{ uri: getMapUrl(item.latitude, item.longitude) }}
+                    source={{ uri: mapUrl }}
                     style={[styles.historyMap, { backgroundColor: theme.gray[200] }]}
                     resizeMode="cover"
                 />
@@ -81,7 +83,7 @@ export const HistoryItem = ({ item, isFirst }: HistoryItemProps) => {
             </TouchableOpacity>
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     historyItem: { 

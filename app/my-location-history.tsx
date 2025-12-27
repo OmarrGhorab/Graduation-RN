@@ -73,7 +73,7 @@ export default function MyLocationHistoryScreen() {
     const keyExtractor = useCallback((item: LocationData, index: number) => 
         `${item.id || item.timestamp}-${index}`, []);
     
-    const ListHeader = () => (
+    const ListHeader = useMemo(() => (
         <>
             {currentLocation && <CurrentLocationCard location={currentLocation} />}
             
@@ -94,16 +94,16 @@ export default function MyLocationHistoryScreen() {
                 )}
             </View>
         </>
-    );
+    ), [currentLocation, theme.text, theme.gray, historyData?.pages, t]);
     
-    const ListFooter = () => {
+    const ListFooter = useMemo(() => {
         if (!isFetchingNextPage) return null;
         return (
             <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color={theme.primary} />
             </View>
         );
-    };
+    }, [isFetchingNextPage, theme.primary]);
     
     const ListEmpty = () => (
         <View style={styles.emptyContainer}>
@@ -177,6 +177,11 @@ export default function MyLocationHistoryScreen() {
                     showsVerticalScrollIndicator={false}
                     onEndReached={loadMore}
                     onEndReachedThreshold={0.3}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    updateCellsBatchingPeriod={50}
+                    windowSize={5}
+                    initialNumToRender={8}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

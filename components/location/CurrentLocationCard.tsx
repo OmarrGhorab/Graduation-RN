@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -11,13 +11,15 @@ interface CurrentLocationCardProps {
     location: LocationData;
 }
 
-export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
+export const CurrentLocationCard = memo(({ location }: CurrentLocationCardProps) => {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     
-    const handlePress = () => {
+    const mapUrl = useMemo(() => getMapUrl(location.latitude, location.longitude), [location.latitude, location.longitude]);
+    
+    const handlePress = useCallback(() => {
         openInMaps(location.latitude, location.longitude, location.address || t('location.myLocation'));
-    };
+    }, [location.latitude, location.longitude, location.address, t]);
     
     return (
         <TouchableOpacity 
@@ -46,7 +48,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
             </View>
             
             <Image 
-                source={{ uri: getMapUrl(location.latitude, location.longitude) }}
+                source={{ uri: mapUrl }}
                 style={[styles.currentMap, { backgroundColor: theme.gray[200] }]}
                 resizeMode="cover"
             />
@@ -72,7 +74,7 @@ export const CurrentLocationCard = ({ location }: CurrentLocationCardProps) => {
             </View>
         </TouchableOpacity>
     );
-};
+});
 
 const styles = StyleSheet.create({
     currentCard: {

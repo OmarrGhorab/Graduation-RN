@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts } from '@/constants/theme';
@@ -10,7 +10,7 @@ interface SubjectCardProps {
     onPress?: () => void;
 }
 
-export default function SubjectCard({ name, icon, onPress }: SubjectCardProps) {
+export default memo(function SubjectCard({ name, icon, onPress }: SubjectCardProps) {
     const { theme, isDark } = useTheme();
 
     return (
@@ -31,7 +31,7 @@ export default function SubjectCard({ name, icon, onPress }: SubjectCardProps) {
             </Text>
         </TouchableOpacity>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {

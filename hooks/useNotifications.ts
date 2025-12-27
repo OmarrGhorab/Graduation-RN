@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getNotifications,
@@ -206,8 +207,15 @@ export function useInvalidateNotifications() {
 export function useNotifications(limit: number = 10) {
     const query = useNotificationsQuery(limit);
     
-    const notifications = query.data?.pages.flatMap((page) => page.data) ?? [];
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const notifications = useMemo(
+        () => query.data?.pages.flatMap((page) => page.data) ?? [],
+        [query.data?.pages]
+    );
+    
+    const unreadCount = useMemo(
+        () => notifications.filter((n) => !n.read).length,
+        [notifications]
+    );
     
     return {
         ...query,

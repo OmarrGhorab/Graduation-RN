@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, TouchableOpacity, View, Text, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -12,7 +12,7 @@ interface TeacherCardProps {
     onPress?: () => void;
 }
 
-export default function TeacherCard({ name, subject, image, onPress }: TeacherCardProps) {
+export default memo(function TeacherCard({ name, subject, image, onPress }: TeacherCardProps) {
     const { theme, isDark } = useTheme();
 
     return (
@@ -46,7 +46,7 @@ export default function TeacherCard({ name, subject, image, onPress }: TeacherCa
             </Text>
         </TouchableOpacity>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {

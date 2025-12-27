@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View, Text, FlatList, StatusBar } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -102,19 +102,19 @@ export default function MainHomeScreen() {
     const markAllAsReadMutation = useMarkAllAsReadMutation();
     const deleteNotificationMutation = useDeleteNotificationMutation();
 
-    const handleNotificationBellPress = () => {
+    const handleNotificationBellPress = useCallback(() => {
         setShowNotifications(true);
-    };
+    }, []);
 
-    const handleMarkAsRead = (id: string) => {
+    const handleMarkAsRead = useCallback((id: string) => {
         markAsReadMutation.mutate(id);
-    };
+    }, [markAsReadMutation]);
 
-    const handleMarkAllAsRead = () => {
+    const handleMarkAllAsRead = useCallback(() => {
         markAllAsReadMutation.mutate();
-    };
+    }, [markAllAsReadMutation]);
 
-    const handleNotificationItemPress = (notification: any) => {
+    const handleNotificationItemPress = useCallback((notification: any) => {
         if (
             notification.type === 'parent_link_request' ||
             notification.type === 'parent_link_accepted' ||
@@ -127,21 +127,41 @@ export default function MainHomeScreen() {
         ) {
             router.push('/settings?section=parentLink');
         }
-    };
+    }, [router]);
 
-    const handleDeleteNotification = (notificationId: string) => {
+    const handleDeleteNotification = useCallback((notificationId: string) => {
         deleteNotificationMutation.mutate(notificationId);
-    };
+    }, [deleteNotificationMutation]);
 
-    const handleLoadMore = () => {
+    const handleLoadMore = useCallback(() => {
         if (hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    };
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    const handleSearchSubmit = (query: string) => {
+    const handleSearchSubmit = useCallback((query: string) => {
         console.log('Search query:', query);
-    };
+    }, []);
+    
+    const handleCloseNotifications = useCallback(() => {
+        setShowNotifications(false);
+    }, []);
+    
+    const handleRefreshNotifications = useCallback(() => {
+        refetch();
+    }, [refetch]);
+    
+    // Memoized render functions for FlatLists
+    const renderSubjectItem = useCallback(({ item }: { item: typeof subjects[0] }) => (
+        <SubjectCard {...item} />
+    ), []);
+    
+    const renderTeacherItem = useCallback(({ item }: { item: typeof teachers[0] }) => (
+        <TeacherCard {...item} />
+    ), []);
+    
+    const subjectKeyExtractor = useCallback((item: typeof subjects[0]) => item.id, []);
+    const teacherKeyExtractor = useCallback((item: typeof teachers[0]) => item.id, []);
 
     const sectionTitleColor = theme.primary;
     const sectionSubtitleColor = isDark ? theme.gray[700] : theme.gray[500];
@@ -171,8 +191,8 @@ export default function MainHomeScreen() {
                     </Text>
                     <FlatList
                         data={subjects}
-                        renderItem={({ item }) => <SubjectCard {...item} />}
-                        keyExtractor={(item) => item.id}
+                        renderItem={renderSubjectItem}
+                        keyExtractor={subjectKeyExtractor}
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.horizontalList}
@@ -186,8 +206,8 @@ export default function MainHomeScreen() {
                     </Text>
                     <FlatList
                         data={teachers}
-                        renderItem={({ item }) => <TeacherCard {...item} />}
-                        keyExtractor={(item) => item.id}
+                        renderItem={renderTeacherItem}
+                        keyExtractor={teacherKeyExtractor}
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.horizontalList}
@@ -218,12 +238,12 @@ export default function MainHomeScreen() {
 
             <NotificationModal
                 visible={showNotifications}
-                onClose={() => setShowNotifications(false)}
+                onClose={handleCloseNotifications}
                 notifications={notifications}
                 onMarkAsRead={handleMarkAsRead}
                 onMarkAllAsRead={handleMarkAllAsRead}
                 loading={isLoading}
-                onRefresh={() => refetch()}
+                onRefresh={handleRefreshNotifications}
                 onNotificationPress={handleNotificationItemPress}
                 onLoadMore={handleLoadMore}
                 hasNextPage={hasNextPage}
