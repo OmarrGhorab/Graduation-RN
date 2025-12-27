@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
-import { GEOAPIFY_API_KEY } from '@/constants/config';
+import { geoapifyApiKey } from '@/constants/config';
 import { useTranslation } from '@/hooks/useTranslation';
 
 // Generate static map URL
 const getMapUrl = (latitude: number, longitude: number) => {
-    return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=150&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${GEOAPIFY_API_KEY}`;
+    return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=150&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${geoapifyApiKey}`;
 };
 
 // Open location in maps app
