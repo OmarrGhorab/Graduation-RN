@@ -10,6 +10,7 @@ import { Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useProfile } from '@/hooks/useProfile';
 import {
     get2FAStatus, enable2FA, verify2FASetup, disable2FA, regenerateBackupCodes,
     getSessions, getSessionDetails, revokeSession, revokeAllSessions,
@@ -37,11 +38,22 @@ export default function SettingsScreen() {
     const { section: initialSection } = useLocalSearchParams<{ section?: string }>();
     const insets = useSafeAreaInsets();
     const toast = useToast();
-    const { user } = useAuthStore();
+    const { user, updateUser } = useAuthStore();
     const { theme, isDark } = useTheme();
     const { t, locale, preference, setLanguage } = useTranslation();
     const { data: preferences } = usePreferences();
     const updatePreferenceMutation = useUpdatePreference();
+    
+    // Fetch fresh profile data to ensure role is up to date
+    const { data: profileData } = useProfile();
+    
+    // Sync profile role to auth store if different
+    useEffect(() => {
+        if (profileData?.user?.role && user?.role !== profileData.user.role) {
+            console.log('[Settings] Syncing role from profile:', profileData.user.role);
+            updateUser({ role: profileData.user.role });
+        }
+    }, [profileData?.user?.role, user?.role, updateUser]);
 
     const [currentSection, setCurrentSection] = useState<SettingsSection_Type>(() => {
         if (initialSection && ['main', 'security', 'sessions', 'activity', 'danger', 'parentLink'].includes(initialSection)) {
@@ -94,7 +106,8 @@ export default function SettingsScreen() {
     const [unlinkTargetParent, setUnlinkTargetParent] = useState<{ id: string; name: string } | null>(null);
     const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
-    const isParent = user?.role === 'PARENT';
+    // Use profile role as source of truth, fallback to auth store
+    const isParent = (profileData?.user?.role || user?.role) === 'PARENT';
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -703,7 +716,11 @@ export default function SettingsScreen() {
                     {pendingRequests.length > 0 && (
                         <SettingsSection title={isParent ? t('settings.incomingRequests') : t('settings.sentRequests')}>
                             {pendingRequests.map((request) => {
-                                const account = isParent ? request.child : request.parent;
+                                // Backend returns child for parent's incoming requests, parent for child's sent requests
+                                // But if one is missing, fall back to the other
+                                const account = isParent 
+                                    ? (request.child || request.parent)
+                                    : (request.parent || request.child);
                                 return <ParentLinkCard key={request.id} name={account?.name || ''} username={account?.username || ''} profileImg={account?.profileImg ?? undefined} isPending pendingTime={formatRelativeTime(request.createdAt)} showActions={isParent} isProcessing={processingRequestId === request.id} onAccept={() => handleRespondToRequest(request.id, 'accept')} onDecline={() => handleRespondToRequest(request.id, 'decline')} />;
                             })}
                         </SettingsSection>

@@ -125,7 +125,9 @@ export async function getLinkRequests(): Promise<{ data: LinkRequest[] }> {
         },
     });
 
-    return parseResponse<{ data: LinkRequest[] }>(response);
+    const result = await parseResponse<{ data: LinkRequest[] }>(response);
+    console.log('[ParentLinkService] getLinkRequests response:', JSON.stringify(result, null, 2));
+    return result;
 }
 
 /**
