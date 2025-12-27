@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { cskColors, grayColors, Fonts } from '@/constants/theme';
-import { GEOAPIFY_API_KEY } from '@/constants/config';
+import { geoapifyApiKey } from '@/constants/config';
 import { useChildLocation, useChildLocationHistory, LocationData } from '@/hooks/useLocation';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -103,7 +103,8 @@ const formatDateTime = (timestamp: string) => {
 
 // Generate static map URL
 const getMapUrl = (latitude: number, longitude: number) => {
-    return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=120&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${GEOAPIFY_API_KEY}`;
+    const url = `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=120&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${geoapifyApiKey}`;
+    return url;
 };
 
 // Location History Item
