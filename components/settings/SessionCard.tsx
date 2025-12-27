@@ -29,7 +29,7 @@ export function SessionCard({
     formatTime,
 }: SessionCardProps) {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, isRTL } = useTranslation();
 
     return (
         <TouchableOpacity
@@ -80,7 +80,7 @@ export function SessionCard({
             {isLoading ? (
                 <ActivityIndicator size="small" color={theme.primary} />
             ) : (
-                <Ionicons name="chevron-forward" size={20} color={theme.gray[400]} />
+                <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={20} color={theme.gray[400]} />
             )}
         </TouchableOpacity>
     );

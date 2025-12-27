@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface SettingsMenuItemProps {
     icon: keyof typeof Ionicons.glyphMap;
@@ -22,6 +23,7 @@ export function SettingsMenuItem({
     rightElement 
 }: SettingsMenuItemProps) {
     const { theme } = useTheme();
+    const { isRTL } = useTranslation();
 
     const content = (
         <>
@@ -46,7 +48,7 @@ export function SettingsMenuItem({
                 )}
             </View>
             {rightElement || (
-                <Ionicons name="chevron-forward" size={20} color={theme.gray[400]} />
+                <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={20} color={theme.gray[400]} />
             )}
         </>
     );
