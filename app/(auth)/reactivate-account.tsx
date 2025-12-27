@@ -19,6 +19,7 @@ import {
     ReactivateCards,
     ReactivateButtons,
 } from '@/components/auth';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 
 const { width, height } = Dimensions.get('window');
 
@@ -136,9 +137,14 @@ export default function ReactivateAccountScreen() {
             const result = await confirmReactivation(tempToken);
             success('Welcome Back!', result.message || 'Your account has been reactivated');
 
-            setTimeout(() => {
-                const destination = result.user?.onboardingCompleted ? '/home' : '/onboarding/step1';
-                router.replace(destination as Href);
+            setTimeout(async () => {
+                if (result.user?.onboardingCompleted) {
+                    // Sync preferences before navigating to home
+                    await syncUserPreferences();
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             }, 500);
         } catch (err: any) {
             console.error('[Reactivate] Reactivation confirmation error:', err);

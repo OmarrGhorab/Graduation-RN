@@ -6,7 +6,7 @@ import { useLanguageStore } from '@/libs/language';
 
 export function useTranslation() {
   // Use global language store - all components share this state
-  const { locale, isRTL, setLocale } = useLanguageStore();
+  const { locale, preference, isRTL, setLocale } = useLanguageStore();
 
   const setLanguage = useCallback(async (languageCode: string) => {
     const needsRestart = await setLocale(languageCode);
@@ -50,7 +50,8 @@ export function useTranslation() {
 
   return {
     t: translate,
-    locale,
+    locale,           // The actual locale being used ('en' or 'ar')
+    preference,       // The user's preference ('system', 'en', or 'ar')
     isRTL,
     setLanguage,
     textAlign,

@@ -653,6 +653,7 @@ export default {
 
   // Languages
   languages: {
+    system: 'النظام',
     english: 'الإنجليزية',
     arabic: 'العربية',
     spanish: 'الإسبانية',

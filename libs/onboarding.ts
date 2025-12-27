@@ -9,8 +9,8 @@ interface OnboardingFormState {
         country: string;
         profileImg?: string;
         preferences: {
-            language: string;
-            themePreference: 'light' | 'dark';
+            language: 'system' | 'en' | 'ar';
+            themePreference: 'system' | 'light' | 'dark';
             notifications: boolean;
         };
     }) => void;

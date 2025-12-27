@@ -15,6 +15,7 @@ import { Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
 import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
 import { useAuthStore } from '@/libs/auth';
 import { getUserProfile } from '@/services/AuthService';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 import { useTheme } from '@/hooks/useTheme';
 import { t } from '@/libs/i18n';
 
@@ -110,6 +111,10 @@ export default function WelcomeScreen() {
 
                     // Check if user completed profile onboarding
                     if (user.onboardingCompleted) {
+                        // Fetch and apply preferences BEFORE navigating to home
+                        // This prevents the flash from system defaults to user preferences
+                        await syncUserPreferences();
+                        
                         console.log('[Splash] Profile onboarding completed - Navigating to Home');
                         router.replace('/home' as Href);
                     } else {

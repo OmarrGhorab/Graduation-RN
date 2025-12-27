@@ -39,7 +39,7 @@ export default function SettingsScreen() {
     const toast = useToast();
     const { user } = useAuthStore();
     const { theme, isDark } = useTheme();
-    const { t, locale, setLanguage } = useTranslation();
+    const { t, locale, preference, setLanguage } = useTranslation();
     const { data: preferences } = usePreferences();
     const updatePreferenceMutation = useUpdatePreference();
 
@@ -425,14 +425,15 @@ export default function SettingsScreen() {
     };
 
     const languages = [
+        { code: 'system', name: t('languages.system') },
         { code: 'en', name: 'English' },
         { code: 'ar', name: 'العربية' },
     ];
 
     const themes = [
-        { code: 'light', name: 'Light', icon: 'sunny-outline' },
-        { code: 'dark', name: 'Dark', icon: 'moon-outline' },
-        { code: 'system', name: 'System', icon: 'phone-portrait-outline' },
+        { code: 'system', name: t('settings.themeSystem'), icon: 'phone-portrait-outline' },
+        { code: 'light', name: t('settings.themeLight'), icon: 'sunny-outline' },
+        { code: 'dark', name: t('settings.themeDark'), icon: 'moon-outline' },
     ];
 
     const renderMainSection = () => (
@@ -452,7 +453,7 @@ export default function SettingsScreen() {
 
             <SettingsSection title={t('settings.preferences')}>
                 <SettingsMenuItem icon="color-palette-outline" label={t('settings.theme')} subtitle={preferences?.themePreference === 'dark' ? t('settings.themeDark') : preferences?.themePreference === 'light' ? t('settings.themeLight') : t('settings.themeSystem')} onPress={() => setShowThemeModal(true)} />
-                <SettingsMenuItem icon="language-outline" label={t('settings.language')} subtitle={locale === 'ar' ? 'العربية' : 'English'} onPress={() => setShowLanguageModal(true)} />
+                <SettingsMenuItem icon="language-outline" label={t('settings.language')} subtitle={preference === 'system' ? t('languages.system') : preference === 'ar' ? 'العربية' : 'English'} onPress={() => setShowLanguageModal(true)} />
                 <SettingsMenuItem icon="notifications-outline" label={t('settings.notifications')} subtitle={t('settings.notificationsSubtitle')} rightElement={
                     <Switch value={preferences?.notifications ?? true} onValueChange={(v) => handleUpdatePreference('notifications', v)} trackColor={{ false: theme.gray[200], true: theme.csk[400] }} thumbColor={preferences?.notifications ? theme.primary : theme.gray[50]} />
                 } />
@@ -771,7 +772,7 @@ export default function SettingsScreen() {
 
             <SearchParentModal visible={showSearchModal} searchQuery={searchQuery} searchResults={searchResults} isSearching={isSearching} processingId={processingRequestId} onClose={() => { setShowSearchModal(false); setSearchQuery(''); setSearchResults([]); }} onSearchChange={setSearchQuery} onSendRequest={handleSendLinkRequest} />
 
-            <PickerModal visible={showLanguageModal} title={t('settings.selectLanguage')} options={languages} selectedValue={locale} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
+            <PickerModal visible={showLanguageModal} title={t('settings.selectLanguage')} options={languages} selectedValue={preference} onSelect={handleLanguageChange} onClose={() => setShowLanguageModal(false)} />
 
             <PickerModal visible={showThemeModal} title={t('settings.selectTheme')} options={themes} selectedValue={preferences?.themePreference} onSelect={(v: string) => handleUpdatePreference('themePreference', v)} onClose={() => setShowThemeModal(false)} />
 

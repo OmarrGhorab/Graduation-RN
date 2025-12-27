@@ -63,8 +63,8 @@ export const ProfileCompletionBodySchema = z.object({
     goals: z.array(z.string()).min(1),
     newsletterEnabled: z.boolean(),
     preferences: z.object({
-        language: z.string().default('en'),
-        themePreference: z.enum(['light', 'dark']).default('light'),
+        language: z.enum(['system', 'en', 'ar']).default('system'),
+        themePreference: z.enum(['system', 'light', 'dark']).default('system'),
         notifications: z.boolean().default(true),
     }),
     interests: z.array(z.string()).min(1),

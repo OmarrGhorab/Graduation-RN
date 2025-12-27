@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/components/toast';
 import { LoginSuccessResponse } from '@/types/auth';
 import { SignInHeader, SignInForm, SignInFooter } from '@/components/auth';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 
 // ============================================================================
 // Types
@@ -97,10 +98,15 @@ export default function SignInScreen() {
 
         const result = await googleSignIn({
             showAlerts: true,
-            onSuccess: (data) => {
+            onSuccess: async (data) => {
                 console.log('Backend auth successful:', data);
-                const destination = data.user?.onboardingCompleted ? '/home' : '/onboarding/step1';
-                router.replace(destination as Href);
+                if (data.user?.onboardingCompleted) {
+                    // Sync preferences before navigating to home
+                    await syncUserPreferences();
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             },
             onCancel: () => console.log('Google Sign-In cancelled'),
         });
@@ -145,8 +151,13 @@ export default function SignInScreen() {
             }
 
             const successData = result as LoginSuccessResponse;
-            const destination = successData.user.onboardingCompleted ? '/home' : '/onboarding/step1';
-            router.replace(destination as Href);
+            if (successData.user.onboardingCompleted) {
+                // Sync preferences before navigating to home
+                await syncUserPreferences();
+                router.replace('/home' as Href);
+            } else {
+                router.replace('/onboarding/step1' as Href);
+            }
         } catch (err: any) {
             console.error('Login error:', err);
             const responseData = err.responseData;

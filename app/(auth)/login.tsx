@@ -11,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { googleSignIn, configureGoogleSignIn, isAccountDeactivated } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { LoginHeader, LoginLogo, LoginButtons } from '@/components/auth';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 
 const { height } = Dimensions.get('window');
 
@@ -95,10 +96,15 @@ export default function LoginScreen() {
 
         const result = await googleSignIn({
             showAlerts: true,
-            onSuccess: (data) => {
+            onSuccess: async (data) => {
                 console.log('Google Sign-In successful:', data);
-                const destination = data.user?.onboardingCompleted ? '/home' : '/onboarding/step1';
-                router.replace(destination as Href);
+                if (data.user?.onboardingCompleted) {
+                    // Sync preferences before navigating to home
+                    await syncUserPreferences();
+                    router.replace('/home' as Href);
+                } else {
+                    router.replace('/onboarding/step1' as Href);
+                }
             },
             onCancel: () => {
                 console.log('Google Sign-In cancelled');

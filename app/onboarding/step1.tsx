@@ -7,7 +7,6 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
     useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +17,7 @@ import { useOnboardingStore } from '@/libs/onboarding';
 import { useThemeStore } from '@/libs/theme';
 import { useAuthStore } from '@/libs/auth';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useLanguageStore } from '@/libs/language';
 import { deleteProfileImage } from '@/services/AuthService';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -89,16 +89,9 @@ const COUNTRY_TRANSLATION_MAP: Record<string, string> = {
 };
 
 const LANGUAGES = [
+    { id: 'system', translationKey: 'languages.system', nativeLabel: 'System' },
     { id: 'en', translationKey: 'languages.english', nativeLabel: 'English' },
     { id: 'ar', translationKey: 'languages.arabic', nativeLabel: 'العربية' },
-    { id: 'es', translationKey: 'languages.spanish', nativeLabel: 'Español' },
-    { id: 'fr', translationKey: 'languages.french', nativeLabel: 'Français' },
-    { id: 'de', translationKey: 'languages.german', nativeLabel: 'Deutsch' },
-    { id: 'zh', translationKey: 'languages.chinese', nativeLabel: '中文' },
-    { id: 'ja', translationKey: 'languages.japanese', nativeLabel: '日本語' },
-    { id: 'ko', translationKey: 'languages.korean', nativeLabel: '한국어' },
-    { id: 'pt', translationKey: 'languages.portuguese', nativeLabel: 'Português' },
-    { id: 'ru', translationKey: 'languages.russian', nativeLabel: 'Русский' },
 ];
 
 export default function OnboardingStep1() {
@@ -139,22 +132,19 @@ export default function OnboardingStep1() {
         { id: 'system', label: t('onboarding.themeSystem'), icon: 'settings-outline' as const },
     ];
 
-    // Get initial language - use system locale if first time, otherwise use saved preference
-    const getInitialLanguage = (): string => {
+    // Get initial language - default to 'system' for first time users
+    const getInitialLanguage = (): 'system' | 'en' | 'ar' => {
         if (!isFirstTime && formData.preferences?.language) {
-            return formData.preferences.language;
+            return formData.preferences.language as 'system' | 'en' | 'ar';
         }
-        // First time: use system locale if Arabic or English, otherwise default to English
-        if (locale === 'ar' || locale === 'en') {
-            return locale;
-        }
-        return 'en';
+        // First time: default to 'system' to follow device language
+        return 'system';
     };
 
     // Get initial theme - use 'system' if first time to follow device theme
-    const getInitialTheme = (): string => {
+    const getInitialTheme = (): 'system' | 'light' | 'dark' => {
         if (!isFirstTime && formData.preferences?.themePreference) {
-            return formData.preferences.themePreference;
+            return formData.preferences.themePreference as 'system' | 'light' | 'dark';
         }
         // First time: default to 'system' to follow device theme
         return 'system';
@@ -169,8 +159,8 @@ export default function OnboardingStep1() {
     );
     const [gender, setGender] = useState<string>(formData.gender || '');
     const [country, setCountry] = useState<string>(formData.country || '');
-    const [language, setLanguage] = useState<string>(getInitialLanguage);
-    const [selectedTheme, setSelectedTheme] = useState<string>(getInitialTheme);
+    const [language, setLanguage] = useState<'system' | 'en' | 'ar'>(getInitialLanguage);
+    const [selectedTheme, setSelectedTheme] = useState<'system' | 'light' | 'dark'>(getInitialTheme);
 
     // Sync theme mode on mount for first-time users
     useEffect(() => {
@@ -338,7 +328,7 @@ export default function OnboardingStep1() {
             profileImg: profileImg || undefined,
             preferences: {
                 language,
-                themePreference: selectedTheme === 'system' ? 'light' : selectedTheme as 'light' | 'dark',
+                themePreference: selectedTheme,
                 notifications: true,
             }
         };
@@ -349,8 +339,15 @@ export default function OnboardingStep1() {
     };
 
     const handleThemeSelect = (themeId: string) => {
-        setSelectedTheme(themeId);
+        setSelectedTheme(themeId as 'system' | 'light' | 'dark');
         setThemeMode(themeId as 'light' | 'dark' | 'system');
+    };
+
+    // Handle language selection - apply immediately so user sees UI in their language
+    const handleLanguageSelect = async (langId: string) => {
+        setLanguage(langId as 'system' | 'en' | 'ar');
+        // Apply the language change immediately (without restart during onboarding)
+        await useLanguageStore.getState().setLocale(langId);
     };
 
     return (
@@ -462,7 +459,7 @@ export default function OnboardingStep1() {
                 title={t('onboarding.selectLanguage')}
                 options={LANGUAGES.map(lang => ({ id: lang.id, label: t(lang.translationKey) }))}
                 selectedValue={language}
-                onSelect={setLanguage}
+                onSelect={handleLanguageSelect}
                 height={500}
             />
 

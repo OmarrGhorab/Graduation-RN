@@ -12,6 +12,7 @@ import { Colors } from '@/constants/theme';
 import { verifyDevice, resendDeviceVerificationOTP } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { DeviceVerificationHeader, OTPInput, OTPActions } from '@/components/auth';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 
 // ============================================================================
 // Main Component
@@ -84,8 +85,13 @@ export default function DeviceVerificationScreen() {
             await new Promise((resolve) => setTimeout(resolve, 200));
             success('Device Verified', result.message || 'Device verified successfully');
 
-            const destination = result.user?.onboardingCompleted ? '/home' : '/onboarding/step1';
-            router.replace(destination as Href);
+            if (result.user?.onboardingCompleted) {
+                // Sync preferences before navigating to home
+                await syncUserPreferences();
+                router.replace('/home' as Href);
+            } else {
+                router.replace('/onboarding/step1' as Href);
+            }
         } catch (err: any) {
             console.error('Device verification error:', err);
             error('Verification Failed', err.message || 'Please check the code and try again');

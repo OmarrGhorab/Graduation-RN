@@ -8,25 +8,22 @@ export const PREFERENCES_QUERY_KEY = ['preferences'];
 
 /**
  * Hook for fetching and caching user preferences
+ * Note: Initial sync happens in splash screen (index.tsx) to prevent flash
  */
 export function usePreferences() {
-    const setThemeMode = useThemeStore((state) => state.setThemeMode);
-
     return useQuery({
         queryKey: PREFERENCES_QUERY_KEY,
         queryFn: async () => {
             console.log('[Preferences] Fetching preferences from API...');
             const preferences = await getPreferences();
             console.log('[Preferences] Received from API:', preferences);
-            // Sync theme with theme store when preferences are fetched
-            if (preferences.themePreference) {
-                setThemeMode(preferences.themePreference as ThemeMode);
-            }
+            // Don't auto-sync here - initial sync happens in splash screen
+            // This prevents double-setting and potential flicker
             return preferences;
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes - reduced from 10
+        staleTime: 1000 * 60 * 5, // 5 minutes
         gcTime: 1000 * 60 * 30, // 30 minutes cache
-        refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
+        refetchOnMount: false, // Don't refetch on mount - splash already loaded
         refetchOnWindowFocus: false, // Don't refetch on window focus
         refetchOnReconnect: false, // Don't refetch on reconnect
     });
@@ -76,7 +73,7 @@ export function useUpdatePreference() {
             }
             toast.error('Error', err.message || 'Failed to update preference');
         },
-        onSuccess: (response, variables, context) => {
+        onSuccess: (response, variables) => {
             console.log('[Preferences] Mutation success, response:', response);
             
             // Keep the optimistic update - don't overwrite with server response
@@ -103,16 +100,12 @@ export function useUpdatePreference() {
  */
 export function usePrefetchPreferences() {
     const queryClient = useQueryClient();
-    const setThemeMode = useThemeStore((state) => state.setThemeMode);
 
     const prefetch = () => {
         queryClient.prefetchQuery({
             queryKey: PREFERENCES_QUERY_KEY,
             queryFn: async () => {
                 const preferences = await getPreferences();
-                if (preferences.themePreference) {
-                    setThemeMode(preferences.themePreference as ThemeMode);
-                }
                 return preferences;
             },
             staleTime: 1000 * 60 * 5, // 5 minutes

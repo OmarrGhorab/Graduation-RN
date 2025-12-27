@@ -13,6 +13,7 @@ import { verify2FALogin } from '@/services/SecurityService';
 import { useToast } from '@/components/toast';
 import { useAuthStore } from '@/libs/auth';
 import { Verify2FAHeader, Verify2FAForm } from '@/components/auth';
+import { syncUserPreferences } from '@/libs/preferences-sync';
 
 // ============================================================================
 // Main Component
@@ -74,8 +75,13 @@ export default function Verify2FAScreen() {
 
             toast.success('Success', 'Login successful');
 
-            const destination = user?.onboardingCompleted ? '/home' : '/onboarding/step1';
-            router.replace(destination as Href);
+            if (user?.onboardingCompleted) {
+                // Sync preferences before navigating to home
+                await syncUserPreferences();
+                router.replace('/home' as Href);
+            } else {
+                router.replace('/onboarding/step1' as Href);
+            }
         } catch (err: any) {
             console.error('2FA verification error:', err);
             toast.error('Verification Failed', err.message || 'Invalid code. Please try again.');
