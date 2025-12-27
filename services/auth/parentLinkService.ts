@@ -5,6 +5,7 @@ import {
     ParentLinkResponse,
 } from '@/types/auth';
 import { getValidAccessToken } from './tokenService';
+import { ApiError, NetworkError } from '@/types/errors';
 
 /**
  * Search for parents to link
@@ -36,18 +37,23 @@ export async function searchParents(query: string, page: number = 1, limit: numb
         const responseData = await response.json();
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Parent search failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Parent search failed',
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Parent search failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -86,18 +92,23 @@ export async function requestParentLink(data: ParentLinkRequest): Promise<Parent
         console.log('[Auth] Parent link response:', responseData);
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Parent link request failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Parent link request failed',
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Parent link request failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );

@@ -9,6 +9,7 @@ import {
     UploadProfileImageResponse,
 } from '@/services/ProfileService';
 import { useAuthStore } from '@/libs/auth';
+import { STALE_TIMES, GC_TIMES } from '@/constants/queryConfig';
 
 export const PROFILE_QUERY_KEY = ['profile'];
 
@@ -16,8 +17,8 @@ export function useProfileQuery() {
     return useQuery({
         queryKey: PROFILE_QUERY_KEY,
         queryFn: getProfile,
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
+        staleTime: STALE_TIMES.STANDARD,
+        gcTime: GC_TIMES.STANDARD,
     });
 }
 

@@ -1,5 +1,7 @@
 import { apiClient } from './apiClient';
 import { DeviceService } from './DeviceService';
+import { logger } from '@/libs/logger';
+import { ApiError, isApiError } from '@/types/errors';
 
 // ==================== Types ====================
 
@@ -72,7 +74,7 @@ export const LocationService = {
       const location = await DeviceService.getPreciseLocation({ accuracy: 'high' });
       
       if (!location) {
-        console.log('[LocationService] No location available to update');
+        logger.log('[LocationService] No location available to update');
         return null;
       }
 
@@ -85,7 +87,7 @@ export const LocationService = {
 
       return data.location || null;
     } catch (error) {
-      console.error('[LocationService] Update location error:', error);
+      logger.error('[LocationService] Update location error:', error);
       return null;
     }
   },
@@ -98,7 +100,7 @@ export const LocationService = {
       const data = await apiClient.get<{ location?: LocationData }>('/api/v1/location/me');
       return data.location || null;
     } catch (error) {
-      console.error('[LocationService] Get my location error:', error);
+      logger.error('[LocationService] Get my location error:', error);
       return null;
     }
   },
@@ -122,7 +124,7 @@ export const LocationService = {
         pagination: data.pagination || emptyPagination,
       };
     } catch (error) {
-      console.error('[LocationService] Get location history error:', error);
+      logger.error('[LocationService] Get location history error:', error);
       return { data: [], pagination: emptyPagination };
     }
   },
@@ -134,10 +136,10 @@ export const LocationService = {
     try {
       const data = await apiClient.get<{ children?: ChildLocation[] }>('/api/v1/location/children');
       return data.children || [];
-    } catch (error: any) {
+    } catch (error) {
       // 403 means user is not a parent - return empty array
-      if (error.status === 403) return [];
-      console.error('[LocationService] Get children locations error:', error);
+      if (isApiError(error) && error.status === 403) return [];
+      logger.error('[LocationService] Get children locations error:', error);
       return [];
     }
   },
@@ -152,11 +154,11 @@ export const LocationService = {
         child: data.child,
         location: data.location || null,
       };
-    } catch (error: any) {
-      if (error.status === 403) {
-        throw new Error('You are not linked to this child');
+    } catch (error) {
+      if (isApiError(error) && error.status === 403) {
+        throw new ApiError('You are not linked to this child', 403);
       }
-      console.error('[LocationService] Get child location error:', error);
+      logger.error('[LocationService] Get child location error:', error);
       throw error;
     }
   },
@@ -186,11 +188,11 @@ export const LocationService = {
         data: data.data || [],
         pagination: data.pagination || emptyPagination,
       };
-    } catch (error: any) {
-      if (error.status === 403) {
-        throw new Error('You are not linked to this child');
+    } catch (error) {
+      if (isApiError(error) && error.status === 403) {
+        throw new ApiError('You are not linked to this child', 403);
       }
-      console.error('[LocationService] Get child location history error:', error);
+      logger.error('[LocationService] Get child location history error:', error);
       throw error;
     }
   },

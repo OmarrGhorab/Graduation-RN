@@ -5,6 +5,7 @@ import * as Network from 'expo-network';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerForPushNotificationsAsync } from '@/libs/notifications';
+import { logger } from '@/libs/logger';
 
 // Storage keys
 const PUSH_TOKEN_KEY = '@push_token_v2';
@@ -184,13 +185,13 @@ export const DeviceService = {
             const { status } = await Location.requestForegroundPermissionsAsync();
             
             if (status !== 'granted') {
-                console.warn('[DeviceService] Location permission denied');
+                logger.warn('[DeviceService] Location permission denied');
                 return false;
             }
 
             return true;
         } catch (error) {
-            console.warn('[DeviceService] Location permission error:', error);
+            logger.warn('[DeviceService] Location permission error:', error);
             return false;
         }
     },
@@ -245,7 +246,7 @@ export const DeviceService = {
             
             return null;
         } catch (error) {
-            console.warn('[DeviceService] Reverse geocoding error:', error);
+            logger.warn('[DeviceService] Reverse geocoding error:', error);
             return null;
         }
     },
@@ -311,7 +312,7 @@ export const DeviceService = {
 
             return locationInfo;
         } catch (error) {
-            console.warn('[DeviceService] Location fetch error:', error);
+            logger.warn('[DeviceService] Location fetch error:', error);
             
             const fallback: LocationInfo = {
                 location: null,
@@ -347,7 +348,7 @@ export const DeviceService = {
         const PRECISE_CACHE_DURATION = 5 * 60 * 1000;
         if (!forceRefresh && cachedPreciseLocation && 
             (Date.now() - cachedPreciseLocation.timestamp) < PRECISE_CACHE_DURATION) {
-            console.log('[DeviceService] Returning cached precise location');
+            logger.log('[DeviceService] Returning cached precise location');
             return cachedPreciseLocation;
         }
 
@@ -355,12 +356,12 @@ export const DeviceService = {
         const hasPermission = await DeviceService.requestLocationPermission();
         
         if (!hasPermission) {
-            console.warn('[DeviceService] Location permission denied');
+            logger.warn('[DeviceService] Location permission denied');
             return null;
         }
 
         try {
-            console.log(`[DeviceService] Getting precise location with ${accuracy} accuracy...`);
+            logger.log(`[DeviceService] Getting precise location with ${accuracy} accuracy...`);
             
             // Get current position with specified accuracy
             const position = await Location.getCurrentPositionAsync({
@@ -371,7 +372,7 @@ export const DeviceService = {
 
             const { latitude, longitude, accuracy: posAccuracy, altitude, altitudeAccuracy, heading, speed } = position.coords;
             
-            console.log(`[DeviceService] Got coordinates: ${latitude}, ${longitude} (accuracy: ${posAccuracy}m)`);
+            logger.log(`[DeviceService] Got coordinates: ${latitude}, ${longitude} (accuracy: ${posAccuracy}m)`);
 
             let geocodeData: {
                 city: string | null;
@@ -411,10 +412,10 @@ export const DeviceService = {
                                 result.country,
                             ].filter(Boolean).join(', ') || null,
                         };
-                        console.log('[DeviceService] Geocoded address:', geocodeData.formattedAddress);
+                        logger.log('[DeviceService] Geocoded address:', geocodeData.formattedAddress);
                     }
                 } catch (geocodeError) {
-                    console.warn('[DeviceService] Reverse geocoding failed:', geocodeError);
+                    logger.warn('[DeviceService] Reverse geocoding failed:', geocodeError);
                 }
             }
 
@@ -435,7 +436,7 @@ export const DeviceService = {
 
             return preciseLocation;
         } catch (error) {
-            console.warn('[DeviceService] Precise location fetch error:', error);
+            logger.warn('[DeviceService] Precise location fetch error:', error);
             return null;
         }
     },
@@ -465,12 +466,12 @@ export const DeviceService = {
         const hasPermission = await DeviceService.requestLocationPermission();
         
         if (!hasPermission) {
-            console.warn('[DeviceService] Location permission denied for watch');
+            logger.warn('[DeviceService] Location permission denied for watch');
             return null;
         }
 
         try {
-            console.log('[DeviceService] Starting location watch...');
+            logger.log('[DeviceService] Starting location watch...');
             
             const subscription = await Location.watchPositionAsync(
                 {
@@ -537,7 +538,7 @@ export const DeviceService = {
 
             return subscription;
         } catch (error) {
-            console.warn('[DeviceService] Watch location error:', error);
+            logger.warn('[DeviceService] Watch location error:', error);
             return null;
         }
     },
@@ -578,7 +579,7 @@ export const DeviceService = {
                 formattedAddress: null,
             };
         } catch (error) {
-            console.warn('[DeviceService] Get last known location error:', error);
+            logger.warn('[DeviceService] Get last known location error:', error);
             return null;
         }
     },
@@ -634,16 +635,16 @@ export const DeviceService = {
                     const ip = data.ip || data.origin;
                     if (ip && !ip.startsWith('192.168.') && !ip.startsWith('10.') && ip !== '127.0.0.1') {
                         cachedPublicIpAddress = ip;
-                        console.log('[DeviceService] Public IP:', ip);
+                        logger.log('[DeviceService] Public IP:', ip);
                         return ip;
                     }
                 }
             } catch (e) {
-                console.log(`[DeviceService] Failed to fetch from ${service}`);
+                logger.log(`[DeviceService] Failed to fetch from ${service}`);
             }
         }
 
-        console.warn('[DeviceService] Could not get public IP');
+        logger.warn('[DeviceService] Could not get public IP');
         return '';
     },
 
@@ -658,7 +659,7 @@ export const DeviceService = {
             cachedLocalIpAddress = ip;
             return ip;
         } catch (e) {
-            console.warn('[DeviceService] Failed to get local IP address:', e);
+            logger.warn('[DeviceService] Failed to get local IP address:', e);
             return '0.0.0.0';
         }
     },
@@ -708,7 +709,7 @@ export const DeviceService = {
                 return storedToken;
             }
 
-            console.log('[DeviceService] Fetching new push token...');
+            logger.log('[DeviceService] Fetching new push token...');
             const newToken = await registerForPushNotificationsAsync();
 
             if (newToken) {
@@ -719,7 +720,7 @@ export const DeviceService = {
 
             return null;
         } catch (e) {
-            console.warn('[DeviceService] Failed to get push token:', e);
+            logger.warn('[DeviceService] Failed to get push token:', e);
             return null;
         }
     },
@@ -784,27 +785,27 @@ export const DeviceService = {
     initialize: async (): Promise<void> => {
         // Pre-cache device info
         const deviceInfo = DeviceService.getDeviceInfo();
-        console.log('[DeviceService] Device Info:', deviceInfo);
+        logger.log('[DeviceService] Device Info:', deviceInfo);
         
         // Pre-fetch precise location in background
         DeviceService.getPreciseLocation({ accuracy: 'highest' }).then(loc => {
             if (loc) {
-                console.log('[DeviceService] Precise Location:', {
+                logger.log('[DeviceService] Precise Location:', {
                     lat: loc.latitude,
                     lng: loc.longitude,
                     accuracy: `${loc.accuracy}m`,
                     address: loc.formattedAddress || `${loc.city}, ${loc.country}`,
                 });
             } else {
-                console.log('[DeviceService] Location: Permission denied or unavailable');
+                logger.log('[DeviceService] Location: Permission denied or unavailable');
             }
         }).catch(e => {
-            console.warn('[DeviceService] Background location fetch failed:', e);
+            logger.warn('[DeviceService] Background location fetch failed:', e);
         });
 
         // Pre-fetch public IP in background
         DeviceService.getPublicIpAddress().catch(e => {
-            console.warn('[DeviceService] Background IP fetch failed:', e);
+            logger.warn('[DeviceService] Background IP fetch failed:', e);
         });
     },
 

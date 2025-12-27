@@ -3,8 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { useEffect, useState } from 'react';
 import { useFonts, Rubik_300Light, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black } from '@expo-google-fonts/rubik';
 import * as SplashScreen from 'expo-splash-screen';
 import { initializeLanguage } from '@/hooks/useTranslation';
@@ -13,33 +12,25 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ToastProvider } from '@/components/toast';
 import { registerForPushNotificationsAsync } from '@/libs/notifications';
 import { DeviceService } from '@/services/DeviceService';
-import { LocationService } from '@/services/LocationService';
+import { LocationUpdateService } from '@/services/LocationUpdateService';
 import NotificationListener from '@/components/NotificationListener';
 import { setQueryClientRef, useAuthStore } from '@/libs/auth';
+import { defaultQueryOptions } from '@/constants/queryConfig';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 2,
-    },
-  },
+  defaultOptions: defaultQueryOptions,
 });
 
 // Set query client reference for auth store to clear cache on logout
 setQueryClientRef(queryClient);
 
-// Location update interval (5 minutes)
-const LOCATION_UPDATE_INTERVAL = 5 * 60 * 1000;
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const appState = useRef(AppState.currentState);
   const [i18nReady, setI18nReady] = useState(false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   // Load Rubik fonts from Expo Google Fonts
   const [fontsLoaded, fontsError] = useFonts({
@@ -72,58 +63,20 @@ export default function RootLayout() {
     
     // Register for push notifications on app start
     registerForPushNotificationsAsync();
+  }, []);
 
-    // Start location updates
-    const startLocationUpdates = () => {
-      // Clear existing interval
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-      }
-
-      // Update location periodically (only when authenticated)
-      locationIntervalRef.current = setInterval(async () => {
-        const { accessToken } = useAuthStore.getState();
-        if (accessToken) {
-          try {
-            await LocationService.updateLocation();
-            console.log('[Location] Periodic update sent');
-          } catch (e) {
-            // Silent fail - location updates are best-effort
-          }
-        }
-      }, LOCATION_UPDATE_INTERVAL);
-    };
-
-    // Handle app state changes
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App came to foreground - refresh location
-        const { accessToken } = useAuthStore.getState();
-        if (accessToken) {
-          DeviceService.getPreciseLocation({ accuracy: 'highest', forceRefresh: true });
-          LocationService.updateLocation().catch(() => {});
-        }
-        startLocationUpdates();
-      } else if (nextAppState.match(/inactive|background/)) {
-        // App went to background - stop interval
-        if (locationIntervalRef.current) {
-          clearInterval(locationIntervalRef.current);
-          locationIntervalRef.current = null;
-        }
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    startLocationUpdates();
+  // Start/stop location updates based on authentication state
+  useEffect(() => {
+    if (isAuthenticated) {
+      LocationUpdateService.start();
+    } else {
+      LocationUpdateService.stop();
+    }
 
     return () => {
-      subscription.remove();
-      if (locationIntervalRef.current) {
-        clearInterval(locationIntervalRef.current);
-      }
+      LocationUpdateService.stop();
     };
-  }, []);
+  }, [isAuthenticated]);
 
   // Don't render anything until fonts are loaded and i18n is ready
   if ((!fontsLoaded && !fontsError) || !i18nReady) {

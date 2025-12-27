@@ -7,22 +7,24 @@ import {
     ConfirmReactivationResponse,
 } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
-import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { getValidAccessToken } from './tokenService';
 import { registerFCMToken } from './fcmService';
+import { ApiError, NetworkError } from '@/types/errors';
 
 /**
  * Check if login response requires device verification
  */
-export function requiresDeviceVerification(response: any): response is DeviceVerificationRequired {
-    return response.deviceBlocked === true && response.requiresDeviceVerification === true;
+export function requiresDeviceVerification(response: unknown): response is DeviceVerificationRequired {
+    const r = response as Record<string, unknown>;
+    return r.deviceBlocked === true && r.requiresDeviceVerification === true;
 }
 
 /**
  * Check if login response indicates account is deactivated
  */
-export function isAccountDeactivated(response: any): response is AccountDeactivatedResponse {
-    return response.accountDeactivated === true && response.requiresReactivation === true && !!response.tempToken;
+export function isAccountDeactivated(response: unknown): response is AccountDeactivatedResponse {
+    const r = response as Record<string, unknown>;
+    return r.accountDeactivated === true && r.requiresReactivation === true && !!r.tempToken;
 }
 
 /**
@@ -53,18 +55,23 @@ export async function submitOnboarding(data: OnboardingData): Promise<Onboarding
         const responseData = await response.json();
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Onboarding submission failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Onboarding submission failed',
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Onboarding submission failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -100,10 +107,11 @@ export async function deleteProfileImage(): Promise<{ success: boolean; message:
         const responseData = await response.json();
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to delete profile image');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Failed to delete profile image',
+                response.status,
+                responseData
+            );
         }
 
         // Update local user in store
@@ -113,11 +121,15 @@ export async function deleteProfileImage(): Promise<{ success: boolean; message:
         }
 
         return { success: true, message: responseData.message || 'Profile image deleted' };
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Profile image deletion failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(`Cannot connect to server at ${BASE_URL}.`);
         }
 
         throw error;
@@ -159,24 +171,22 @@ export async function confirmReactivation(tempToken: string): Promise<ConfirmRea
             console.log('[Auth] Storing tokens after reactivation...');
             useAuthStore.getState().setAuth(responseData.user, responseData.accessToken, responseData.refreshToken);
             registerFCMToken().catch(err => console.log('[Auth] FCM registration warning:', err));
-            
-            if (responseData.user.preferences?.themePreference) {
-                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
-                console.log('[Auth] Syncing theme preference on reactivation:', themePreference);
-                useThemeStore.getState().setThemeMode(themePreference);
-            }
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Account reactivation confirmation failed:', error);
         console.error('[Auth] Error details:', {
-            message: error.message,
-            stack: error.stack,
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
         });
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );

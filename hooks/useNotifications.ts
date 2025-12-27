@@ -7,6 +7,7 @@ import {
     deleteNotification,
     ApiNotification,
 } from '@/services/NotificationService';
+import { STALE_TIMES } from '@/constants/queryConfig';
 
 export const NOTIFICATIONS_QUERY_KEY = ['notifications'];
 
@@ -24,6 +25,7 @@ export function useNotificationsQuery(limit: number = 10) {
             return undefined;
         },
         initialPageParam: 1,
+        staleTime: STALE_TIMES.REALTIME,
     });
 }
 

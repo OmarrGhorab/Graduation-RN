@@ -8,6 +8,7 @@ import {
   ChildLocationHistoryResponse,
   ChildInfo,
 } from '@/services/LocationService';
+import { STALE_TIMES } from '@/constants/queryConfig';
 
 // ==================== Query Keys ====================
 
@@ -29,7 +30,7 @@ export const useMyLocation = () => {
   return useQuery({
     queryKey: locationKeys.me(),
     queryFn: LocationService.getMyLocation,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: STALE_TIMES.REALTIME,
   });
 };
 
@@ -47,7 +48,7 @@ export const useMyLocationHistory = (limit: number = 10) => {
       return undefined;
     },
     initialPageParam: 1,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: STALE_TIMES.REALTIME,
   });
 };
 
@@ -58,7 +59,7 @@ export const useChildrenLocations = (isParent: boolean = false) => {
   return useQuery({
     queryKey: locationKeys.children(),
     queryFn: LocationService.getChildrenLocations,
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: STALE_TIMES.REALTIME,
     enabled: isParent,
   });
 };
@@ -71,7 +72,7 @@ export const useChildLocation = (childId: string) => {
     queryKey: locationKeys.child(childId),
     queryFn: () => LocationService.getChildLocation(childId),
     enabled: !!childId,
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: STALE_TIMES.REALTIME,
   });
 };
 
@@ -90,7 +91,7 @@ export const useChildLocationHistory = (childId: string, limit: number = 10) => 
     },
     initialPageParam: 1,
     enabled: !!childId,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: STALE_TIMES.REALTIME,
   });
 };
 

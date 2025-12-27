@@ -1,7 +1,7 @@
 import { BASE_URL } from '@/constants/config';
 import { getValidAccessToken } from './AuthService';
 import { DeviceService } from './DeviceService';
-import { ApiError, NetworkError } from '@/types/errors';
+import { ApiError, NetworkError, AuthError } from '@/types/errors';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -13,7 +13,7 @@ interface RequestOptions {
     /** Additional headers to include */
     headers?: Record<string, string>;
     /** Request body (will be JSON stringified) */
-    body?: any;
+    body?: unknown;
     /** Query parameters */
     params?: Record<string, string | number | boolean | undefined>;
 }
@@ -40,7 +40,7 @@ function buildUrl(endpoint: string, params?: RequestOptions['params']): string {
 /**
  * Core request function that handles all HTTP methods
  */
-async function request<T = any>(
+async function request<T = unknown>(
     method: HttpMethod,
     endpoint: string,
     options: RequestOptions = {}
@@ -58,7 +58,7 @@ async function request<T = any>(
         if (!skipAuth) {
             const token = await getValidAccessToken();
             if (!token) {
-                throw new ApiError('No authentication token found', 401);
+                throw new AuthError('No authentication token found', 'NO_TOKEN');
             }
             requestHeaders['Authorization'] = `Bearer ${token}`;
         }
@@ -98,32 +98,35 @@ async function request<T = any>(
         }
 
         // Parse response
-        const data = await response.json();
+        const data: unknown = await response.json();
 
         // Handle error responses
         if (!response.ok) {
-            const message = data.message || data.error || `Request failed with status ${response.status}`;
+            const responseObj = data as Record<string, unknown>;
+            const message = (responseObj.message || responseObj.error || `Request failed with status ${response.status}`) as string;
             throw new ApiError(message, response.status, data);
         }
 
         return data as T;
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Re-throw our custom errors
-        if (error instanceof ApiError || error instanceof NetworkError) {
+        if (error instanceof ApiError || error instanceof NetworkError || error instanceof AuthError) {
             throw error;
         }
 
         // Handle network errors
-        if (error.message === 'Network request failed') {
-            throw new NetworkError(
-                `Cannot connect to server at ${BASE_URL}. Please check your connection.`,
-                error
-            );
-        }
+        if (error instanceof Error) {
+            if (error.message === 'Network request failed') {
+                throw new NetworkError(
+                    `Cannot connect to server at ${BASE_URL}. Please check your connection.`,
+                    error
+                );
+            }
 
-        // Handle other fetch errors as network errors
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            throw new NetworkError('Network request failed', error);
+            // Handle other fetch errors as network errors
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                throw new NetworkError('Network request failed', error);
+            }
         }
 
         // Re-throw unknown errors
@@ -138,30 +141,30 @@ export const apiClient = {
     /**
      * GET request
      */
-    get: <T = any>(endpoint: string, options?: Omit<RequestOptions, 'body'>) =>
+    get: <T = unknown>(endpoint: string, options?: Omit<RequestOptions, 'body'>) =>
         request<T>('GET', endpoint, options),
 
     /**
      * POST request
      */
-    post: <T = any>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'body'>) =>
+    post: <T = unknown>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'body'>) =>
         request<T>('POST', endpoint, { ...options, body }),
 
     /**
      * PUT request
      */
-    put: <T = any>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'body'>) =>
+    put: <T = unknown>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'body'>) =>
         request<T>('PUT', endpoint, { ...options, body }),
 
     /**
      * PATCH request
      */
-    patch: <T = any>(endpoint: string, body?: any, options?: Omit<RequestOptions, 'body'>) =>
+    patch: <T = unknown>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'body'>) =>
         request<T>('PATCH', endpoint, { ...options, body }),
 
     /**
      * DELETE request
      */
-    delete: <T = any>(endpoint: string, options?: RequestOptions) =>
+    delete: <T = unknown>(endpoint: string, options?: RequestOptions) =>
         request<T>('DELETE', endpoint, options),
 };

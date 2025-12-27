@@ -1,6 +1,7 @@
 import { getPreferences } from '@/services/ProfileService';
 import { useThemeStore } from '@/libs/theme';
 import { useLanguageStore } from '@/libs/language';
+import { logger } from '@/libs/logger';
 
 /**
  * Fetch and apply user preferences from API
@@ -9,9 +10,9 @@ import { useLanguageStore } from '@/libs/language';
  */
 export async function syncUserPreferences(): Promise<boolean> {
     try {
-        console.log('[PreferencesSync] Fetching user preferences...');
+        logger.log('[PreferencesSync] Fetching user preferences...');
         const preferences = await getPreferences();
-        console.log('[PreferencesSync] Preferences loaded:', preferences);
+        logger.log('[PreferencesSync] Preferences loaded:', preferences);
 
         // Apply theme preference
         if (preferences.themePreference) {
@@ -23,10 +24,10 @@ export async function syncUserPreferences(): Promise<boolean> {
             await useLanguageStore.getState().setLocale(preferences.language);
         }
 
-        console.log('[PreferencesSync] Preferences applied successfully');
+        logger.log('[PreferencesSync] Preferences applied successfully');
         return true;
     } catch (error) {
-        console.log('[PreferencesSync] Failed to sync preferences:', error);
+        logger.log('[PreferencesSync] Failed to sync preferences:', error);
         // Return false but don't throw - app should continue with defaults
         return false;
     }

@@ -2,6 +2,16 @@ import EventSource from 'react-native-sse';
 import { BASE_URL } from '@/constants/config';
 import { getValidAccessToken } from './AuthService';
 import { ApiNotification } from './NotificationService';
+import { getErrorMessage } from '@/types/errors';
+
+// Event types from react-native-sse (library doesn't export these)
+interface SSEMessageEvent {
+    data: string;
+}
+
+interface SSEErrorEvent {
+    message?: string;
+}
 
 // SSE Notification types
 export type SSENotificationType =
@@ -111,7 +121,7 @@ class NotificationSSEService {
             });
 
             // Handle messages
-            this.eventSource.addEventListener('message', (event: any) => {
+            this.eventSource.addEventListener('message', (event: SSEMessageEvent) => {
                 console.log('[SSE] Raw message received:', event.data);
                 
                 if (!event.data) return;
@@ -125,7 +135,7 @@ class NotificationSSEService {
             });
 
             // Handle errors
-            this.eventSource.addEventListener('error', (event: any) => {
+            this.eventSource.addEventListener('error', (event: SSEErrorEvent) => {
                 console.error('[SSE] Error:', event.message || 'Unknown error');
                 this.isConnecting = false;
                 
@@ -151,10 +161,10 @@ class NotificationSSEService {
                 }
             });
 
-        } catch (error: any) {
+        } catch (error) {
             this.isConnecting = false;
-            console.error('[SSE] Connection error:', error.message);
-            this.onErrorCallback?.(error);
+            console.error('[SSE] Connection error:', getErrorMessage(error));
+            this.onErrorCallback?.(error instanceof Error ? error : new Error(getErrorMessage(error)));
             this.onConnectionChangeCallback?.(false);
             this.scheduleReconnect();
         }

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPreferences, updatePreferences, UserPreferences, UpdatePreferencesRequest } from '@/services/ProfileService';
 import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { useToast } from '@/components/toast';
+import { STALE_TIMES, GC_TIMES } from '@/constants/queryConfig';
 
 // Query key for preferences
 export const PREFERENCES_QUERY_KEY = ['preferences'];
@@ -21,8 +22,8 @@ export function usePreferences() {
             // This prevents double-setting and potential flicker
             return preferences;
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        gcTime: 1000 * 60 * 30, // 30 minutes cache
+        staleTime: STALE_TIMES.STANDARD,
+        gcTime: GC_TIMES.STANDARD,
         refetchOnMount: false, // Don't refetch on mount - splash already loaded
         refetchOnWindowFocus: false, // Don't refetch on window focus
         refetchOnReconnect: false, // Don't refetch on reconnect
@@ -108,7 +109,7 @@ export function usePrefetchPreferences() {
                 const preferences = await getPreferences();
                 return preferences;
             },
-            staleTime: 1000 * 60 * 5, // 5 minutes
+            staleTime: STALE_TIMES.STANDARD,
         });
     };
 

@@ -1,6 +1,7 @@
 import { BASE_URL } from '@/constants/config';
 import { RefreshTokenResponse } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
+import { ApiError, NetworkError } from '@/types/errors';
 
 // Helper functions for token management
 export const getAuthToken = () => useAuthStore.getState().accessToken;
@@ -59,10 +60,11 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
 
         if (!response.ok) {
             console.error('[Auth] Token refresh failed with status:', response.status, responseData);
-            const error: any = new Error(responseData.message || responseData.error || 'Token refresh failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Token refresh failed',
+                response.status,
+                responseData
+            );
         }
 
         console.log('[Auth] Token refresh successful');
@@ -71,11 +73,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
         updateTokens(responseData.accessToken, responseData.refreshToken);
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Auth] Token refresh failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );

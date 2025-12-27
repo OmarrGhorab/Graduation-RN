@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNotificationStore } from '@/libs/notifications-store';
+import { useNotifications } from '@/hooks/useNotifications';
 import { Fonts } from '@/constants/theme';
 
 interface NotificationBadgeProps {
@@ -15,7 +15,7 @@ interface NotificationBadgeProps {
  * NotificationBadge component
  * 
  * A notification bell icon with an auto-updating badge that shows
- * the unread notification count from the global notification store.
+ * the unread notification count from React Query.
  * 
  * Usage:
  * <NotificationBadge onPress={() => openNotifications()} />
@@ -26,7 +26,7 @@ export default function NotificationBadge({
     color = '#FFFFFF',
     showBadge = true,
 }: NotificationBadgeProps) {
-    const unreadCount = useNotificationStore((state) => state.unreadCount);
+    const { unreadCount } = useNotifications();
 
     return (
         <TouchableOpacity
@@ -51,7 +51,8 @@ export default function NotificationBadge({
  * Use this when you need just the count without the badge component
  */
 export function useUnreadNotificationCount() {
-    return useNotificationStore((state) => state.unreadCount);
+    const { unreadCount } = useNotifications();
+    return unreadCount;
 }
 
 const styles = StyleSheet.create({

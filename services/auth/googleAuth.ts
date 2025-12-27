@@ -12,10 +12,10 @@ import {
     LoginResponseSchema,
 } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
-import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { DeviceService } from '../DeviceService';
 import { registerFCMToken } from './fcmService';
 import { requiresDeviceVerification, isAccountDeactivated } from './accountService';
+import { NetworkError, getErrorMessage } from '@/types/errors';
 
 // Types
 export interface AuthResponse {
@@ -91,18 +91,20 @@ export const signInWithGoogle = async (): Promise<GoogleSignInResult> => {
                 profileImg: user.photo,
             } : undefined,
         };
-    } catch (error: any) {
-        if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+    } catch (error) {
+        // Google Sign-In SDK errors have a 'code' property
+        const googleError = error as { code?: string; message?: string };
+        if (googleError.code === statusCodes.SIGN_IN_CANCELLED) {
             return { success: false, cancelled: true };
-        } else if (error.code === statusCodes.IN_PROGRESS) {
+        } else if (googleError.code === statusCodes.IN_PROGRESS) {
             return { success: false, error: 'Sign-in already in progress' };
-        } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        } else if (googleError.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
             return { success: false, error: 'Google Play Services is not available' };
         }
 
         return {
             success: false,
-            error: error.message || 'Failed to sign in with Google',
+            error: getErrorMessage(error),
         };
     }
 };
@@ -261,18 +263,12 @@ export const googleSignIn = async (options?: {
         if (data.user && data.accessToken) {
             useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
             registerFCMToken().catch((err: unknown) => console.log('[Auth] FCM registration warning:', err));
-            
-            if (responseData.user?.preferences?.themePreference) {
-                const themePreference = responseData.user.preferences.themePreference as ThemeMode;
-                console.log('[Auth] Syncing theme preference on Google login:', themePreference);
-                useThemeStore.getState().setThemeMode(themePreference);
-            }
         }
 
         onSuccess?.(responseData);
         return { success: true, data: responseData };
-    } catch (error: any) {
-        const errorMsg = error instanceof Error ? error.message : 'Failed to authenticate with server';
+    } catch (error) {
+        const errorMsg = getErrorMessage(error);
         if (showAlerts) {
             Alert.alert('Authentication Error', errorMsg);
         }
@@ -292,11 +288,12 @@ export const signOutGoogle = async (): Promise<void> => {
         } else {
             console.log('[Auth] Not signed in with Google, skipping Google sign-out');
         }
-    } catch (error: any) {
-        if (error?.code === 'SIGN_IN_REQUIRED' || error?.message?.includes('SIGN_IN_REQUIRED')) {
+    } catch (error) {
+        const googleError = error as { code?: string; message?: string };
+        if (googleError?.code === 'SIGN_IN_REQUIRED' || googleError?.message?.includes('SIGN_IN_REQUIRED')) {
             console.log('[Auth] Google sign-out not needed (not signed in with Google)');
         } else {
-            console.log('[Auth] Google sign-out error (non-critical):', error?.message);
+            console.log('[Auth] Google sign-out error (non-critical):', googleError?.message);
         }
     }
 };

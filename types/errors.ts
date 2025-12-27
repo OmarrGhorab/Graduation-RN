@@ -3,9 +3,9 @@
  */
 export class ApiError extends Error {
     public readonly status: number;
-    public readonly responseData: any;
+    public readonly responseData?: unknown;
 
-    constructor(message: string, status: number, responseData?: any) {
+    constructor(message: string, status: number, responseData?: unknown) {
         super(message);
         this.name = 'ApiError';
         this.status = status;
@@ -33,4 +33,47 @@ export class NetworkError extends Error {
             Error.captureStackTrace(this, NetworkError);
         }
     }
+}
+
+/**
+ * Custom error class for authentication failures
+ */
+export class AuthError extends Error {
+    public readonly code: 'NO_TOKEN' | 'EXPIRED' | 'INVALID' | 'REFRESH_FAILED';
+
+    constructor(message: string, code: AuthError['code']) {
+        super(message);
+        this.name = 'AuthError';
+        this.code = code;
+        
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, AuthError);
+        }
+    }
+}
+
+// Type guards
+export function isApiError(error: unknown): error is ApiError {
+    return error instanceof ApiError;
+}
+
+export function isNetworkError(error: unknown): error is NetworkError {
+    return error instanceof NetworkError;
+}
+
+export function isAuthError(error: unknown): error is AuthError {
+    return error instanceof AuthError;
+}
+
+/**
+ * Extract error message from unknown error
+ */
+export function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    return 'An unknown error occurred';
 }

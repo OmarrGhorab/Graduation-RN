@@ -6,7 +6,7 @@ import {
     RegisterResponse,
     RegisterRequest,
     LoginRequest,
-    LoginSuccessR
+    LoginSuccessResponse,
     LoginErrorResponse,
     VerifyEmailOTPRequest,
     VerifyEmailOTPResponse,
@@ -16,12 +16,13 @@ import {
     ResetPasswordResponse,
     DeviceVerifyRequest,
     DeviceVerifyResponse,
-    ResendDeviceVerificatt,
+    ResendDeviceVerificationOTPRequest,
     ResendDeviceVerificationOTPResponse,
 } from '@/types/auth';
-import { useAuthStore ';
-import { DeviceService } from './DeviceServe';
+import { useAuthStore } from '@/libs/auth';
+import { DeviceService } from './DeviceService';
 import { logger } from '@/libs/logger';
+import { ApiError, NetworkError, getErrorMessage } from '@/types/errors';
 
 // Re-export from sub-modules for backward compatibility
 export {
@@ -125,10 +126,11 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
                 return responseData as LoginErrorResponse;
             }
 
-            const error: any = new Error(responseData.message || responseData.error || 'Login failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Login failed',
+                response.status,
+                responseData
+            );
         }
 
         if (responseData.user && responseData.accessToken && responseData.refreshToken) {
@@ -137,15 +139,15 @@ export async function login(data: LoginRequest): Promise<LoginSuccessResponse | 
         }
 
         return responseData as LoginSuccessResponse;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Login failed:', error);
 
-        if (error.responseData) {
+        if (error instanceof ApiError) {
             throw error;
         }
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -178,10 +180,11 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
         const responseData = await response.json();
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Registration failed');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Registration failed',
+                response.status,
+                responseData
+            );
         }
 
         if (responseData.user && responseData.accessToken && responseData.refreshToken) {
@@ -190,11 +193,15 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Registration failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running. ' +
                 (Platform.OS === 'android'
@@ -325,11 +332,15 @@ export async function resendVerificationOTP(email: string): Promise<{ message: s
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Resend verification OTP failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -364,21 +375,23 @@ export async function verifyEmailOTP(data: VerifyEmailOTPRequest): Promise<Verif
         const responseData = await response.json();
 
         if (!response.ok) {
-            if (response.status === 400) {
-                throw new Error(responseData.message || 'Invalid OTP or email');
-            }
-            if (response.status === 404) {
-                throw new Error(responseData.message || 'User not found');
-            }
-            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+            throw new ApiError(
+                responseData.message || `HTTP error! status: ${response.status}`,
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Email verification failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -412,21 +425,23 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<Forgo
         const responseData = await response.json();
 
         if (!response.ok) {
-            if (response.status === 400) {
-                throw new Error(responseData.message || 'Invalid email address');
-            }
-            if (response.status === 404) {
-                throw new Error(responseData.message || 'User not found');
-            }
-            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+            throw new ApiError(
+                responseData.message || `HTTP error! status: ${response.status}`,
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Forgot password failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -462,21 +477,23 @@ export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPa
         const responseData = await response.json();
 
         if (!response.ok) {
-            if (response.status === 400) {
-                throw new Error(responseData.message || 'Invalid OTP or password');
-            }
-            if (response.status === 404) {
-                throw new Error(responseData.message || 'User not found');
-            }
-            throw new Error(responseData.message || `HTTP error! status: ${response.status}`);
+            throw new ApiError(
+                responseData.message || `HTTP error! status: ${response.status}`,
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Reset password failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -512,13 +529,11 @@ export async function verifyDevice(data: DeviceVerifyRequest): Promise<DeviceVer
         const responseData = await response.json();
 
         if (!response.ok) {
-            if (response.status === 400) {
-                throw new Error(responseData.error || responseData.message || 'Missing fields or device not found');
-            }
-            if (response.status === 401) {
-                throw new Error(responseData.error || responseData.message || 'Invalid or expired OTP');
-            }
-            throw new Error(responseData.error || responseData.message || `HTTP error! status: ${response.status}`);
+            throw new ApiError(
+                responseData.error || responseData.message || `HTTP error! status: ${response.status}`,
+                response.status,
+                responseData
+            );
         }
 
         logger.log('[Auth] Device verify response:', JSON.stringify(responseData, null, 2));
@@ -541,11 +556,15 @@ export async function verifyDevice(data: DeviceVerifyRequest): Promise<DeviceVer
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Device verification failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -580,15 +599,23 @@ export async function resendDeviceVerificationOTP(data: ResendDeviceVerification
         const responseData = await response.json();
 
         if (!response.ok) {
-            throw new Error(responseData.error || responseData.message || 'Failed to resend OTP');
+            throw new ApiError(
+                responseData.error || responseData.message || 'Failed to resend OTP',
+                response.status,
+                responseData
+            );
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Resend device verification OTP failed:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
@@ -622,10 +649,11 @@ export async function getUserProfile(): Promise<any> {
         const responseData = await response.json();
 
         if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to fetch user profile');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
+            throw new ApiError(
+                responseData.message || responseData.error || 'Failed to fetch user profile',
+                response.status,
+                responseData
+            );
         }
 
         if (responseData.user) {
@@ -633,11 +661,15 @@ export async function getUserProfile(): Promise<any> {
         }
 
         return responseData;
-    } catch (error: any) {
+    } catch (error) {
         logger.error('[Auth] Failed to fetch user profile:', error);
 
-        if (error.message === 'Network request failed') {
-            throw new Error(
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
                 `Cannot connect to server at ${BASE_URL}. ` +
                 'Please ensure your backend server is running.'
             );
