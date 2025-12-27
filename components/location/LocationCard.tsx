@@ -66,7 +66,7 @@ export const LocationCard = memo(({
     isRequestingLocation = false,
 }: LocationCardProps) => {
     const { theme } = useTheme();
-    const { t } = useTranslation();
+    const { t, isRTL } = useTranslation();
     
     const hasLocation = location && location.latitude && location.longitude;
     const isPrecise = location?.accuracy && location.accuracy < 50;
@@ -223,7 +223,7 @@ export const LocationCard = memo(({
                         }]}>
                             {t('location.viewHistory')}
                         </Text>
-                        <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+                        <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={16} color={theme.primary} />
                     </TouchableOpacity>
                 </View>
             )}

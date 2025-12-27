@@ -14,13 +14,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { cskColors, grayColors, Fonts } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { geoapifyApiKey } from '@/constants/config';
 import { useChildLocation, useChildLocationHistory, LocationData } from '@/hooks/useLocation';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useTheme } from '@/hooks/useTheme';
 
 // Skeleton shimmer component
-const SkeletonBox = ({ width, height, style }: { width: number | string; height: number; style?: any }) => {
+const SkeletonBox = ({ width, height, style, theme }: { width: number | string; height: number; style?: any; theme: any }) => {
     const animatedValue = useRef(new Animated.Value(0)).current;
     
     useEffect(() => {
@@ -42,7 +43,7 @@ const SkeletonBox = ({ width, height, style }: { width: number | string; height:
     return (
         <Animated.View 
             style={[
-                { width, height, backgroundColor: grayColors[200], borderRadius: 8, opacity },
+                { width, height, backgroundColor: theme.gray[200], borderRadius: 8, opacity },
                 style
             ]} 
         />
@@ -50,36 +51,36 @@ const SkeletonBox = ({ width, height, style }: { width: number | string; height:
 };
 
 // Skeleton Current Location Card
-const SkeletonCurrentCard = () => (
-    <View style={styles.currentCard}>
+const SkeletonCurrentCard = ({ theme }: { theme: any }) => (
+    <View style={[styles.currentCard, { backgroundColor: theme.csk[50], borderColor: theme.csk[200] }]}>
         <View style={styles.currentHeader}>
-            <SkeletonBox width={120} height={24} style={{ borderRadius: 12 }} />
-            <SkeletonBox width={80} height={16} />
+            <SkeletonBox width={120} height={24} style={{ borderRadius: 12 }} theme={theme} />
+            <SkeletonBox width={80} height={16} theme={theme} />
         </View>
-        <SkeletonBox width="100%" height={120} style={{ borderRadius: 12, marginBottom: 12 }} />
+        <SkeletonBox width="100%" height={120} style={{ borderRadius: 12, marginBottom: 12 }} theme={theme} />
         <View style={styles.currentLocation}>
-            <SkeletonBox width={20} height={20} style={{ borderRadius: 4 }} />
-            <SkeletonBox width="80%" height={16} style={{ marginLeft: 8 }} />
+            <SkeletonBox width={20} height={20} style={{ borderRadius: 4 }} theme={theme} />
+            <SkeletonBox width="80%" height={16} style={{ marginLeft: 8 }} theme={theme} />
         </View>
     </View>
 );
 
 // Skeleton History Item
-const SkeletonHistoryItem = () => (
+const SkeletonHistoryItem = ({ theme }: { theme: any }) => (
     <View style={styles.historyItem}>
         <View style={styles.timeline}>
-            <SkeletonBox width={10} height={10} style={{ borderRadius: 5, marginTop: 4 }} />
-            <View style={styles.timelineLine} />
+            <SkeletonBox width={10} height={10} style={{ borderRadius: 5, marginTop: 4 }} theme={theme} />
+            <View style={[styles.timelineLine, { backgroundColor: theme.gray[200] }]} />
         </View>
-        <View style={styles.historyContent}>
+        <View style={[styles.historyContent, { backgroundColor: theme.surface }]}>
             <View style={styles.historyHeader}>
-                <SkeletonBox width={60} height={14} />
-                <SkeletonBox width={80} height={12} />
+                <SkeletonBox width={60} height={14} theme={theme} />
+                <SkeletonBox width={80} height={12} theme={theme} />
             </View>
-            <SkeletonBox width="100%" height={80} style={{ borderRadius: 8, marginBottom: 8 }} />
+            <SkeletonBox width="100%" height={80} style={{ borderRadius: 8, marginBottom: 8 }} theme={theme} />
             <View style={styles.historyLocation}>
-                <SkeletonBox width={14} height={14} style={{ borderRadius: 4 }} />
-                <SkeletonBox width="70%" height={13} style={{ marginLeft: 6 }} />
+                <SkeletonBox width={14} height={14} style={{ borderRadius: 4 }} theme={theme} />
+                <SkeletonBox width="70%" height={13} style={{ marginLeft: 6 }} theme={theme} />
             </View>
         </View>
     </View>
@@ -108,7 +109,7 @@ const getMapUrl = (latitude: number, longitude: number) => {
 };
 
 // Location History Item
-const HistoryItem = ({ item, isFirst, t }: { item: LocationData; isFirst: boolean; t: (key: string, params?: any) => string }) => {
+const HistoryItem = ({ item, isFirst, t, theme }: { item: LocationData; isFirst: boolean; t: (key: string, params?: any) => string; theme: any }) => {
     const { date, time } = formatDateTime(item.timestamp);
     
     return (
@@ -117,36 +118,36 @@ const HistoryItem = ({ item, isFirst, t }: { item: LocationData; isFirst: boolea
             <View style={styles.timeline}>
                 <View style={[
                     styles.timelineDot,
-                    isFirst && styles.timelineDotActive
+                    { backgroundColor: isFirst ? theme.primary : theme.gray[300] }
                 ]} />
-                <View style={styles.timelineLine} />
+                <View style={[styles.timelineLine, { backgroundColor: theme.gray[200] }]} />
             </View>
             
             {/* Content */}
-            <View style={styles.historyContent}>
+            <View style={[styles.historyContent, { backgroundColor: theme.surface }]}>
                 <View style={styles.historyHeader}>
-                    <Text style={styles.historyTime}>{time}</Text>
-                    <Text style={styles.historyDate}>{date}</Text>
+                    <Text style={[styles.historyTime, { color: theme.text }]}>{time}</Text>
+                    <Text style={[styles.historyDate, { color: theme.gray[500] }]}>{date}</Text>
                 </View>
                 
                 {/* Mini Map */}
                 <Image 
                     source={{ uri: getMapUrl(item.latitude, item.longitude) }}
-                    style={styles.historyMap}
+                    style={[styles.historyMap, { backgroundColor: theme.gray[200] }]}
                     resizeMode="cover"
                 />
                 
                 <View style={styles.historyLocation}>
-                    <Ionicons name="location" size={14} color={cskColors[500]} />
-                    <Text style={styles.historyAddress} numberOfLines={2}>
+                    <Ionicons name="location" size={14} color={theme.primary} />
+                    <Text style={[styles.historyAddress, { color: theme.gray[700] }]} numberOfLines={2}>
                         {item.address || t('location.addressUnavailable')}
                     </Text>
                 </View>
                 
                 {item.accuracy && (
                     <View style={styles.historyAccuracy}>
-                        <Ionicons name="radio-outline" size={12} color={grayColors[400]} />
-                        <Text style={styles.historyAccuracyText}>
+                        <Ionicons name="radio-outline" size={12} color={theme.gray[400]} />
+                        <Text style={[styles.historyAccuracyText, { color: theme.gray[400] }]}>
                             {t('location.withinMeters', { meters: Math.round(item.accuracy) })}
                         </Text>
                     </View>
@@ -161,6 +162,7 @@ export default function LocationHistoryScreen() {
     const router = useRouter();
     const { childId } = useLocalSearchParams<{ childId: string }>();
     const { t } = useTranslation();
+    const { theme, isDark } = useTheme();
     
     const [refreshing, setRefreshing] = useState(false);
     
@@ -204,8 +206,8 @@ export default function LocationHistoryScreen() {
     const isLoading = isLoadingCurrent || isLoadingHistory;
     
     const renderItem = useCallback(({ item, index }: { item: LocationData; index: number }) => (
-        <HistoryItem item={item} isFirst={index === 0} t={t} />
-    ), [t]);
+        <HistoryItem item={item} isFirst={index === 0} t={t} theme={theme} />
+    ), [t, theme]);
     
     const keyExtractor = useCallback((item: LocationData, index: number) => 
         `${item.id || item.timestamp}-${index}`, []);
@@ -214,14 +216,14 @@ export default function LocationHistoryScreen() {
         <>
             {/* Current Location Card */}
             {currentLocation && (
-                <View style={styles.currentCard}>
+                <View style={[styles.currentCard, { backgroundColor: theme.csk[50], borderColor: theme.csk[200] }]}>
                     <View style={styles.currentHeader}>
-                        <View style={styles.currentBadge}>
+                        <View style={[styles.currentBadge, { backgroundColor: theme.primary }]}>
                             <View style={styles.liveDot} />
                             <Text style={styles.liveText}>{t('location.currentLocation')}</Text>
                         </View>
                         {currentLocation.accuracy && (
-                            <Text style={styles.currentAccuracy}>
+                            <Text style={[styles.currentAccuracy, { color: theme.csk[600] }]}>
                                 {t('location.withinMeters', { meters: Math.round(currentLocation.accuracy) })}
                             </Text>
                         )}
@@ -230,13 +232,13 @@ export default function LocationHistoryScreen() {
                     {/* Map Preview */}
                     <Image 
                         source={{ uri: getMapUrl(currentLocation.latitude, currentLocation.longitude) }}
-                        style={styles.currentMap}
+                        style={[styles.currentMap, { backgroundColor: theme.gray[200] }]}
                         resizeMode="cover"
                     />
                     
                     <View style={styles.currentLocation}>
-                        <Ionicons name="location" size={20} color={cskColors[500]} />
-                        <Text style={styles.currentAddress} numberOfLines={2}>
+                        <Ionicons name="location" size={20} color={theme.primary} />
+                        <Text style={[styles.currentAddress, { color: isDark ? theme.gray[100] : theme.gray[800] }]} numberOfLines={2}>
                             {currentLocation.address || t('location.addressUnavailable')}
                         </Text>
                     </View>
@@ -245,9 +247,9 @@ export default function LocationHistoryScreen() {
             
             {/* History Header */}
             <View style={styles.historyTitleRow}>
-                <Text style={styles.historyTitle}>{t('location.locationHistory')}</Text>
+                <Text style={[styles.historyTitle, { color: theme.text }]}>{t('location.locationHistory')}</Text>
                 {historyData?.pages?.[0]?.pagination && (
-                    <Text style={styles.historyCount}>
+                    <Text style={[styles.historyCount, { color: theme.gray[500] }]}>
                         {t('location.locationsCount', { count: historyData.pages[0].pagination.total })}
                     </Text>
                 )}
@@ -259,39 +261,39 @@ export default function LocationHistoryScreen() {
         if (!isFetchingNextPage) return null;
         return (
             <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={cskColors[500]} />
+                <ActivityIndicator size="small" color={theme.primary} />
             </View>
         );
     };
     
     const ListEmpty = () => (
         <View style={styles.emptyContainer}>
-            <Ionicons name="time-outline" size={48} color={grayColors[300]} />
-            <Text style={styles.emptyText}>{t('location.noLocationHistory')}</Text>
-            <Text style={styles.emptySubtext}>
+            <Ionicons name="time-outline" size={48} color={theme.gray[300]} />
+            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{t('location.noLocationHistory')}</Text>
+            <Text style={[styles.emptySubtext, { color: theme.gray[400] }]}>
                 {t('location.childHistoryWillAppear')}
             </Text>
         </View>
     );
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
+            <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
             
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity 
                     style={styles.backButton}
                     onPress={() => router.back()}
                 >
-                    <Ionicons name="arrow-back" size={24} color={grayColors[900]} />
+                    <Ionicons name="arrow-back" size={24} color={theme.text} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>
+                    <Text style={[styles.headerTitle, { color: theme.text }]}>
                         {childInfo?.name || childInfo?.username || t('location.locationHistory')}
                     </Text>
                     {childInfo && (
-                        <Text style={styles.headerSubtitle}>@{childInfo.username}</Text>
+                        <Text style={[styles.headerSubtitle, { color: theme.gray[500] }]}>@{childInfo.username}</Text>
                     )}
                 </View>
                 <View style={styles.placeholder} />
@@ -299,14 +301,14 @@ export default function LocationHistoryScreen() {
             
             {isLoading && historyItems.length === 0 ? (
                 <View style={styles.listContent}>
-                    <SkeletonCurrentCard />
+                    <SkeletonCurrentCard theme={theme} />
                     <View style={styles.historyTitleRow}>
-                        <SkeletonBox width={120} height={16} />
-                        <SkeletonBox width={80} height={12} />
+                        <SkeletonBox width={120} height={16} theme={theme} />
+                        <SkeletonBox width={80} height={12} theme={theme} />
                     </View>
-                    <SkeletonHistoryItem />
-                    <SkeletonHistoryItem />
-                    <SkeletonHistoryItem />
+                    <SkeletonHistoryItem theme={theme} />
+                    <SkeletonHistoryItem theme={theme} />
+                    <SkeletonHistoryItem theme={theme} />
                 </View>
             ) : (
                 <FlatList
@@ -324,8 +326,8 @@ export default function LocationHistoryScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            colors={[cskColors[500]]}
-                            tintColor={cskColors[500]}
+                            colors={[theme.primary]}
+                            tintColor={theme.primary}
                         />
                     }
                 />
@@ -337,7 +339,6 @@ export default function LocationHistoryScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
     },
     header: {
         flexDirection: 'row',
@@ -346,7 +347,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: grayColors[100],
     },
     backButton: {
         width: 40,
@@ -361,12 +361,10 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontFamily: Fonts.semiBold,
-        color: grayColors[900],
     },
     headerSubtitle: {
         fontSize: 12,
         fontFamily: Fonts.regular,
-        color: grayColors[500],
     },
     placeholder: {
         width: 40,
@@ -376,12 +374,10 @@ const styles = StyleSheet.create({
         paddingBottom: 32,
     },
     currentCard: {
-        backgroundColor: cskColors[50],
         borderRadius: 16,
         padding: 16,
         marginBottom: 24,
         borderWidth: 1,
-        borderColor: cskColors[200],
     },
     currentHeader: {
         flexDirection: 'row',
@@ -392,7 +388,6 @@ const styles = StyleSheet.create({
     currentBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: cskColors[500],
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -412,14 +407,12 @@ const styles = StyleSheet.create({
     currentAccuracy: {
         fontSize: 12,
         fontFamily: Fonts.medium,
-        color: cskColors[600],
     },
     currentMap: {
         width: '100%',
         height: 120,
         borderRadius: 12,
         marginBottom: 12,
-        backgroundColor: grayColors[200],
     },
     currentLocation: {
         flexDirection: 'row',
@@ -429,7 +422,6 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 15,
         fontFamily: Fonts.medium,
-        color: grayColors[800],
         marginLeft: 8,
         lineHeight: 22,
     },
@@ -442,12 +434,10 @@ const styles = StyleSheet.create({
     historyTitle: {
         fontSize: 16,
         fontFamily: Fonts.semiBold,
-        color: grayColors[900],
     },
     historyCount: {
         fontSize: 12,
         fontFamily: Fonts.regular,
-        color: grayColors[500],
     },
     historyItem: {
         flexDirection: 'row',
@@ -461,21 +451,15 @@ const styles = StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: grayColors[300],
         marginTop: 4,
-    },
-    timelineDotActive: {
-        backgroundColor: cskColors[500],
     },
     timelineLine: {
         flex: 1,
         width: 2,
-        backgroundColor: grayColors[200],
         marginVertical: 4,
     },
     historyContent: {
         flex: 1,
-        backgroundColor: grayColors[50],
         borderRadius: 12,
         padding: 12,
         marginLeft: 8,
@@ -490,19 +474,16 @@ const styles = StyleSheet.create({
     historyTime: {
         fontSize: 14,
         fontFamily: Fonts.semiBold,
-        color: grayColors[900],
     },
     historyDate: {
         fontSize: 12,
         fontFamily: Fonts.regular,
-        color: grayColors[500],
     },
     historyMap: {
         width: '100%',
         height: 80,
         borderRadius: 8,
         marginBottom: 8,
-        backgroundColor: grayColors[200],
     },
     historyLocation: {
         flexDirection: 'row',
@@ -513,7 +494,6 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 13,
         fontFamily: Fonts.regular,
-        color: grayColors[700],
         marginLeft: 6,
         lineHeight: 18,
     },
@@ -525,7 +505,6 @@ const styles = StyleSheet.create({
     historyAccuracyText: {
         fontSize: 11,
         fontFamily: Fonts.regular,
-        color: grayColors[400],
         marginLeft: 4,
     },
     footerLoader: {
@@ -539,13 +518,11 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 16,
         fontFamily: Fonts.semiBold,
-        color: grayColors[500],
         marginTop: 12,
     },
     emptySubtext: {
         fontSize: 14,
         fontFamily: Fonts.regular,
-        color: grayColors[400],
         marginTop: 4,
         textAlign: 'center',
     },
