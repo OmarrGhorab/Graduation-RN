@@ -1,5 +1,4 @@
-import { BASE_URL } from '@/constants/config';
-import { getValidAccessToken } from './AuthService';
+import { apiClient } from './apiClient';
 import { DeviceService } from './DeviceService';
 
 // ==================== Types ====================
@@ -52,19 +51,14 @@ export interface ChildLocationHistoryResponse {
   pagination: PaginationInfo;
 }
 
-// ==================== Helper ====================
-
-const getAuthHeaders = async () => {
-  const token = await getValidAccessToken();
-  if (!token) throw new Error('Not authenticated');
-  
-  const deviceHeaders = await DeviceService.getDeviceHeaders();
-  
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-    ...deviceHeaders,
-  };
+// Default empty pagination for error cases
+const emptyPagination: PaginationInfo = {
+  page: 1,
+  limit: 20,
+  total: 0,
+  totalPages: 0,
+  hasNext: false,
+  hasPrevious: false,
 };
 
 // ==================== Location Service ====================
@@ -82,30 +76,12 @@ export const LocationService = {
         return null;
       }
 
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`${BASE_URL}/api/v1/location/update`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ 
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-          address: location.formattedAddress,
-        }),
+      const data = await apiClient.post<{ location?: LocationData }>('/api/v1/location/update', {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy,
+        address: location.formattedAddress,
       });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.log('[LocationService] Update location endpoint error');
-        return null;
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update location');
-      }
 
       return data.location || null;
     } catch (error) {
@@ -119,24 +95,7 @@ export const LocationService = {
    */
   getMyLocation: async (): Promise<LocationData | null> => {
     try {
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`${BASE_URL}/api/v1/location/me`, {
-        method: 'GET',
-        headers,
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        return null;
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to get location');
-      }
-
+      const data = await apiClient.get<{ location?: LocationData }>('/api/v1/location/me');
       return data.location || null;
     } catch (error) {
       console.error('[LocationService] Get my location error:', error);
@@ -149,39 +108,22 @@ export const LocationService = {
    */
   getMyLocationHistory: async (params?: LocationHistoryParams): Promise<LocationHistoryResponse> => {
     try {
-      const headers = await getAuthHeaders();
-      
-      const queryParams = new URLSearchParams();
-      if (params?.page) queryParams.append('page', params.page.toString());
-      if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.from) queryParams.append('from', params.from);
-      if (params?.to) queryParams.append('to', params.to);
-      
-      const url = `${BASE_URL}/api/v1/location/history${queryParams.toString() ? `?${queryParams}` : ''}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
+      const data = await apiClient.get<{ data?: LocationData[]; pagination?: PaginationInfo }>('/api/v1/location/history', {
+        params: {
+          page: params?.page,
+          limit: params?.limit,
+          from: params?.from,
+          to: params?.to,
+        },
       });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        return { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false } };
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to get location history');
-      }
 
       return {
         data: data.data || [],
-        pagination: data.pagination || { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false },
+        pagination: data.pagination || emptyPagination,
       };
     } catch (error) {
       console.error('[LocationService] Get location history error:', error);
-      return { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false } };
+      return { data: [], pagination: emptyPagination };
     }
   },
 
@@ -190,27 +132,11 @@ export const LocationService = {
    */
   getChildrenLocations: async (): Promise<ChildLocation[]> => {
     try {
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`${BASE_URL}/api/v1/location/children`, {
-        method: 'GET',
-        headers,
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        return [];
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        if (response.status === 403) return [];
-        throw new Error(data.message || 'Failed to get children locations');
-      }
-
+      const data = await apiClient.get<{ children?: ChildLocation[] }>('/api/v1/location/children');
       return data.children || [];
-    } catch (error) {
+    } catch (error: any) {
+      // 403 means user is not a parent - return empty array
+      if (error.status === 403) return [];
       console.error('[LocationService] Get children locations error:', error);
       return [];
     }
@@ -221,32 +147,15 @@ export const LocationService = {
    */
   getChildLocation: async (childId: string): Promise<{ child: ChildInfo; location: LocationData | null } | null> => {
     try {
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`${BASE_URL}/api/v1/location/child/${childId}`, {
-        method: 'GET',
-        headers,
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        return null;
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('You are not linked to this child');
-        }
-        throw new Error(data.message || 'Failed to get child location');
-      }
-
+      const data = await apiClient.get<{ child: ChildInfo; location?: LocationData }>(`/api/v1/location/child/${childId}`);
       return {
         child: data.child,
         location: data.location || null,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (error.status === 403) {
+        throw new Error('You are not linked to this child');
+      }
       console.error('[LocationService] Get child location error:', error);
       throw error;
     }
@@ -260,41 +169,27 @@ export const LocationService = {
     params?: LocationHistoryParams
   ): Promise<ChildLocationHistoryResponse> => {
     try {
-      const headers = await getAuthHeaders();
-      
-      const queryParams = new URLSearchParams();
-      if (params?.page) queryParams.append('page', params.page.toString());
-      if (params?.limit) queryParams.append('limit', params.limit.toString());
-      if (params?.from) queryParams.append('from', params.from);
-      if (params?.to) queryParams.append('to', params.to);
-      
-      const url = `${BASE_URL}/api/v1/location/child/${childId}/history${queryParams.toString() ? `?${queryParams}` : ''}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Server error');
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('You are not linked to this child');
+      const data = await apiClient.get<{ child: ChildInfo; data?: LocationData[]; pagination?: PaginationInfo }>(
+        `/api/v1/location/child/${childId}/history`,
+        {
+          params: {
+            page: params?.page,
+            limit: params?.limit,
+            from: params?.from,
+            to: params?.to,
+          },
         }
-        throw new Error(data.message || 'Failed to get child location history');
-      }
+      );
 
       return {
         child: data.child,
         data: data.data || [],
-        pagination: data.pagination || { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false },
+        pagination: data.pagination || emptyPagination,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (error.status === 403) {
+        throw new Error('You are not linked to this child');
+      }
       console.error('[LocationService] Get child location history error:', error);
       throw error;
     }
@@ -304,29 +199,6 @@ export const LocationService = {
    * Request fresh location from child (sends silent push notification)
    */
   requestChildLocation: async (childId: string): Promise<{ success: boolean; message: string }> => {
-    try {
-      const headers = await getAuthHeaders();
-      
-      const response = await fetch(`${BASE_URL}/api/v1/location/request/${childId}`, {
-        method: 'POST',
-        headers,
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Server error. Please try again later.');
-      }
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to request location');
-      }
-
-      return data;
-    } catch (error: any) {
-      console.error('[LocationService] Request child location error:', error);
-      throw error;
-    }
+    return apiClient.post<{ success: boolean; message: string }>(`/api/v1/location/request/${childId}`);
   },
 };

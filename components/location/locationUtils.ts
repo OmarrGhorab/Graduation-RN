@@ -1,5 +1,5 @@
 import { Platform, Linking } from 'react-native';
-import { GEOAPIFY_API_KEY } from '@/constants/config';
+import { geoapifyApiKey } from '@/constants/config';
 
 /**
  * Format timestamp to date and time strings
@@ -23,7 +23,7 @@ export const formatDateTime = (timestamp: string) => {
  * Generate static map URL from Geoapify
  */
 export const getMapUrl = (latitude: number, longitude: number) => {
-    return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=120&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${GEOAPIFY_API_KEY}`;
+    return `https://maps.geoapify.com/v1/staticmap?style=osm-bright&width=400&height=120&center=lonlat:${longitude},${latitude}&zoom=16&marker=lonlat:${longitude},${latitude};color:%2322c55e;size:medium&apiKey=${geoapifyApiKey}`;
 };
 
 /**

@@ -1,5 +1,4 @@
-import { BASE_URL } from '@/constants/config';
-import { getValidAccessToken } from './AuthService';
+import { apiClient } from './apiClient';
 
 // Types
 export interface NotificationChild {
@@ -51,135 +50,6 @@ export interface MarkReadResponse {
     message?: string;
 }
 
-/**
- * Fetch notifications for the current user
- * @param page - Page number (default: 1)
- * @param limit - Results per page (default: 10)
- */
-export async function getNotifications(page: number = 1, limit: number = 10): Promise<NotificationsResponse> {
-    try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        const url = `${BASE_URL}/api/v1/notifications?page=${page}&limit=${limit}`;
-        console.log('[Notifications] Fetching notifications:', url);
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to fetch notifications');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
-        }
-
-        return responseData;
-    } catch (error: any) {
-        console.error('[Notifications] Fetch failed:', error);
-
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
-        }
-
-        throw error;
-    }
-}
-
-/**
- * Mark a specific notification as read
- * @param notificationId - ID of the notification to mark as read
- */
-export async function markNotificationAsRead(notificationId: string): Promise<MarkReadResponse> {
-    try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('[Notifications] Marking notification as read:', notificationId);
-
-        const response = await fetch(`${BASE_URL}/api/v1/notifications/read`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ notificationId }),
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to mark notification as read');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
-        }
-
-        return { success: true, message: responseData.message };
-    } catch (error: any) {
-        console.error('[Notifications] Mark as read failed:', error);
-
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
-        }
-
-        throw error;
-    }
-}
-
-/**
- * Mark all notifications as read
- */
-export async function markAllNotificationsAsRead(): Promise<MarkReadResponse> {
-    try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('[Notifications] Marking all notifications as read');
-
-        const response = await fetch(`${BASE_URL}/api/v1/notifications/read`, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ markAll: 'true' }),
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to mark all notifications as read');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
-        }
-
-        return { success: true, message: responseData.message };
-    } catch (error: any) {
-        console.error('[Notifications] Mark all as read failed:', error);
-
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
-        }
-
-        throw error;
-    }
-}
-
 export interface ParentLinkRespondRequest {
     requestId: string;
     action: 'accept' | 'decline';
@@ -196,45 +66,44 @@ export interface DeleteNotificationResponse {
 }
 
 /**
+ * Fetch notifications for the current user
+ * @param page - Page number (default: 1)
+ * @param limit - Results per page (default: 10)
+ */
+export async function getNotifications(page: number = 1, limit: number = 10): Promise<NotificationsResponse> {
+    console.log('[Notifications] Fetching notifications');
+    return apiClient.get<NotificationsResponse>('/api/v1/notifications', {
+        params: { page, limit },
+    });
+}
+
+/**
+ * Mark a specific notification as read
+ * @param notificationId - ID of the notification to mark as read
+ */
+export async function markNotificationAsRead(notificationId: string): Promise<MarkReadResponse> {
+    console.log('[Notifications] Marking notification as read:', notificationId);
+    const response = await apiClient.patch<{ message?: string }>('/api/v1/notifications/read', { notificationId });
+    return { success: true, message: response.message };
+}
+
+/**
+ * Mark all notifications as read
+ */
+export async function markAllNotificationsAsRead(): Promise<MarkReadResponse> {
+    console.log('[Notifications] Marking all notifications as read');
+    const response = await apiClient.patch<{ message?: string }>('/api/v1/notifications/read', { markAll: 'true' });
+    return { success: true, message: response.message };
+}
+
+/**
  * Delete a specific notification
  * @param notificationId - ID of the notification to delete
  */
 export async function deleteNotification(notificationId: string): Promise<DeleteNotificationResponse> {
-    try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('[Notifications] Deleting notification:', notificationId);
-
-        const response = await fetch(`${BASE_URL}/api/v1/notifications/${notificationId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to delete notification');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
-        }
-
-        return { success: true, message: responseData.message };
-    } catch (error: any) {
-        console.error('[Notifications] Delete failed:', error);
-
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
-        }
-
-        throw error;
-    }
+    console.log('[Notifications] Deleting notification:', notificationId);
+    const response = await apiClient.delete<{ message?: string }>(`/api/v1/notifications/${notificationId}`);
+    return { success: true, message: response.message };
 }
 
 /**
@@ -246,40 +115,7 @@ export async function respondToParentLinkRequest(
     requestId: string,
     action: 'accept' | 'decline'
 ): Promise<ParentLinkRespondResponse> {
-    try {
-        const token = await getValidAccessToken();
-        if (!token) {
-            throw new Error('No authentication token found');
-        }
-
-        console.log('[Notifications] Responding to parent link request:', { requestId, action });
-
-        const response = await fetch(`${BASE_URL}/api/v1/parent-link/respond`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ requestId, action }),
-        });
-
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            const error: any = new Error(responseData.message || responseData.error || 'Failed to respond to parent link request');
-            error.status = response.status;
-            error.responseData = responseData;
-            throw error;
-        }
-
-        return { success: true, message: responseData.message };
-    } catch (error: any) {
-        console.error('[Notifications] Parent link respond failed:', error);
-
-        if (error.message === 'Network request failed') {
-            throw new Error(`Cannot connect to server at ${BASE_URL}.`);
-        }
-
-        throw error;
-    }
+    console.log('[Notifications] Responding to parent link request:', { requestId, action });
+    const response = await apiClient.post<{ message?: string }>('/api/v1/parent-link/respond', { requestId, action });
+    return { success: true, message: response.message };
 }
