@@ -1,14 +1,15 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useState } from 'react';
 import { 
     View, 
     Text, 
-    Image, 
     TouchableOpacity, 
     StyleSheet, 
     Linking, 
     Platform,
-    useColorScheme 
+    useColorScheme,
+    ActivityIndicator
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
 import { geoapifyApiKey } from '@/constants/config';
@@ -54,6 +55,7 @@ export const MapPreview = memo(({ latitude, longitude, label }: MapPreviewProps)
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
     const { t } = useTranslation();
+    const [isLoading, setIsLoading] = useState(true);
     
     const mapUrl = useMemo(() => getMapUrl(latitude, longitude), [latitude, longitude]);
     const handlePress = useCallback(() => openInMaps(latitude, longitude, label), [latitude, longitude, label]);
@@ -64,10 +66,21 @@ export const MapPreview = memo(({ latitude, longitude, label }: MapPreviewProps)
             onPress={handlePress}
             activeOpacity={0.8}
         >
+            {isLoading && (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color={theme.primary} />
+                </View>
+            )}
             <Image 
                 source={{ uri: mapUrl }}
                 style={styles.mapImage}
-                resizeMode="cover"
+                contentFit="cover"
+                cachePolicy="disk"
+                priority="high"
+                onLoadStart={() => setIsLoading(true)}
+                onLoadEnd={() => setIsLoading(false)}
+                placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                transition={200}
             />
             <View style={styles.openMapBadge}>
                 <Ionicons name="open-outline" size={12} color="#FFFFFF" />
@@ -83,10 +96,17 @@ const styles = StyleSheet.create({
     mapContainer: {
         height: 120,
         position: 'relative',
+        overflow: 'hidden',
     },
     mapImage: {
         width: '100%',
         height: '100%',
+    },
+    loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
     },
     openMapBadge: {
         position: 'absolute',

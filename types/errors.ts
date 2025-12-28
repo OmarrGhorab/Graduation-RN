@@ -52,6 +52,23 @@ export class AuthError extends Error {
     }
 }
 
+/**
+ * Custom error class for request timeout failures
+ */
+export class TimeoutError extends Error {
+    public readonly timeoutMs: number;
+
+    constructor(message: string, timeoutMs: number) {
+        super(message);
+        this.name = 'TimeoutError';
+        this.timeoutMs = timeoutMs;
+        
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, TimeoutError);
+        }
+    }
+}
+
 // Type guards
 export function isApiError(error: unknown): error is ApiError {
     return error instanceof ApiError;
@@ -63,6 +80,10 @@ export function isNetworkError(error: unknown): error is NetworkError {
 
 export function isAuthError(error: unknown): error is AuthError {
     return error instanceof AuthError;
+}
+
+export function isTimeoutError(error: unknown): error is TimeoutError {
+    return error instanceof TimeoutError;
 }
 
 /**

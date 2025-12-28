@@ -1,5 +1,6 @@
-import React, { memo, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import React, { memo, useCallback, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts } from '@/constants/theme';
@@ -15,6 +16,7 @@ interface HistoryItemProps {
 export const HistoryItem = memo(({ item, isFirst }: HistoryItemProps) => {
     const { theme } = useTheme();
     const { t } = useTranslation();
+    const [isLoading, setIsLoading] = useState(true);
     const { date, time } = useMemo(() => formatDateTime(item.timestamp), [item.timestamp]);
     
     const mapUrl = useMemo(() => getMapUrl(item.latitude, item.longitude), [item.latitude, item.longitude]);
@@ -53,11 +55,24 @@ export const HistoryItem = memo(({ item, isFirst }: HistoryItemProps) => {
                     </Text>
                 </View>
                 
-                <Image 
-                    source={{ uri: mapUrl }}
-                    style={[styles.historyMap, { backgroundColor: theme.gray[200] }]}
-                    resizeMode="cover"
-                />
+                <View style={[styles.historyMap, { backgroundColor: theme.gray[200] }]}>
+                    {isLoading && (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="small" color={theme.primary} />
+                        </View>
+                    )}
+                    <Image 
+                        source={{ uri: mapUrl }}
+                        style={styles.mapImage}
+                        contentFit="cover"
+                        cachePolicy="disk"
+                        priority="normal"
+                        onLoadStart={() => setIsLoading(true)}
+                        onLoadEnd={() => setIsLoading(false)}
+                        placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                        transition={200}
+                    />
+                </View>
                 
                 <View style={styles.historyLocation}>
                     <Ionicons name="location" size={14} color={theme.primary} />
@@ -128,7 +143,19 @@ const styles = StyleSheet.create({
         width: '100%', 
         height: 80, 
         borderRadius: 8, 
-        marginBottom: 8 
+        marginBottom: 8,
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    mapImage: {
+        width: '100%',
+        height: '100%',
+    },
+    loadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
     },
     historyLocation: { 
         flexDirection: 'row', 

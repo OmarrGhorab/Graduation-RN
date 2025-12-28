@@ -9,6 +9,9 @@ import {
     ActivityIndicator,
     StatusBar,
 } from 'react-native';
+
+// Fixed height for HistoryItem: padding(24) + header(28) + map(88) + location(22) + accuracy(16) + margins(12) = ~190
+const ITEM_HEIGHT = 190;
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -72,6 +75,15 @@ export default function MyLocationHistoryScreen() {
     
     const keyExtractor = useCallback((item: LocationData, index: number) => 
         `${item.id || item.timestamp}-${index}`, []);
+    
+    const getItemLayout = useCallback(
+        (_data: ArrayLike<LocationData> | null | undefined, index: number) => ({
+            length: ITEM_HEIGHT,
+            offset: ITEM_HEIGHT * index,
+            index,
+        }),
+        []
+    );
     
     const ListHeader = useMemo(() => (
         <>
@@ -170,6 +182,7 @@ export default function MyLocationHistoryScreen() {
                     data={historyItems}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
+                    getItemLayout={getItemLayout}
                     ListHeaderComponent={ListHeader}
                     ListFooterComponent={ListFooter}
                     ListEmptyComponent={ListEmpty}

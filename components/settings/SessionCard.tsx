@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { getDeviceIcon, getPlatformDisplayName } from '@/services/SecurityService';
+import { getDeviceIcon, getPlatformDisplayName, getStatusColor } from '@/services/SecurityService';
 
 interface SessionCardProps {
     id: string;
@@ -13,6 +13,9 @@ interface SessionCardProps {
     location?: string;
     lastActivityAt: string;
     isCurrent: boolean;
+    isActive: boolean;
+    isRevoked: boolean;
+    isExpired: boolean;
     isLoading: boolean;
     onPress: () => void;
     formatTime: (date: string) => string;
@@ -24,12 +27,26 @@ export function SessionCard({
     location,
     lastActivityAt,
     isCurrent,
+    isActive,
+    isRevoked,
+    isExpired,
     isLoading,
     onPress,
     formatTime,
 }: SessionCardProps) {
     const { theme } = useTheme();
     const { t, isRTL } = useTranslation();
+
+    // Determine session status for color
+    const getSessionStatus = () => {
+        if (isRevoked) return 'revoked';
+        if (isExpired) return 'expired';
+        if (isActive) return 'active';
+        return 'unknown';
+    };
+    
+    const status = getSessionStatus();
+    const statusColor = getStatusColor(status);
 
     return (
         <TouchableOpacity
@@ -50,6 +67,8 @@ export function SessionCard({
                     size={24}
                     color={isCurrent ? theme.primary : theme.gray[600]}
                 />
+                {/* Status indicator dot */}
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             </View>
             <View style={styles.info}>
                 <View style={styles.header}>
@@ -59,6 +78,16 @@ export function SessionCard({
                     {isCurrent && (
                         <View style={[styles.badge, { backgroundColor: theme.primary }]}>
                             <Text style={styles.badgeText}>{t('settings.thisDevice')}</Text>
+                        </View>
+                    )}
+                    {isRevoked && (
+                        <View style={[styles.badge, { backgroundColor: statusColor }]}>
+                            <Text style={styles.badgeText}>{t('settings.revoked')}</Text>
+                        </View>
+                    )}
+                    {isExpired && !isRevoked && (
+                        <View style={[styles.badge, { backgroundColor: statusColor }]}>
+                            <Text style={styles.badgeText}>{t('settings.expired')}</Text>
                         </View>
                     )}
                 </View>
@@ -100,6 +129,17 @@ const styles = StyleSheet.create({
         borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
+    },
+    statusDot: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
     },
     info: {
         flex: 1,
