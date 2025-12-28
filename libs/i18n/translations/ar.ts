@@ -73,6 +73,8 @@ export default {
     emailRequired: 'يرجى إدخال بريدك الإلكتروني',
     emailOrUsernameRequired: 'يرجى إدخال بريدك الإلكتروني أو اسم المستخدم',
     failedToSendCode: 'فشل إرسال رمز إعادة التعيين',
+    userNotFound: 'المستخدم غير موجود',
+    tooManyRequests: 'طلبات كثيرة جداً. يرجى الانتظار قبل المحاولة مرة أخرى.',
     
     // Verification
     verifyOTP: 'التحقق من الرمز',

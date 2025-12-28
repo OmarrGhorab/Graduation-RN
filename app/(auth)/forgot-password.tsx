@@ -26,6 +26,17 @@ export default function ForgotPasswordScreen() {
     const [emailOrUsername, setEmailOrUsername] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Translate API error messages
+    const getTranslatedError = (errorMessage: string): string => {
+        if (errorMessage.toLowerCase().includes('user not found')) {
+            return t('auth.userNotFound');
+        }
+        if (errorMessage.toLowerCase().includes('too many')) {
+            return t('auth.tooManyRequests');
+        }
+        return errorMessage;
+    };
+
     const handleContinue = async () => {
         if (!emailOrUsername.trim()) {
             error(t('common.required'), t('auth.emailOrUsernameRequired'));
@@ -42,7 +53,8 @@ export default function ForgotPasswordScreen() {
             } as any);
         } catch (err: any) {
             console.error('Forgot password error:', err);
-            error(t('common.error'), err.message || t('auth.failedToSendCode'));
+            const translatedMessage = getTranslatedError(err.message || '');
+            error(t('common.error'), translatedMessage || t('auth.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }

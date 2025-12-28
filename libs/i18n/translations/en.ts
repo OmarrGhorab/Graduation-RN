@@ -73,6 +73,8 @@ export default {
     emailRequired: 'Please enter your email address',
     emailOrUsernameRequired: 'Please enter your email or username',
     failedToSendCode: 'Failed to send reset code',
+    userNotFound: 'User not found',
+    tooManyRequests: 'Too many requests. Please wait before trying again.',
     
     // Verification
     verifyOTP: 'Verify OTP Code',
