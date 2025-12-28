@@ -85,7 +85,7 @@ export default function DeviceVerificationScreen() {
             }
 
             await new Promise((resolve) => setTimeout(resolve, 200));
-            success(t('auth.deviceVerified'), result.message || t('auth.deviceVerifiedMessage'));
+            success(t('auth.deviceVerified'), t('auth.deviceVerifiedMessage'));
 
             if (result.user?.onboardingCompleted) {
                 // Sync preferences before navigating to home
@@ -112,16 +112,16 @@ export default function DeviceVerificationScreen() {
 
         setIsLoading(true);
         try {
-            const result = await resendDeviceVerificationOTP({
+            await resendDeviceVerificationOTP({
                 emailOrUsername,
                 deviceFingerprint,
             });
-            success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
+            success(t('auth.codeSent'), t('auth.codeSentMessage'));
             setTimer(60);
             setOtp(['', '', '', '', '', '']);
         } catch (err: any) {
             console.error('Resend OTP error:', err);
-            error(t('common.error'), err.message || t('auth.codeSentMessage'));
+            error(t('common.error'), t('auth.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }
