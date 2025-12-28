@@ -136,8 +136,13 @@ export default {
     // Reactivate Account
     welcomeBackTitle: 'Welcome Back!',
     accountDeactivated: 'Your account was deactivated',
+    accountDeactivatedMessage: 'Your account is deactivated',
     reactivateSubtitle: 'We\'re glad to see you again. Your account is ready to be reactivated.',
     reactivateAccount: 'Reactivate Account',
+    reactivationSuccess: 'Your account has been reactivated',
+    reactivationFailed: 'Reactivation Failed',
+    reactivationFailedMessage: 'Please try again',
+    missingAuthToken: 'Missing authentication token. Please try logging in again.',
     goBack: 'Go Back',
     dataPreserved: 'Your Data is Preserved',
     dataPreservedDesc: 'All your progress, settings, and information are safe',

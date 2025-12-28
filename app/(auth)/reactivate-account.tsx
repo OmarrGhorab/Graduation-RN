@@ -9,7 +9,7 @@ import {
     View,
     useColorScheme,
 } from 'react-native';
-import { Colors, cskColors } from '@/constants/theme';
+import { Colors, cskColors, cskDarkColors } from '@/constants/theme';
 import { confirmReactivation } from '@/services/AuthService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useToast } from '@/components/toast';
@@ -20,6 +20,7 @@ import {
     ReactivateButtons,
 } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,6 +38,7 @@ export default function ReactivateAccountScreen() {
         message?: string;
     }>();
     const { success, error } = useToast();
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
 
     // ========================================================================
@@ -127,7 +129,7 @@ export default function ReactivateAccountScreen() {
 
     const handleContinue = async () => {
         if (!tempToken) {
-            error('Error', 'Missing authentication token. Please try logging in again.');
+            error(t('common.error'), t('auth.missingAuthToken'));
             router.replace('/login' as Href);
             return;
         }
@@ -135,7 +137,7 @@ export default function ReactivateAccountScreen() {
         setLoading(true);
         try {
             const result = await confirmReactivation(tempToken);
-            success('Welcome Back!', result.message || 'Your account has been reactivated');
+            success(t('auth.welcomeBackTitle'), t('auth.reactivationSuccess'));
 
             setTimeout(async () => {
                 if (result.user?.onboardingCompleted) {
@@ -148,7 +150,7 @@ export default function ReactivateAccountScreen() {
             }, 500);
         } catch (err: any) {
             console.error('[Reactivate] Reactivation confirmation error:', err);
-            error('Reactivation Failed', err.message || 'Please try again');
+            error(t('auth.reactivationFailed'), t('auth.reactivationFailedMessage'));
             setLoading(false);
         }
     };
@@ -161,14 +163,17 @@ export default function ReactivateAccountScreen() {
     // Render
     // ========================================================================
 
-    // Use theme-aware gradient colors
+    // Enhanced gradient colors for dark mode
     const gradientColors = isDark
-        ? [theme.csk[400], theme.csk[500], theme.csk[600] || theme.csk[500]]
+        ? [cskDarkColors[400], cskDarkColors[500], cskDarkColors[600]]
         : [cskColors[400], cskColors[500], cskColors[600]];
 
+    // Background shape colors based on theme
+    const shapeOpacity = isDark ? 0.15 : 0.08;
+
     return (
-        <View style={[styles.container, { backgroundColor: theme.primary }]}>
-            <StatusBar barStyle="light-content" backgroundColor={theme.primary} />
+        <View style={[styles.container, { backgroundColor: isDark ? cskDarkColors[500] : theme.primary }]}>
+            <StatusBar barStyle="light-content" backgroundColor={isDark ? cskDarkColors[500] : theme.primary} />
 
             {/* Gradient Background */}
             <LinearGradient
@@ -179,16 +184,39 @@ export default function ReactivateAccountScreen() {
             />
 
             {/* Animated Background Shapes */}
-            <Animated.View style={[styles.bgShape1, { opacity: glowAnim }]} />
-            <Animated.View style={[styles.bgShape2, { opacity: glowAnim }]} />
+            <Animated.View 
+                style={[
+                    styles.bgShape1, 
+                    { 
+                        opacity: Animated.multiply(glowAnim, isDark ? 0.25 : 1),
+                        backgroundColor: isDark ? 'rgba(79, 191, 138, 0.15)' : 'rgba(255,255,255,0.08)',
+                    }
+                ]} 
+            />
+            <Animated.View 
+                style={[
+                    styles.bgShape2, 
+                    { 
+                        opacity: Animated.multiply(glowAnim, isDark ? 0.2 : 1),
+                        backgroundColor: isDark ? 'rgba(79, 191, 138, 0.12)' : 'rgba(255,255,255,0.06)',
+                    }
+                ]} 
+            />
             <Animated.View
-                style={[styles.bgShape3, { opacity: Animated.multiply(glowAnim, 0.5) }]}
+                style={[
+                    styles.bgShape3, 
+                    { 
+                        opacity: Animated.multiply(glowAnim, isDark ? 0.15 : 0.5),
+                        backgroundColor: isDark ? 'rgba(79, 191, 138, 0.1)' : 'rgba(255,255,255,0.04)',
+                    }
+                ]}
             />
 
             {/* Main Content */}
             <View style={styles.content}>
                 <ReactivateIcon
                     theme={theme}
+                    isDark={isDark}
                     fadeAnim={fadeAnim}
                     scaleAnim={scaleAnim}
                     rotation={rotation}
@@ -200,10 +228,15 @@ export default function ReactivateAccountScreen() {
                     slideAnim={slideAnim}
                 />
 
-                <ReactivateCards fadeAnim={fadeAnim} cardSlideAnim={cardSlideAnim} />
+                <ReactivateCards 
+                    isDark={isDark}
+                    fadeAnim={fadeAnim} 
+                    cardSlideAnim={cardSlideAnim} 
+                />
 
                 <ReactivateButtons
                     theme={theme}
+                    isDark={isDark}
                     loading={loading}
                     fadeAnim={fadeAnim}
                     buttonSlideAnim={buttonSlideAnim}
@@ -233,7 +266,6 @@ const styles = StyleSheet.create({
         width: width * 0.8,
         height: width * 0.8,
         borderRadius: width * 0.4,
-        backgroundColor: 'rgba(255,255,255,0.08)',
     },
     bgShape2: {
         position: 'absolute',
@@ -242,7 +274,6 @@ const styles = StyleSheet.create({
         width: width * 0.7,
         height: width * 0.7,
         borderRadius: width * 0.35,
-        backgroundColor: 'rgba(255,255,255,0.06)',
     },
     bgShape3: {
         position: 'absolute',
@@ -251,7 +282,6 @@ const styles = StyleSheet.create({
         width: width * 0.4,
         height: width * 0.4,
         borderRadius: width * 0.2,
-        backgroundColor: 'rgba(255,255,255,0.04)',
     },
     content: {
         flex: 1,

@@ -9,6 +9,7 @@ type Theme = typeof Colors.light | typeof Colors.dark;
 
 interface ReactivateIconProps {
     theme: Theme;
+    isDark?: boolean;
     fadeAnim: Animated.Value;
     scaleAnim: Animated.Value;
     rotation: Animated.AnimatedInterpolation<string>;
@@ -16,6 +17,7 @@ interface ReactivateIconProps {
 
 export const ReactivateIcon: React.FC<ReactivateIconProps> = ({
     theme,
+    isDark = false,
     fadeAnim,
     scaleAnim,
     rotation,
@@ -29,16 +31,25 @@ export const ReactivateIcon: React.FC<ReactivateIconProps> = ({
             },
         ]}
     >
-        <View style={styles.iconOuterRing}>
-            <View style={styles.iconMiddleRing}>
-                <View style={styles.iconInnerCircle}>
+        <View style={[
+            styles.iconOuterRing,
+            { backgroundColor: isDark ? 'rgba(79, 191, 138, 0.15)' : 'rgba(255,255,255,0.12)' }
+        ]}>
+            <View style={[
+                styles.iconMiddleRing,
+                { backgroundColor: isDark ? 'rgba(79, 191, 138, 0.25)' : 'rgba(255,255,255,0.18)' }
+            ]}>
+                <View style={[
+                    styles.iconInnerCircle,
+                    { backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF' }
+                ]}>
                     <Ionicons name="person-circle" size={52} color={theme.primary} />
                 </View>
             </View>
         </View>
 
         {/* Checkmark Badge */}
-        <View style={[styles.checkBadge, { borderColor: theme.primary }]}>
+        <View style={[styles.checkBadge, { borderColor: isDark ? '#1E1E1E' : theme.primary }]}>
             <Ionicons name="checkmark" size={16} color="#FFFFFF" />
         </View>
     </Animated.View>
@@ -53,7 +64,6 @@ const styles = StyleSheet.create({
         width: 140,
         height: 140,
         borderRadius: 70,
-        backgroundColor: 'rgba(255,255,255,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -61,7 +71,6 @@ const styles = StyleSheet.create({
         width: 115,
         height: 115,
         borderRadius: 57.5,
-        backgroundColor: 'rgba(255,255,255,0.18)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -69,7 +78,6 @@ const styles = StyleSheet.create({
         width: 88,
         height: 88,
         borderRadius: 44,
-        backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',

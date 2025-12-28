@@ -136,8 +136,13 @@ export default {
     // Reactivate Account
     welcomeBackTitle: 'مرحباً بعودتك!',
     accountDeactivated: 'تم تعطيل حسابك',
+    accountDeactivatedMessage: 'حسابك معطل',
     reactivateSubtitle: 'يسعدنا رؤيتك مرة أخرى. حسابك جاهز لإعادة التفعيل.',
     reactivateAccount: 'إعادة تفعيل الحساب',
+    reactivationSuccess: 'تم إعادة تفعيل حسابك',
+    reactivationFailed: 'فشل إعادة التفعيل',
+    reactivationFailedMessage: 'يرجى المحاولة مرة أخرى',
+    missingAuthToken: 'رمز المصادقة مفقود. يرجى محاولة تسجيل الدخول مرة أخرى.',
     goBack: 'العودة',
     dataPreserved: 'بياناتك محفوظة',
     dataPreservedDesc: 'جميع تقدمك وإعداداتك ومعلوماتك آمنة',

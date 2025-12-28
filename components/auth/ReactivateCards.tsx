@@ -5,15 +5,24 @@ import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 
 interface ReactivateCardsProps {
+    isDark?: boolean;
     fadeAnim: Animated.Value;
     cardSlideAnim: Animated.Value;
 }
 
 export const ReactivateCards: React.FC<ReactivateCardsProps> = ({
+    isDark = false,
     fadeAnim,
     cardSlideAnim,
 }) => {
     const { t } = useTranslation();
+    
+    // Dark mode colors
+    const cardBg = isDark ? '#1E1E1E' : '#FFFFFF';
+    const titleColor = isDark ? '#E1E5E9' : '#1F2937';
+    const descColor = isDark ? '#A8B0B8' : '#6B7280';
+    const iconBg1 = isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5';
+    const iconBg2 = isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF';
     
     return (
         <Animated.View
@@ -25,23 +34,23 @@ export const ReactivateCards: React.FC<ReactivateCardsProps> = ({
                 },
             ]}
         >
-            <View style={styles.infoCard}>
-                <View style={[styles.cardIconWrapper, { backgroundColor: '#ECFDF5' }]}>
+            <View style={[styles.infoCard, { backgroundColor: cardBg }]}>
+                <View style={[styles.cardIconWrapper, { backgroundColor: iconBg1 }]}>
                     <Ionicons name="shield-checkmark" size={22} color="#10B981" />
                 </View>
                 <View style={styles.cardTextWrapper}>
-                    <Text style={styles.cardTitle}>{t('auth.dataPreserved')}</Text>
-                    <Text style={styles.cardDescription}>{t('auth.dataPreservedDesc')}</Text>
+                    <Text style={[styles.cardTitle, { color: titleColor }]}>{t('auth.dataPreserved')}</Text>
+                    <Text style={[styles.cardDescription, { color: descColor }]}>{t('auth.dataPreservedDesc')}</Text>
                 </View>
             </View>
 
-            <View style={styles.infoCard}>
-                <View style={[styles.cardIconWrapper, { backgroundColor: '#EEF2FF' }]}>
+            <View style={[styles.infoCard, { backgroundColor: cardBg }]}>
+                <View style={[styles.cardIconWrapper, { backgroundColor: iconBg2 }]}>
                     <Ionicons name="sync" size={22} color="#6366F1" />
                 </View>
                 <View style={styles.cardTextWrapper}>
-                    <Text style={styles.cardTitle}>{t('auth.instantAccess')}</Text>
-                    <Text style={styles.cardDescription}>{t('auth.instantAccessDesc')}</Text>
+                    <Text style={[styles.cardTitle, { color: titleColor }]}>{t('auth.instantAccess')}</Text>
+                    <Text style={[styles.cardDescription, { color: descColor }]}>{t('auth.instantAccessDesc')}</Text>
                 </View>
             </View>
         </Animated.View>
@@ -55,7 +64,6 @@ const styles = StyleSheet.create({
     },
     infoCard: {
         flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         padding: 18,
         alignItems: 'center',
@@ -79,12 +87,10 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 15,
         fontFamily: Fonts?.bold,
-        color: '#1F2937',
         marginBottom: 3,
     },
     cardDescription: {
         fontSize: 13,
         fontFamily: Fonts?.regular,
-        color: '#6B7280',
     },
 });

@@ -16,6 +16,7 @@ type Theme = typeof Colors.light | typeof Colors.dark;
 
 interface ReactivateButtonsProps {
     theme: Theme;
+    isDark?: boolean;
     loading: boolean;
     fadeAnim: Animated.Value;
     buttonSlideAnim: Animated.Value;
@@ -25,13 +26,19 @@ interface ReactivateButtonsProps {
 
 export const ReactivateButtons: React.FC<ReactivateButtonsProps> = ({
     theme,
+    isDark = false,
     loading,
     fadeAnim,
     buttonSlideAnim,
     onContinue,
     onGoBack,
 }) => {
-    const { t } = useTranslation();
+    const { t, isRTL } = useTranslation();
+    
+    // Dark mode button colors
+    const buttonGradient = isDark 
+        ? ['#1E1E1E', '#252525'] as [string, string]
+        : ['#FFFFFF', '#F8FAFC'] as [string, string];
     
     return (
         <Animated.View
@@ -51,8 +58,8 @@ export const ReactivateButtons: React.FC<ReactivateButtonsProps> = ({
                 disabled={loading}
             >
                 <LinearGradient
-                    colors={['#FFFFFF', '#F8FAFC']}
-                    style={styles.buttonGradient}
+                    colors={buttonGradient}
+                    style={[styles.buttonGradient, isRTL && styles.buttonGradientRTL]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
                 >
@@ -64,7 +71,11 @@ export const ReactivateButtons: React.FC<ReactivateButtonsProps> = ({
                                 {t('auth.reactivateAccount')}
                             </Text>
                             <View style={[styles.arrowCircle, { backgroundColor: theme.primary }]}>
-                                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                                <Ionicons 
+                                    name={isRTL ? "arrow-back" : "arrow-forward"} 
+                                    size={18} 
+                                    color="#FFFFFF" 
+                                />
                             </View>
                         </>
                     )}
@@ -73,12 +84,17 @@ export const ReactivateButtons: React.FC<ReactivateButtonsProps> = ({
 
             {/* Logout Option */}
             <TouchableOpacity
-                style={styles.logoutButton}
+                style={[styles.logoutButton, isRTL && styles.logoutButtonRTL]}
                 onPress={onGoBack}
                 activeOpacity={0.7}
                 disabled={loading}
             >
-                <Ionicons name="log-out-outline" size={18} color="rgba(255,255,255,0.8)" />
+                <Ionicons 
+                    name="log-out-outline" 
+                    size={18} 
+                    color="rgba(255,255,255,0.8)" 
+                    style={isRTL && { transform: [{ scaleX: -1 }] }}
+                />
                 <Text style={styles.logoutText}>{t('auth.goBack')}</Text>
             </TouchableOpacity>
         </Animated.View>
@@ -106,6 +122,9 @@ const styles = StyleSheet.create({
         paddingVertical: 18,
         paddingHorizontal: 28,
     },
+    buttonGradientRTL: {
+        flexDirection: 'row-reverse',
+    },
     continueButtonText: {
         fontSize: 17,
         fontFamily: Fonts?.bold,
@@ -124,6 +143,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 12,
         gap: 8,
+    },
+    logoutButtonRTL: {
+        flexDirection: 'row-reverse',
     },
     logoutText: {
         fontSize: 14,

@@ -74,7 +74,7 @@ export default function SignInScreen() {
     };
 
     const navigateToReactivation = (data: AuthData) => {
-        showToast('info', 'Account Deactivated', data.message || 'Your account is deactivated');
+        showToast('info', t('auth.accountDeactivated'), data.message || t('auth.accountDeactivatedMessage'));
         router.push({
             pathname: '/reactivate-account',
             params: {
