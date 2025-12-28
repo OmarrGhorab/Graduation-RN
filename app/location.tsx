@@ -120,18 +120,21 @@ export default function LocationScreen() {
     const handleRequestLocation = useCallback(async (childId: string) => {
         setRequestingChildId(childId);
         try {
-            await requestLocationMutation.mutateAsync(childId);
-            toast.success(t('location.requestSent'), t('location.locationRequestSent'));
+            const result = await requestLocationMutation.mutateAsync(childId);
+            toast.success(
+                t('location.requestSent'), 
+                result.message || t('location.locationRequestSent')
+            );
             
-            setTimeout(async () => {
-                await refetchChildren();
+            // Keep loading state for 8 seconds while polling happens
+            setTimeout(() => {
                 setRequestingChildId(null);
-            }, 5000);
+            }, 8000);
         } catch (error: any) {
             toast.error(t('common.error'), error.message || t('location.failedToRequestLocation'));
             setRequestingChildId(null);
         }
-    }, [requestLocationMutation, refetchChildren, toast, t]);
+    }, [requestLocationMutation, toast, t]);
 
     return (
         <View style={[styles.container, { 

@@ -1,19 +1,17 @@
 import { useRouter, useLocalSearchParams, Href } from 'expo-router';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
-    TextInput,
     useColorScheme,
 } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { resendVerificationOTP, verifyEmailOTP } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
-import { VerificationHeader } from '@/components/auth/VerificationHeader';
-import { VerificationForm } from '@/components/auth/VerificationForm';
+import { VerificationHeader, OTPInput, OTPActions } from '@/components/auth';
 
 export default function VerificationScreen() {
     const router = useRouter();
@@ -26,7 +24,6 @@ export default function VerificationScreen() {
     const [loading, setLoading] = useState(false);
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [timer, setTimer] = useState(60);
-    const inputRefs = useRef<Array<TextInput | null>>([]);
 
     useEffect(() => {
         let interval: any;
@@ -37,22 +34,6 @@ export default function VerificationScreen() {
         }
         return () => clearInterval(interval);
     }, [timer]);
-
-    const handleOtpChange = (value: string, index: number) => {
-        const newOtp = [...otp];
-        newOtp[index] = value;
-        setOtp(newOtp);
-
-        if (value && index < 5) {
-            inputRefs.current[index + 1]?.focus();
-        }
-    };
-
-    const handleBackspace = (key: string, index: number) => {
-        if (key === 'Backspace' && !otp[index] && index > 0) {
-            inputRefs.current[index - 1]?.focus();
-        }
-    };
 
     const handleContinue = async () => {
         const otpValue = otp.join('');
@@ -94,6 +75,7 @@ export default function VerificationScreen() {
                 const result = await resendVerificationOTP(email);
                 success('Code Sent', result.message || 'A new code has been sent to your email');
                 setTimer(60);
+                setOtp(['', '', '', '', '', '']);
             } catch (err: any) {
                 console.error('Resend OTP error:', err);
                 error('Error', err.message || 'Failed to resend code');
@@ -121,17 +103,22 @@ export default function VerificationScreen() {
                 contentContainerStyle={styles.scrollContent}
             >
                 <VerificationHeader theme={theme} isDark={isDark} onBack={handleBack} />
-                <VerificationForm
+                
+                <OTPInput
                     theme={theme}
                     isDark={isDark}
                     otp={otp}
-                    loading={loading}
+                    onOtpChange={setOtp}
+                />
+
+                <OTPActions
+                    theme={theme}
+                    isDark={isDark}
+                    isLoading={loading}
                     timer={timer}
-                    onOtpChange={handleOtpChange}
-                    onBackspace={handleBackspace}
+                    buttonText="Continue"
                     onContinue={handleContinue}
                     onResend={handleResend}
-                    inputRefs={inputRefs}
                 />
             </ScrollView>
         </KeyboardAvoidingView>

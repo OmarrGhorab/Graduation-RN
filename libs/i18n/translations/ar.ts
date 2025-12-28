@@ -367,6 +367,8 @@ export default {
     noLinkedChildren: 'لا يوجد أطفال مرتبطين',
     linkChildrenToTrack: 'اربط مع أطفالك لتتبع موقعهم',
     locationUnavailable: 'الموقع غير متوفر',
+    childLocationUnavailable: 'لا توجد بيانات موقع بعد',
+    childLocationHint: 'اضغط "طلب الموقع" للحصول على موقعهم الحالي',
     precise: 'دقيق',
     approximate: 'تقريبي',
     online: 'متصل',

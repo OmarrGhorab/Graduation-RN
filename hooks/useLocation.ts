@@ -118,12 +118,18 @@ export const useRequestChildLocation = () => {
 
   return useMutation({
     mutationFn: (childId: string) => LocationService.requestChildLocation(childId),
-    onSuccess: (_, childId) => {
-      // Invalidate child location after a delay to fetch updated location
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: locationKeys.child(childId) });
-        queryClient.invalidateQueries({ queryKey: locationKeys.children() });
-      }, 5000);
+    onSuccess: (response, childId) => {
+      // Immediately invalidate to show we're waiting for update
+      queryClient.invalidateQueries({ queryKey: locationKeys.child(childId) });
+      
+      // Poll for updated location (child app may take time to respond)
+      const pollIntervals = [3000, 5000, 8000]; // 3s, 5s, 8s
+      pollIntervals.forEach((delay) => {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: locationKeys.child(childId) });
+          queryClient.invalidateQueries({ queryKey: locationKeys.children() });
+        }, delay);
+      });
     },
   });
 };

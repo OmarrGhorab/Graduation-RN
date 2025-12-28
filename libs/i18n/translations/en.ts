@@ -367,6 +367,8 @@ export default {
     noLinkedChildren: 'No linked children',
     linkChildrenToTrack: 'Link with your children to track their location',
     locationUnavailable: 'Location unavailable',
+    childLocationUnavailable: 'No location data yet',
+    childLocationHint: 'Tap "Request Location" to get their current location',
     precise: 'Precise',
     approximate: 'Approximate',
     online: 'Online',

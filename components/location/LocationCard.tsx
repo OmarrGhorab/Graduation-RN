@@ -184,8 +184,19 @@ export const LocationCard = memo(({
                         color: theme.gray[500],
                         fontFamily: Fonts?.medium 
                     }]}>
-                        {t('location.locationUnavailable')}
+                        {isCurrentUser 
+                            ? t('location.locationUnavailable')
+                            : t('location.childLocationUnavailable')
+                        }
                     </Text>
+                    {!isCurrentUser && (
+                        <Text style={[styles.noLocationHint, { 
+                            color: theme.gray[400],
+                            fontFamily: Fonts?.regular 
+                        }]}>
+                            {t('location.childLocationHint')}
+                        </Text>
+                    )}
                 </View>
             )}
             
@@ -336,6 +347,12 @@ const styles = StyleSheet.create({
     noLocationText: {
         fontSize: 14,
         marginTop: 8,
+    },
+    noLocationHint: {
+        fontSize: 12,
+        marginTop: 4,
+        textAlign: 'center',
+        paddingHorizontal: 16,
     },
     cardActions: {
         marginTop: 12,
