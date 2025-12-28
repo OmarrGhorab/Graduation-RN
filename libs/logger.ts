@@ -10,8 +10,6 @@
  * logger.error('[Auth] Failed:', error);
  */
 
-type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
-
 interface Logger {
     log: (...args: any[]) => void;
     info: (...args: any[]) => void;

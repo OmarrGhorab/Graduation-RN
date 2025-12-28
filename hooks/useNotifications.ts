@@ -26,7 +26,7 @@ export function useNotificationsQuery(limit: number = 10) {
             return undefined;
         },
         initialPageParam: 1,
-        staleTime: STALE_TIMES.REALTIME,
+        staleTime: STALE_TIMES.STANDARD,
     });
 }
 

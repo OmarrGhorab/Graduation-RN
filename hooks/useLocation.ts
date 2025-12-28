@@ -48,7 +48,7 @@ export const useMyLocationHistory = (limit: number = 10) => {
       return undefined;
     },
     initialPageParam: 1,
-    staleTime: STALE_TIMES.REALTIME,
+    staleTime: STALE_TIMES.STANDARD,
   });
 };
 
@@ -91,7 +91,7 @@ export const useChildLocationHistory = (childId: string, limit: number = 10) => 
     },
     initialPageParam: 1,
     enabled: !!childId,
-    staleTime: STALE_TIMES.REALTIME,
+    staleTime: STALE_TIMES.STANDARD,
   });
 };
 

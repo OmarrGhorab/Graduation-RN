@@ -5,14 +5,32 @@ import { ApiNotification } from './NotificationService';
 import { getErrorMessage } from '@/types/errors';
 import { logger } from '@/libs/logger';
 
-// Event types from react-native-sse (library doesn't export these)
+// Event types matching react-native-sse library types
 interface SSEMessageEvent {
-    data: string;
+    data: string | null;
+    type: string;
+    lastEventId: string | null;
+    url: string;
 }
 
 interface SSEErrorEvent {
-    message?: string;
+    type: 'error';
+    message: string;
+    xhrState: number;
+    xhrStatus: number;
 }
+
+interface SSETimeoutEvent {
+    type: 'timeout';
+}
+
+interface SSEExceptionEvent {
+    type: 'exception';
+    message: string;
+    error: Error;
+}
+
+type SSEError = SSEErrorEvent | SSETimeoutEvent | SSEExceptionEvent;
 
 // SSE Notification types
 export type SSENotificationType =
@@ -59,6 +77,8 @@ class NotificationSSEService {
     private reconnectDelay: number = 5000;
     private maxReconnectDelay: number = 30000;
     private currentReconnectDelay: number = 5000;
+    private maxRetryAttempts: number = 10;
+    private retryAttempts: number = 0;
 
     private onNotificationCallback: NotificationCallback | null = null;
     private onConnectionChangeCallback: ConnectionCallback | null = null;
@@ -118,6 +138,7 @@ class NotificationSSEService {
                 logger.log('[SSE] Connection opened');
                 this.isConnecting = false;
                 this.currentReconnectDelay = this.reconnectDelay;
+                this.retryAttempts = 0; // Reset retry count on successful connection
                 this.onConnectionChangeCallback?.(true);
             });
 
@@ -136,11 +157,12 @@ class NotificationSSEService {
             });
 
             // Handle errors
-            this.eventSource.addEventListener('error', (event: SSEErrorEvent) => {
-                logger.error('[SSE] Error:', event.message || 'Unknown error');
+            this.eventSource.addEventListener('error', (event: SSEError) => {
+                const errorMessage = 'message' in event ? event.message : event.type;
+                logger.error('[SSE] Error:', errorMessage);
                 this.isConnecting = false;
                 
-                const error = new Error(event.message || 'SSE connection error');
+                const error = new Error(errorMessage || 'SSE connection error');
                 this.onErrorCallback?.(error);
                 this.onConnectionChangeCallback?.(false);
 
@@ -212,11 +234,19 @@ class NotificationSSEService {
             return;
         }
 
+        // Check max retry limit
+        if (this.retryAttempts >= this.maxRetryAttempts) {
+            logger.warn(`[SSE] Max retry attempts (${this.maxRetryAttempts}) reached, giving up`);
+            this.onErrorCallback?.(new Error('Max reconnection attempts reached'));
+            return;
+        }
+
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
         }
 
-        logger.log(`[SSE] Reconnecting in ${this.currentReconnectDelay / 1000}s...`);
+        this.retryAttempts++;
+        logger.log(`[SSE] Reconnecting in ${this.currentReconnectDelay / 1000}s... (attempt ${this.retryAttempts}/${this.maxRetryAttempts})`);
 
         this.reconnectTimeout = setTimeout(() => {
             this.connect();
@@ -244,6 +274,7 @@ class NotificationSSEService {
         this.cleanup();
         this.isConnecting = false;
         this.currentReconnectDelay = this.reconnectDelay;
+        this.retryAttempts = 0; // Reset retry count on manual disconnect
         this.onConnectionChangeCallback?.(false);
     }
 
@@ -252,6 +283,16 @@ class NotificationSSEService {
      */
     isActive(): boolean {
         return this.isConnecting || this.eventSource !== null;
+    }
+
+    /**
+     * Reset retry attempts and reconnect (useful for manual retry)
+     */
+    resetAndReconnect(): void {
+        this.retryAttempts = 0;
+        this.currentReconnectDelay = this.reconnectDelay;
+        this.disconnect();
+        this.connect();
     }
 }
 

@@ -19,6 +19,7 @@ export default function MainLayout() {
             <Tabs.Screen
                 name="home"
                 options={{
+                    lazy: true,
                     title: t('tabs.home'),
                     tabBarIcon: ({ color, size }) => (
                         <TabBarIcon name="home" size={size} color={color} />
@@ -28,6 +29,7 @@ export default function MainLayout() {
             <Tabs.Screen
                 name="course"
                 options={{
+                    lazy: true,
                     title: t('tabs.course'),
                     tabBarIcon: ({ color, size }) => (
                         <TabBarIcon name="book-outline" size={size} color={color} />
@@ -37,6 +39,7 @@ export default function MainLayout() {
             <Tabs.Screen
                 name="qr"
                 options={{
+                    lazy: true,
                     title: t('tabs.qr'),
                     tabBarIcon: ({ color, size }) => (
                         <TabBarIcon name="qr-code-outline" size={size} color={color} />
@@ -46,6 +49,7 @@ export default function MainLayout() {
             <Tabs.Screen
                 name="account"
                 options={{
+                    lazy: true,
                     title: t('tabs.account'),
                     tabBarIcon: ({ color, size }) => (
                         <TabBarIcon name="person-outline" size={size} color={color} />

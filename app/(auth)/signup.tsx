@@ -67,7 +67,7 @@ export default function SignUpScreen() {
 
         debounceTimeoutRef.current = setTimeout(() => {
             handleCheckUsername();
-        }, 300);
+        }, 500);
 
         return () => {
             if (debounceTimeoutRef.current) {
