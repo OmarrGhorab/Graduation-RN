@@ -93,6 +93,7 @@ export default {
     verificationSuccessful: 'Verification successful',
     verificationFailed: 'Verification Failed',
     checkCodeAndTryAgain: 'Please check the code and try again',
+    invalidOrExpiredOTP: 'Invalid or expired OTP',
     invalidCodeMessage: 'Please enter the full 6-digit code',
     
     // Reset Password

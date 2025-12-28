@@ -177,7 +177,7 @@ const createStyles = (theme: Theme, isDark: boolean) =>
             fontSize: OTP_FONT_SIZE,
             fontFamily: Fonts?.semiBold,
             textAlign: 'center',
-            color: theme.text,
+            color: theme.primary,
         },
         cursor: {
             width: 2,

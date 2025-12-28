@@ -96,7 +96,12 @@ export default function DeviceVerificationScreen() {
             }
         } catch (err: any) {
             console.error('Device verification error:', err);
-            error(t('auth.verificationFailed'), err.message || t('auth.checkCodeAndTryAgain'));
+            // Map API error messages to translations
+            let errorMessage = t('auth.checkCodeAndTryAgain');
+            if (err.message?.toLowerCase().includes('invalid') || err.message?.toLowerCase().includes('expired')) {
+                errorMessage = t('auth.invalidOrExpiredOTP');
+            }
+            error(t('auth.verificationFailed'), errorMessage);
         } finally {
             setIsLoading(false);
         }

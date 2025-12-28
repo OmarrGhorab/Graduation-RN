@@ -93,6 +93,7 @@ export default {
     verificationSuccessful: 'تم التحقق بنجاح',
     verificationFailed: 'فشل التحقق',
     checkCodeAndTryAgain: 'يرجى التحقق من الرمز والمحاولة مرة أخرى',
+    invalidOrExpiredOTP: 'رمز التحقق غير صالح أو منتهي الصلاحية',
     invalidCodeMessage: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
     
     // Reset Password
