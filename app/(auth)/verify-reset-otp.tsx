@@ -9,7 +9,7 @@ import {
     useColorScheme,
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { forgotPassword } from '@/services/AuthService';
+import { forgotPassword, verifyResetOTP } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { VerifyOTPHeader, OTPInput, OTPActions } from '@/components/auth';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -55,11 +55,37 @@ export default function VerifyResetOTPScreen() {
             return;
         }
 
-        success(t('auth.codeVerified'), t('auth.enterNewPassword'));
-        router.replace({
-            pathname: '/reset-password',
-            params: { emailOrUsername, otp: otpValue },
-        } as any);
+        setIsLoading(true);
+        try {
+            // Verify OTP with backend before proceeding
+            await verifyResetOTP({
+                emailOrUsername,
+                otp: otpValue,
+            });
+
+            success(t('auth.codeVerified'), t('auth.enterNewPassword'));
+            router.replace({
+                pathname: '/reset-password',
+                params: { emailOrUsername, otp: otpValue },
+            } as any);
+        } catch (err: any) {
+            console.error('Verify OTP error:', err);
+            // Map API error messages to translations
+            let errorMessage = t('auth.checkCodeAndTryAgain');
+            
+            const errMsg = err.message?.toLowerCase() || '';
+            if (errMsg.includes('invalid') || errMsg.includes('expired')) {
+                errorMessage = t('auth.invalidOrExpiredOTP');
+            } else if (errMsg.includes('too many') || errMsg.includes('wait')) {
+                errorMessage = t('auth.tooManyRequests');
+            } else if (errMsg.includes('not found')) {
+                errorMessage = t('auth.userNotFound');
+            }
+            
+            error(t('auth.verificationFailed'), errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleResend = async () => {
@@ -67,13 +93,13 @@ export default function VerifyResetOTPScreen() {
 
         setIsLoading(true);
         try {
-            const result = await forgotPassword({ emailOrUsername });
-            success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
+            await forgotPassword({ emailOrUsername });
+            success(t('auth.codeSent'), t('auth.codeSentMessage'));
             setTimer(60);
             setOtp(['', '', '', '', '', '']);
         } catch (err: any) {
             console.error('Resend OTP error:', err);
-            error(t('common.error'), err.message || t('auth.failedToSendCode'));
+            error(t('common.error'), t('auth.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }

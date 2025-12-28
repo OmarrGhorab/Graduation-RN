@@ -116,6 +116,16 @@ export interface ResetPasswordResponse {
     message: string;
 }
 
+export interface VerifyResetOTPRequest {
+    emailOrUsername: string;
+    otp: string;
+}
+
+export interface VerifyResetOTPResponse {
+    message: string;
+    valid: boolean;
+}
+
 export type OnboardingData = ProfileCompletionBody;
 
 export interface OnboardingResponse {

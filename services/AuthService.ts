@@ -14,6 +14,8 @@ import {
     ForgotPasswordResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
+    VerifyResetOTPRequest,
+    VerifyResetOTPResponse,
     DeviceVerifyRequest,
     DeviceVerifyResponse,
     ResendDeviceVerificationOTPRequest,
@@ -435,6 +437,57 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<Forgo
         return responseData;
     } catch (error) {
         logger.error('[Auth] Forgot password failed:', error);
+
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
+        if (error instanceof Error && error.message === 'Network request failed') {
+            throw new NetworkError(
+                `Cannot connect to server at ${BASE_URL}. ` +
+                'Please ensure your backend server is running.'
+            );
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Verify reset password OTP
+ * @param data - Email/username and OTP
+ */
+export async function verifyResetOTP(data: VerifyResetOTPRequest): Promise<VerifyResetOTPResponse> {
+    try {
+        logger.log('[Auth] Verifying reset OTP with URL:', `${BASE_URL}/api/v1/auth/verify-reset-otp`);
+
+        const response = await fetch(
+            `${BASE_URL}/api/v1/auth/verify-reset-otp`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    emailOrUsername: data.emailOrUsername,
+                    otp: data.otp,
+                }),
+            }
+        );
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+            throw new ApiError(
+                responseData.error || responseData.message || `HTTP error! status: ${response.status}`,
+                response.status,
+                responseData
+            );
+        }
+
+        return responseData;
+    } catch (error) {
+        logger.error('[Auth] Verify reset OTP failed:', error);
 
         if (error instanceof ApiError) {
             throw error;
