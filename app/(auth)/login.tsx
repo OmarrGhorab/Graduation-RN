@@ -13,6 +13,7 @@ import { useToast } from '@/components/toast';
 import { LoginHeader, LoginLogo, LoginButtons } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
 import { logger } from '@/libs/logger';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { height } = Dimensions.get('window');
 
@@ -45,6 +46,7 @@ export default function LoginScreen() {
     const theme = Colors[colorScheme || 'light'];
     const isDark = colorScheme === 'dark';
     const { showToast } = useToast();
+    const { t } = useTranslation();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
     useEffect(() => {
@@ -78,7 +80,7 @@ export default function LoginScreen() {
     };
 
     const navigateToDeviceVerification = (result: AuthResult) => {
-        showToast('info', 'New Device Detected', 'Please verify this device using the code sent to your email.');
+        showToast('info', t('auth.newDeviceDetected'), t('auth.newDeviceDetectedMessage'));
         router.push({
             pathname: '/device-verification',
             params: {

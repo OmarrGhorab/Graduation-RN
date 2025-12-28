@@ -116,6 +116,7 @@ export default {
     
     // Device Verification
     newDeviceDetected: 'تم اكتشاف جهاز جديد',
+    newDeviceDetectedMessage: 'يرجى التحقق من هذا الجهاز باستخدام الرمز المرسل إلى بريدك الإلكتروني.',
     deviceVerificationTitle: 'تحقق من جهازك',
     deviceVerificationSubtitle: 'لاحظنا أنك تسجل الدخول من جهاز جديد. يرجى إدخال رمز التحقق المرسل إلى بريدك الإلكتروني.',
     verifyDevice: 'تحقق من الجهاز',

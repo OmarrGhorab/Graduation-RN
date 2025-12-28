@@ -116,6 +116,7 @@ export default {
     
     // Device Verification
     newDeviceDetected: 'New Device Detected',
+    newDeviceDetectedMessage: 'Please verify this device using the code sent to your email.',
     deviceVerificationTitle: 'Verify Your Device',
     deviceVerificationSubtitle: 'We noticed you\'re logging in from a new device. Please enter the verification code sent to your email.',
     verifyDevice: 'Verify Device',

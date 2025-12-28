@@ -21,6 +21,7 @@ import { LoginSuccessResponse } from '@/types/auth';
 import { SignInHeader, SignInForm, SignInFooter } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
 import { logger } from '@/libs/logger';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ============================================================================
 // Types
@@ -45,6 +46,7 @@ export default function SignInScreen() {
     const theme = Colors[colorScheme || 'light'];
     const isDark = colorScheme === 'dark';
     const { showToast, error } = useToast();
+    const { t } = useTranslation();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -83,7 +85,7 @@ export default function SignInScreen() {
     };
 
     const navigateToDeviceVerification = (emailOrUsername: string, deviceFingerprint: string) => {
-        showToast('info', 'New Device Detected', 'Please verify this device using the code sent to your email.');
+        showToast('info', t('auth.newDeviceDetected'), t('auth.newDeviceDetectedMessage'));
         router.push({
             pathname: '/device-verification',
             params: { emailOrUsername, deviceFingerprint },
