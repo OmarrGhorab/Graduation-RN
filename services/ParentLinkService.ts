@@ -1,5 +1,6 @@
 import { BASE_URL } from '@/constants/config';
 import { getValidAccessToken } from './AuthService';
+import { logger } from '@/libs/logger';
 
 // Types
 export interface ParentUser {
@@ -126,7 +127,7 @@ export async function getLinkRequests(): Promise<{ data: LinkRequest[] }> {
     });
 
     const result = await parseResponse<{ data: LinkRequest[] }>(response);
-    console.log('[ParentLinkService] getLinkRequests response:', JSON.stringify(result, null, 2));
+    logger.log('[ParentLinkService] getLinkRequests response:', JSON.stringify(result, null, 2));
     return result;
 }
 

@@ -2,6 +2,7 @@ import { BASE_URL } from '@/constants/config';
 import { RefreshTokenResponse } from '@/types/auth';
 import { useAuthStore } from '@/libs/auth';
 import { ApiError, NetworkError } from '@/types/errors';
+import { logger } from '@/libs/logger';
 
 // Helper functions for token management
 export const getAuthToken = () => useAuthStore.getState().accessToken;
@@ -41,7 +42,7 @@ const atob = (input: string) => {
  */
 export async function refreshAccessToken(refreshToken: string): Promise<RefreshTokenResponse> {
     try {
-        console.log('[Auth] Refreshing access token with URL:', `${BASE_URL}/api/v1/auth/refresh`);
+        logger.log('[Auth] Refreshing access token with URL:', `${BASE_URL}/api/v1/auth/refresh`);
 
         const response = await fetch(
             `${BASE_URL}/api/v1/auth/refresh`,
@@ -59,7 +60,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
         const responseData = await response.json();
 
         if (!response.ok) {
-            console.error('[Auth] Token refresh failed with status:', response.status, responseData);
+            logger.error('[Auth] Token refresh failed with status:', response.status, responseData);
             throw new ApiError(
                 responseData.message || responseData.error || 'Token refresh failed',
                 response.status,
@@ -67,14 +68,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<RefreshT
             );
         }
 
-        console.log('[Auth] Token refresh successful');
+        logger.log('[Auth] Token refresh successful');
 
         // Store new tokens in one go
         updateTokens(responseData.accessToken, responseData.refreshToken);
 
         return responseData;
     } catch (error) {
-        console.error('[Auth] Token refresh failed:', error);
+        logger.error('[Auth] Token refresh failed:', error);
 
         if (error instanceof ApiError) {
             throw error;
@@ -121,10 +122,10 @@ export async function getValidAccessToken(): Promise<string | null> {
 
             // If token expires in less than 1 minute, refresh it
             if (timeUntilExpiry < 60000) {
-                console.log('[Auth] Access token expired or expiring soon, refreshing...');
+                logger.log('[Auth] Access token expired or expiring soon, refreshing...');
 
                 if (refreshingPromise) {
-                    console.log('[Auth] Refresh already in progress, waiting...');
+                    logger.log('[Auth] Refresh already in progress, waiting...');
                     return refreshingPromise;
                 }
 
@@ -133,7 +134,7 @@ export async function getValidAccessToken(): Promise<string | null> {
                         const refreshResponse = await refreshAccessToken(refreshToken);
                         return refreshResponse.accessToken;
                     } catch (err) {
-                        console.error('[Auth] Refresh promise failed:', err);
+                        logger.error('[Auth] Refresh promise failed:', err);
                         await clearAuthToken();
                         return null;
                     } finally {
@@ -146,7 +147,7 @@ export async function getValidAccessToken(): Promise<string | null> {
 
             return token;
         } catch (decodeError) {
-            console.log('[Auth] Could not decode token, attempting refresh...');
+            logger.log('[Auth] Could not decode token, attempting refresh...');
 
             if (refreshingPromise) return refreshingPromise;
 
@@ -155,7 +156,7 @@ export async function getValidAccessToken(): Promise<string | null> {
                     const refreshResponse = await refreshAccessToken(refreshToken);
                     return refreshResponse.accessToken;
                 } catch (err) {
-                    console.error('[Auth] Refresh promise failed (decode error path):', err);
+                    logger.error('[Auth] Refresh promise failed (decode error path):', err);
                     await clearAuthToken();
                     return null;
                 } finally {
@@ -166,7 +167,7 @@ export async function getValidAccessToken(): Promise<string | null> {
             return refreshingPromise;
         }
     } catch (error) {
-        console.error('[Auth] Failed to get valid access token:', error);
+        logger.error('[Auth] Failed to get valid access token:', error);
         await clearAuthToken();
         return null;
     }

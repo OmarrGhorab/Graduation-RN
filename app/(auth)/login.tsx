@@ -12,6 +12,7 @@ import { googleSignIn, configureGoogleSignIn, isAccountDeactivated } from '@/ser
 import { useToast } from '@/components/toast';
 import { LoginHeader, LoginLogo, LoginButtons } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
+import { logger } from '@/libs/logger';
 
 const { height } = Dimensions.get('window');
 
@@ -97,7 +98,7 @@ export default function LoginScreen() {
         const result = await googleSignIn({
             showAlerts: true,
             onSuccess: async (data) => {
-                console.log('Google Sign-In successful:', data);
+                logger.log('Google Sign-In successful:', data);
                 if (data.user?.onboardingCompleted) {
                     // Sync preferences before navigating to home
                     await syncUserPreferences();
@@ -107,7 +108,7 @@ export default function LoginScreen() {
                 }
             },
             onCancel: () => {
-                console.log('Google Sign-In cancelled');
+                logger.log('Google Sign-In cancelled');
             },
         });
 

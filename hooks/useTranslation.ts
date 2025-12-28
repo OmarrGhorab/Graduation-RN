@@ -3,6 +3,7 @@ import { TextStyle } from 'react-native';
 import * as Updates from 'expo-updates';
 import { t } from '@/libs/i18n';
 import { useLanguageStore } from '@/libs/language';
+import { logger } from '@/libs/logger';
 
 export function useTranslation() {
   // Use global language store - all components share this state
@@ -20,7 +21,7 @@ export function useTranslation() {
           await Updates.reloadAsync();
         }
       } catch (e) {
-        console.log('Restart required for RTL change');
+        logger.log('Restart required for RTL change');
       }
       return true; // Indicates restart needed
     }

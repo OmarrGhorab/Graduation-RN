@@ -16,6 +16,7 @@ import { DeviceService } from '../DeviceService';
 import { registerFCMToken } from './fcmService';
 import { requiresDeviceVerification, isAccountDeactivated } from './accountService';
 import { NetworkError, getErrorMessage } from '@/types/errors';
+import { logger } from '@/libs/logger';
 
 // Types
 export interface AuthResponse {
@@ -133,7 +134,7 @@ export const authenticateWithBackend = async (idToken: string): Promise<AuthResp
         const result = LoginResponseSchema.safeParse(rawData);
 
         if (!result.success) {
-            console.error('Zod Validation Error:', result.error);
+            logger.error('Zod Validation Error:', result.error);
             return {
                 success: false,
                 error: 'Invalid response from server',
@@ -187,13 +188,13 @@ export const googleSignIn = async (options?: {
 
     // Step 2: Authenticate with backend using Google ID token
     try {
-        console.log('[Auth] Authenticating Google Token with URL:', `${BASE_URL}/api/v1/auth/google/mobile`);
+        logger.log('[Auth] Authenticating Google Token with URL:', `${BASE_URL}/api/v1/auth/google/mobile`);
 
         // Get device headers
         const deviceHeaders = await DeviceService.getDeviceHeaders();
         const deviceInfo = DeviceService.getDeviceInfo();
 
-        console.log('[Auth] Google Login Device Headers:', deviceHeaders);
+        logger.log('[Auth] Google Login Device Headers:', deviceHeaders);
 
         const response = await fetch(`${BASE_URL}/api/v1/auth/google/mobile`, {
             method: 'POST',
@@ -262,7 +263,7 @@ export const googleSignIn = async (options?: {
         
         if (data.user && data.accessToken) {
             useAuthStore.getState().setAuth(data.user, data.accessToken, data.refreshToken);
-            registerFCMToken().catch((err: unknown) => console.log('[Auth] FCM registration warning:', err));
+            registerFCMToken().catch((err: unknown) => logger.log('[Auth] FCM registration warning:', err));
         }
 
         onSuccess?.(responseData);
@@ -284,16 +285,16 @@ export const signOutGoogle = async (): Promise<void> => {
         if (isSignedIn) {
             await GoogleSignin.revokeAccess();
             await GoogleSignin.signOut();
-            console.log('[Auth] Google sign-out completed');
+            logger.log('[Auth] Google sign-out completed');
         } else {
-            console.log('[Auth] Not signed in with Google, skipping Google sign-out');
+            logger.log('[Auth] Not signed in with Google, skipping Google sign-out');
         }
     } catch (error) {
         const googleError = error as { code?: string; message?: string };
         if (googleError?.code === 'SIGN_IN_REQUIRED' || googleError?.message?.includes('SIGN_IN_REQUIRED')) {
-            console.log('[Auth] Google sign-out not needed (not signed in with Google)');
+            logger.log('[Auth] Google sign-out not needed (not signed in with Google)');
         } else {
-            console.log('[Auth] Google sign-out error (non-critical):', googleError?.message);
+            logger.log('[Auth] Google sign-out error (non-critical):', googleError?.message);
         }
     }
 };

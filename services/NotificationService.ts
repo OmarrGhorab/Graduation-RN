@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { logger } from '@/libs/logger';
 
 // Types
 export interface NotificationChild {
@@ -71,7 +72,7 @@ export interface DeleteNotificationResponse {
  * @param limit - Results per page (default: 10)
  */
 export async function getNotifications(page: number = 1, limit: number = 10): Promise<NotificationsResponse> {
-    console.log('[Notifications] Fetching notifications');
+    logger.log('[Notifications] Fetching notifications');
     return apiClient.get<NotificationsResponse>('/api/v1/notifications', {
         params: { page, limit },
     });
@@ -82,7 +83,7 @@ export async function getNotifications(page: number = 1, limit: number = 10): Pr
  * @param notificationId - ID of the notification to mark as read
  */
 export async function markNotificationAsRead(notificationId: string): Promise<MarkReadResponse> {
-    console.log('[Notifications] Marking notification as read:', notificationId);
+    logger.log('[Notifications] Marking notification as read:', notificationId);
     const response = await apiClient.patch<{ message?: string }>('/api/v1/notifications/read', { notificationId });
     return { success: true, message: response.message };
 }
@@ -91,7 +92,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<Ma
  * Mark all notifications as read
  */
 export async function markAllNotificationsAsRead(): Promise<MarkReadResponse> {
-    console.log('[Notifications] Marking all notifications as read');
+    logger.log('[Notifications] Marking all notifications as read');
     const response = await apiClient.patch<{ message?: string }>('/api/v1/notifications/read', { markAll: 'true' });
     return { success: true, message: response.message };
 }
@@ -101,7 +102,7 @@ export async function markAllNotificationsAsRead(): Promise<MarkReadResponse> {
  * @param notificationId - ID of the notification to delete
  */
 export async function deleteNotification(notificationId: string): Promise<DeleteNotificationResponse> {
-    console.log('[Notifications] Deleting notification:', notificationId);
+    logger.log('[Notifications] Deleting notification:', notificationId);
     const response = await apiClient.delete<{ message?: string }>(`/api/v1/notifications/${notificationId}`);
     return { success: true, message: response.message };
 }
@@ -115,7 +116,7 @@ export async function respondToParentLinkRequest(
     requestId: string,
     action: 'accept' | 'decline'
 ): Promise<ParentLinkRespondResponse> {
-    console.log('[Notifications] Responding to parent link request:', { requestId, action });
+    logger.log('[Notifications] Responding to parent link request:', { requestId, action });
     const response = await apiClient.post<{ message?: string }>('/api/v1/parent-link/respond', { requestId, action });
     return { success: true, message: response.message };
 }

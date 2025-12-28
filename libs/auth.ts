@@ -37,7 +37,6 @@ export const useAuthStore = create<AuthState>()(
             logout: () => {
                 // Clear React Query cache on logout
                 if (queryClientRef) {
-                    console.log('[Auth] Clearing React Query cache on logout');
                     queryClientRef.clear();
                 }
                 set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });

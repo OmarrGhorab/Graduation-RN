@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { logger } from '@/libs/logger';
 
 export interface UserProfile {
     id: string;
@@ -89,7 +90,7 @@ export async function getProfile(): Promise<GetProfileResponse> {
  * Update user profile
  */
 export async function updateProfile(data: UpdateProfileRequest): Promise<UpdateProfileResponse> {
-    console.log('[Profile] Updating profile:', data);
+    logger.log('[Profile] Updating profile:', data);
     return apiClient.patch<UpdateProfileResponse>('/api/v1/profile', data);
 }
 
@@ -97,7 +98,7 @@ export async function updateProfile(data: UpdateProfileRequest): Promise<UpdateP
  * Upload profile image
  */
 export async function uploadProfileImage(profileImg: string): Promise<UploadProfileImageResponse> {
-    console.log('[Profile] Uploading profile image');
+    logger.log('[Profile] Uploading profile image');
     return apiClient.post<UploadProfileImageResponse>('/api/v1/profile/image', { profileImg });
 }
 
@@ -160,6 +161,6 @@ export async function getPreferences(): Promise<UserPreferences> {
  * Update user preferences
  */
 export async function updatePreferences(data: UpdatePreferencesRequest): Promise<{ message: string; preferences: UserPreferences }> {
-    console.log('[Profile] Updating preferences:', data);
+    logger.log('[Profile] Updating preferences:', data);
     return apiClient.patch<{ message: string; preferences: UserPreferences }>('/api/v1/profile/preferences', data);
 }

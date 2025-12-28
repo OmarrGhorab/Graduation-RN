@@ -26,7 +26,6 @@ export default function Onboarding3Screen() {
         await completeOnboarding();
         // Navigate to login screen
         router.replace('/login');
-        console.log('Login')
     };
 
     return (

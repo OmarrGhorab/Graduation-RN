@@ -13,6 +13,7 @@ import { googleSignIn, configureGoogleSignIn, register } from '@/services/AuthSe
 import { checkUsername } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
 import { SignUpHeader, SignUpForm, SignUpFooter } from '@/components/auth';
+import { logger } from '@/libs/logger';
 
 // ============================================================================
 // Main Component
@@ -163,12 +164,12 @@ export default function SignUpScreen() {
         await googleSignIn({
             showAlerts: true,
             onSuccess: (data) => {
-                console.log('Google Sign-In successful:', data);
+                logger.log('Google Sign-In successful:', data);
                 const destination = data.user?.onboardingCompleted ? '/home' : '/onboarding/step1';
                 router.replace(destination as Href);
             },
             onCancel: () => {
-                console.log('Google Sign-In cancelled');
+                logger.log('Google Sign-In cancelled');
             },
         });
 

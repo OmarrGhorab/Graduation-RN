@@ -7,6 +7,7 @@ import { LocationService } from '@/services/LocationService';
 import { useNotificationSSE } from '@/hooks/useNotificationSSE';
 import { SSENotification } from '@/services/NotificationSSEService';
 import { ApiNotification } from '@/services/NotificationService';
+import { logger } from '@/libs/logger';
 
 /**
  * NotificationListener component
@@ -56,16 +57,16 @@ export default function NotificationListener() {
 
     // Handle SSE notification - memoized to prevent unnecessary reconnections
     const handleSSENotification = useCallback((notification: SSENotification, isUpdate: boolean) => {
-        console.log(`[NotificationListener] SSE ${isUpdate ? 'update' : 'notification'} received:`, notification.type);
+        logger.log(`[NotificationListener] SSE ${isUpdate ? 'update' : 'notification'} received:`, notification.type);
 
         if (isUpdate) {
             // For updates, React Query cache is already updated by useNotificationSSE
-            console.log('[NotificationListener] Notification updated:', notification.id);
+            logger.log('[NotificationListener] Notification updated:', notification.id);
             return;
         }
 
         // New notifications are also handled by useNotificationSSE's cache update
-        console.log('[NotificationListener] New notification received via SSE:', notification.id);
+        logger.log('[NotificationListener] New notification received via SSE:', notification.id);
     }, []);
 
     // Connect to SSE for real-time notifications
@@ -77,30 +78,30 @@ export default function NotificationListener() {
     // Log SSE connection status
     useEffect(() => {
         if (sseConnected) {
-            console.log('[NotificationListener] SSE connected');
+            logger.log('[NotificationListener] SSE connected');
         } else if (sseError) {
-            console.log('[NotificationListener] SSE error:', sseError.message);
+            logger.log('[NotificationListener] SSE error:', sseError.message);
         }
     }, [sseConnected, sseError]);
 
     useEffect(() => {
         // Listen for incoming notifications when app is in foreground
         notificationListener.current = Notifications.addNotificationReceivedListener(async (notification) => {
-            console.log('[NotificationListener] Notification received:', notification);
+            logger.log('[NotificationListener] Notification received:', notification);
 
             const data = notification.request.content.data as Record<string, any>;
             
             if (data) {
                 // Handle silent location request from parent
                 if (data.type === 'location_request') {
-                    console.log('[NotificationListener] Location request received from parent');
+                    logger.log('[NotificationListener] Location request received from parent');
                     try {
                         // Get fresh location and send to server
                         await DeviceService.getPreciseLocation({ accuracy: 'high', forceRefresh: true });
                         await LocationService.updateLocation();
-                        console.log('[NotificationListener] Location updated in response to parent request');
+                        logger.log('[NotificationListener] Location updated in response to parent request');
                     } catch (error) {
-                        console.error('[NotificationListener] Failed to update location:', error);
+                        logger.error('[NotificationListener] Failed to update location:', error);
                     }
                     return; // Don't show this as a notification
                 }
@@ -129,20 +130,20 @@ export default function NotificationListener() {
                 // Add to React Query cache
                 addNotificationToCache(apiNotification);
                 
-                console.log('[NotificationListener] Added notification to cache:', apiNotification.id);
+                logger.log('[NotificationListener] Added notification to cache:', apiNotification.id);
             }
         });
 
         // Listen for user interaction with notifications (tap)
         responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-            console.log('[NotificationListener] Notification tapped:', response);
+            logger.log('[NotificationListener] Notification tapped:', response);
             
             const data = response.notification.request.content.data as Record<string, any>;
             
             // Handle notification tap - you can navigate to specific screens here
             if (data?.type === 'parent_link_request') {
                 // Navigate to parent link requests screen
-                console.log('[NotificationListener] Parent link request tapped, requestId:', data.requestId);
+                logger.log('[NotificationListener] Parent link request tapped, requestId:', data.requestId);
             }
         });
 

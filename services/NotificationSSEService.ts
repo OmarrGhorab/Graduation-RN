@@ -3,6 +3,7 @@ import { BASE_URL } from '@/constants/config';
 import { getValidAccessToken } from './AuthService';
 import { ApiNotification } from './NotificationService';
 import { getErrorMessage } from '@/types/errors';
+import { logger } from '@/libs/logger';
 
 // Event types from react-native-sse (library doesn't export these)
 interface SSEMessageEvent {
@@ -89,7 +90,7 @@ class NotificationSSEService {
      */
     async connect(): Promise<void> {
         if (this.isConnecting || this.eventSource) {
-            console.log('[SSE] Already connected or connecting, skipping...');
+            logger.log('[SSE] Already connected or connecting, skipping...');
             return;
         }
 
@@ -103,7 +104,7 @@ class NotificationSSEService {
             }
 
             const url = `${BASE_URL}/api/v1/notifications/subscribe`;
-            console.log('[SSE] Connecting to:', url);
+            logger.log('[SSE] Connecting to:', url);
 
             // Create EventSource with auth header
             this.eventSource = new EventSource(url, {
@@ -114,7 +115,7 @@ class NotificationSSEService {
 
             // Handle connection open
             this.eventSource.addEventListener('open', () => {
-                console.log('[SSE] Connection opened');
+                logger.log('[SSE] Connection opened');
                 this.isConnecting = false;
                 this.currentReconnectDelay = this.reconnectDelay;
                 this.onConnectionChangeCallback?.(true);
@@ -122,7 +123,7 @@ class NotificationSSEService {
 
             // Handle messages
             this.eventSource.addEventListener('message', (event: SSEMessageEvent) => {
-                console.log('[SSE] Raw message received:', event.data);
+                logger.log('[SSE] Raw message received:', event.data);
                 
                 if (!event.data) return;
 
@@ -130,13 +131,13 @@ class NotificationSSEService {
                     const message = JSON.parse(event.data) as SSEMessage;
                     this.handleMessage(message);
                 } catch (parseError) {
-                    console.warn('[SSE] Failed to parse message:', event.data);
+                    logger.warn('[SSE] Failed to parse message:', event.data);
                 }
             });
 
             // Handle errors
             this.eventSource.addEventListener('error', (event: SSEErrorEvent) => {
-                console.error('[SSE] Error:', event.message || 'Unknown error');
+                logger.error('[SSE] Error:', event.message || 'Unknown error');
                 this.isConnecting = false;
                 
                 const error = new Error(event.message || 'SSE connection error');
@@ -150,7 +151,7 @@ class NotificationSSEService {
 
             // Handle close
             this.eventSource.addEventListener('close', () => {
-                console.log('[SSE] Connection closed');
+                logger.log('[SSE] Connection closed');
                 this.isConnecting = false;
                 this.onConnectionChangeCallback?.(false);
 
@@ -163,7 +164,7 @@ class NotificationSSEService {
 
         } catch (error) {
             this.isConnecting = false;
-            console.error('[SSE] Connection error:', getErrorMessage(error));
+            logger.error('[SSE] Connection error:', getErrorMessage(error));
             this.onErrorCallback?.(error instanceof Error ? error : new Error(getErrorMessage(error)));
             this.onConnectionChangeCallback?.(false);
             this.scheduleReconnect();
@@ -175,14 +176,14 @@ class NotificationSSEService {
      */
     private handleMessage(message: SSEMessage): void {
         if (message.type === 'connected') {
-            console.log('[SSE] Connection confirmed:', (message as SSEConnectionMessage).message);
+            logger.log('[SSE] Connection confirmed:', (message as SSEConnectionMessage).message);
             return;
         }
 
         const notification = message as SSENotificationPayload;
         const isUpdate = notification.updated === true;
         
-        console.log(
+        logger.log(
             `[SSE] ${isUpdate ? 'Updated' : 'New'} notification:`,
             notification.type,
             'id:',
@@ -215,7 +216,7 @@ class NotificationSSEService {
             clearTimeout(this.reconnectTimeout);
         }
 
-        console.log(`[SSE] Reconnecting in ${this.currentReconnectDelay / 1000}s...`);
+        logger.log(`[SSE] Reconnecting in ${this.currentReconnectDelay / 1000}s...`);
 
         this.reconnectTimeout = setTimeout(() => {
             this.connect();
@@ -232,7 +233,7 @@ class NotificationSSEService {
      * Disconnect from SSE
      */
     disconnect(): void {
-        console.log('[SSE] Disconnecting...');
+        logger.log('[SSE] Disconnecting...');
         this.shouldReconnect = false;
 
         if (this.reconnectTimeout) {

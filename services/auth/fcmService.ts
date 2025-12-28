@@ -1,6 +1,7 @@
 import { BASE_URL } from '@/constants/config';
 import { DeviceService } from '../DeviceService';
 import { getValidAccessToken } from './tokenService';
+import { logger } from '@/libs/logger';
 
 /**
  * Register FCM Token
@@ -17,7 +18,7 @@ export async function registerFCMToken(): Promise<void> {
         const userAgent = DeviceService.getUserAgent();
         const deviceName = DeviceService.getDeviceName();
 
-        console.log('[Auth] Device Info Detected:', {
+        logger.log('[Auth] Device Info Detected:', {
             platform,
             deviceName,
             userAgent,
@@ -25,13 +26,13 @@ export async function registerFCMToken(): Promise<void> {
         });
 
         if (!pushToken) {
-            console.log('[Auth] No FCM token available to register');
+            logger.log('[Auth] No FCM token available to register');
             return;
         }
 
-        console.log('[Auth] Registering FCM token...');
+        logger.log('[Auth] Registering FCM token...');
 
-        console.log('[Auth] FCM Registration Body:', {
+        logger.log('[Auth] FCM Registration Body:', {
             token: pushToken,
             platform,
             deviceId: deviceName
@@ -55,14 +56,14 @@ export async function registerFCMToken(): Promise<void> {
         );
 
         if (response.ok) {
-            console.log('[Auth] FCM token registered successfully');
+            logger.log('[Auth] FCM token registered successfully');
         } else {
             if (response.status !== 404) {
-                console.warn('[Auth] Failed to register FCM token, status:', response.status);
+                logger.warn('[Auth] Failed to register FCM token, status:', response.status);
             }
         }
     } catch (error) {
-        console.warn('[Auth] Error registering FCM token:', error);
+        logger.warn('[Auth] Error registering FCM token:', error);
     }
 }
 
@@ -77,7 +78,7 @@ export async function unregisterFCMToken(): Promise<void> {
 
         if (!token || !pushToken) return;
 
-        console.log('[Auth] Unregistering FCM token...');
+        logger.log('[Auth] Unregistering FCM token...');
 
         const response = await fetch(
             `${BASE_URL}/api/v1/notifications/unregister-token`,
@@ -94,11 +95,11 @@ export async function unregisterFCMToken(): Promise<void> {
         );
 
         if (response.ok) {
-            console.log('[Auth] FCM token unregistered successfully');
+            logger.log('[Auth] FCM token unregistered successfully');
         } else {
-            console.warn('[Auth] Failed to unregister FCM token, status:', response.status);
+            logger.warn('[Auth] Failed to unregister FCM token, status:', response.status);
         }
     } catch (error) {
-        console.warn('[Auth] Error unregistering FCM token:', error);
+        logger.warn('[Auth] Error unregistering FCM token:', error);
     }
 }

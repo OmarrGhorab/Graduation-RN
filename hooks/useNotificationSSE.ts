@@ -8,6 +8,7 @@ import {
 } from '@/services/NotificationSSEService';
 import { NOTIFICATIONS_QUERY_KEY } from './useNotifications';
 import { ApiNotification } from '@/services/NotificationService';
+import { logger } from '@/libs/logger';
 
 interface UseNotificationSSEOptions {
     /** Called when a new notification arrives or existing one is updated */
@@ -51,7 +52,7 @@ export function useNotificationSSE(
     // Handle new notification - update cache and call callback
     const handleNotification = useCallback(
         (notification: SSENotification, isUpdate: boolean) => {
-            console.log(`[useNotificationSSE] ${isUpdate ? 'Updated' : 'New'} notification:`, notification.type);
+            logger.log(`[useNotificationSSE] ${isUpdate ? 'Updated' : 'New'} notification:`, notification.type);
 
             const currentData = queryClient.getQueryData(NOTIFICATIONS_QUERY_KEY);
             
@@ -61,7 +62,7 @@ export function useNotificationSSE(
 
                     if (isUpdate) {
                         // UPDATE existing notification
-                        console.log('[useNotificationSSE] Updating existing notification in cache');
+                        logger.log('[useNotificationSSE] Updating existing notification in cache');
                         
                         const newPages = old.pages.map((page: any) => ({
                             ...page,
@@ -78,11 +79,11 @@ export function useNotificationSSE(
                         );
 
                         if (exists) {
-                            console.log('[useNotificationSSE] Notification already in cache');
+                            logger.log('[useNotificationSSE] Notification already in cache');
                             return old;
                         }
 
-                        console.log('[useNotificationSSE] Adding new notification to cache');
+                        logger.log('[useNotificationSSE] Adding new notification to cache');
                         
                         const newPages = [...old.pages];
                         newPages[0] = {
@@ -99,7 +100,7 @@ export function useNotificationSSE(
                 });
             } else {
                 // No cache exists yet, invalidate to trigger a fetch
-                console.log('[useNotificationSSE] No cache, invalidating queries');
+                logger.log('[useNotificationSSE] No cache, invalidating queries');
                 queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_QUERY_KEY });
             }
 
@@ -128,10 +129,10 @@ export function useNotificationSSE(
         if (!autoConnect) return;
 
         if (isAuthenticated) {
-            console.log('[useNotificationSSE] Authenticated, connecting...');
+            logger.log('[useNotificationSSE] Authenticated, connecting...');
             notificationSSEService.connect();
         } else {
-            console.log('[useNotificationSSE] Not authenticated, disconnecting...');
+            logger.log('[useNotificationSSE] Not authenticated, disconnecting...');
             notificationSSEService.disconnect();
         }
 
@@ -147,7 +148,7 @@ export function useNotificationSSE(
 
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active' && !notificationSSEService.isActive()) {
-                console.log('[useNotificationSSE] App active, reconnecting...');
+                logger.log('[useNotificationSSE] App active, reconnecting...');
                 notificationSSEService.connect();
             }
         };

@@ -25,6 +25,7 @@ import {
     ActivitySection, DangerSection, ParentLinkSection,
 } from '@/components/settings/sections';
 import { use2FAState, useSessionsState, useParentLinkState } from '@/hooks/settings';
+import { logger } from '@/libs/logger';
 
 type SettingsSection_Type = 'main' | 'security' | 'sessions' | 'activity' | 'danger' | 'parentLink';
 
@@ -45,7 +46,7 @@ export default function SettingsScreen() {
     // Sync profile role to auth store if different
     useEffect(() => {
         if (profileData?.user?.role && user?.role !== profileData.user.role) {
-            console.log('[Settings] Syncing role from profile:', profileData.user.role);
+            logger.log('[Settings] Syncing role from profile:', profileData.user.role);
             updateUser({ role: profileData.user.role });
         }
     }, [profileData?.user?.role, user?.role, updateUser]);

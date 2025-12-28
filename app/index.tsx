@@ -18,6 +18,7 @@ import { getUserProfile } from '@/services/AuthService';
 import { syncUserPreferences } from '@/libs/preferences-sync';
 import { useTheme } from '@/hooks/useTheme';
 import { t } from '@/libs/i18n';
+import { logger } from '@/libs/logger';
 
 const { width, height } = Dimensions.get('window');
 
@@ -71,11 +72,11 @@ export default function WelcomeScreen() {
             try {
                 // Step 1: Check if this is first time opening the app (intro onboarding)
                 const introCompleted = await isOnboardingCompleted();
-                console.log('[Splash] Intro Onboarding Completed:', introCompleted);
+                logger.log('[Splash] Intro Onboarding Completed:', introCompleted);
 
                 if (!introCompleted) {
                     // First time user - show intro onboarding screens
-                    console.log('[Splash] First time user - Starting Intro Onboarding');
+                    logger.log('[Splash] First time user - Starting Intro Onboarding');
                     const currentStep = await getCurrentOnboardingStep();
                     if (currentStep === 2) {
                         router.replace('/onboarding2');
@@ -89,22 +90,22 @@ export default function WelcomeScreen() {
 
                 // Step 2: Check if user is authenticated
                 const { isAuthenticated } = useAuthStore.getState();
-                console.log('[Splash] User Authenticated:', isAuthenticated);
+                logger.log('[Splash] User Authenticated:', isAuthenticated);
 
                 if (!isAuthenticated) {
                     // Not authenticated - go to login
-                    console.log('[Splash] Not authenticated - Navigating to Login');
+                    logger.log('[Splash] Not authenticated - Navigating to Login');
                     router.replace('/login');
                     return;
                 }
 
                 // Step 3: User is authenticated - refresh profile and check onboarding status
-                console.log('[Splash] Authenticated user - Refreshing profile...');
+                logger.log('[Splash] Authenticated user - Refreshing profile...');
                 try {
                     const profileResponse = await getUserProfile();
                     const user = profileResponse.user;
                     
-                    console.log('[Splash] Profile refreshed:', {
+                    logger.log('[Splash] Profile refreshed:', {
                         username: user.username,
                         onboardingCompleted: user.onboardingCompleted
                     });
@@ -115,21 +116,21 @@ export default function WelcomeScreen() {
                         // This prevents the flash from system defaults to user preferences
                         await syncUserPreferences();
                         
-                        console.log('[Splash] Profile onboarding completed - Navigating to Home');
+                        logger.log('[Splash] Profile onboarding completed - Navigating to Home');
                         router.replace('/home' as Href);
                     } else {
-                        console.log('[Splash] Profile onboarding not completed - Navigating to Profile Onboarding');
+                        logger.log('[Splash] Profile onboarding not completed - Navigating to Profile Onboarding');
                         router.replace('/onboarding/step1' as Href);
                     }
                 } catch (error) {
-                    console.error('[Splash] Failed to refresh profile:', error);
+                    logger.error('[Splash] Failed to refresh profile:', error);
                     // If profile refresh fails, logout and go to login
-                    console.log('[Splash] Profile refresh failed - Logging out');
+                    logger.log('[Splash] Profile refresh failed - Logging out');
                     useAuthStore.getState().logout();
                     router.replace('/login');
                 }
             } catch (error) {
-                console.error('[Splash] Navigation error:', error);
+                logger.error('[Splash] Navigation error:', error);
                 // Fallback to login on any error
                 router.replace('/login');
             }

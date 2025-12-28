@@ -2,6 +2,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { logger } from '@/libs/logger';
 
 // Configure how notifications should behave when received while the app is in foreground
 Notifications.setNotificationHandler({
@@ -42,7 +43,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | unde
 
         // If still no permission, return undefined
         if (finalStatus !== 'granted') {
-            console.log('Failed to get push token for push notification!');
+            logger.log('Failed to get push token for push notification!');
             return;
         }
 
@@ -55,25 +56,25 @@ export async function registerForPushNotificationsAsync(): Promise<string | unde
             const isExpoGo = Constants.appOwnership === 'expo';
 
             if (isExpoGo) {
-                console.log('Running in Expo Go: Fetching Expo Push Token (Middleware required for FCM)');
+                logger.log('Running in Expo Go: Fetching Expo Push Token (Middleware required for FCM)');
                 // In Expo Go, we can ONLY get the Expo token. 
                 // Using getDevicePushTokenAsync() will throw an error in Expo Go.
                 // You must strip validation on backend or use specific Expo-to-FCM middleware for testing.
                 const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
                 token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
             } else {
-                console.log('Running in Native/Dev Build: Fetching Raw Device Token (FCM/APNs)');
+                logger.log('Running in Native/Dev Build: Fetching Raw Device Token (FCM/APNs)');
                 // Returns the raw FCM registration token on Android
                 const tokenData = await Notifications.getDevicePushTokenAsync();
                 token = tokenData.data;
             }
 
-            console.log('Push Token Generated:', token);
+            logger.log('Push Token Generated:', token);
         } catch (e) {
-            console.error('Error fetching push token:', e);
+            logger.error('Error fetching push token:', e);
         }
     } else {
-        console.log('Must use physical device for Push Notifications');
+        logger.log('Must use physical device for Push Notifications');
     }
 
     return token;

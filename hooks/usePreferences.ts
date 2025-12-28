@@ -3,6 +3,7 @@ import { getPreferences, updatePreferences, UserPreferences, UpdatePreferencesRe
 import { useThemeStore, ThemeMode } from '@/libs/theme';
 import { useToast } from '@/components/toast';
 import { STALE_TIMES, GC_TIMES } from '@/constants/queryConfig';
+import { logger } from '@/libs/logger';
 
 // Query key for preferences
 export const PREFERENCES_QUERY_KEY = ['preferences'];
@@ -15,9 +16,9 @@ export function usePreferences() {
     return useQuery({
         queryKey: PREFERENCES_QUERY_KEY,
         queryFn: async () => {
-            console.log('[Preferences] Fetching preferences from API...');
+            logger.log('[Preferences] Fetching preferences from API...');
             const preferences = await getPreferences();
-            console.log('[Preferences] Received from API:', preferences);
+            logger.log('[Preferences] Received from API:', preferences);
             // Don't auto-sync here - initial sync happens in splash screen
             // This prevents double-setting and potential flicker
             return preferences;
@@ -62,7 +63,7 @@ export function useUpdatePreference() {
             return { previousPreferences, newData };
         },
         onError: (err: any, newData, context) => {
-            console.log('[Preferences] Mutation error, rolling back:', err.message);
+            logger.log('[Preferences] Mutation error, rolling back:', err.message);
             // Rollback to the previous value on error
             if (context?.previousPreferences) {
                 queryClient.setQueryData(PREFERENCES_QUERY_KEY, context.previousPreferences);
@@ -75,7 +76,7 @@ export function useUpdatePreference() {
             toast.error('Error', err.message || 'Failed to update preference');
         },
         onSuccess: (response, variables) => {
-            console.log('[Preferences] Mutation success, response:', response);
+            logger.log('[Preferences] Mutation success, response:', response);
             
             // Keep the optimistic update - don't overwrite with server response
             // The optimistic update in onMutate already set the correct value

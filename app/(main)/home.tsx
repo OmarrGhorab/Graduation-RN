@@ -140,7 +140,7 @@ export default function MainHomeScreen() {
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const handleSearchSubmit = useCallback((query: string) => {
-        console.log('Search query:', query);
+        // TODO: Implement search functionality
     }, []);
     
     const handleCloseNotifications = useCallback(() => {

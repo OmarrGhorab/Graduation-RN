@@ -20,6 +20,7 @@ import { useToast } from '@/components/toast';
 import { LoginSuccessResponse } from '@/types/auth';
 import { SignInHeader, SignInForm, SignInFooter } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
+import { logger } from '@/libs/logger';
 
 // ============================================================================
 // Types
@@ -99,7 +100,7 @@ export default function SignInScreen() {
         const result = await googleSignIn({
             showAlerts: true,
             onSuccess: async (data) => {
-                console.log('Backend auth successful:', data);
+                logger.log('Backend auth successful:', data);
                 if (data.user?.onboardingCompleted) {
                     // Sync preferences before navigating to home
                     await syncUserPreferences();
@@ -108,7 +109,7 @@ export default function SignInScreen() {
                     router.replace('/onboarding/step1' as Href);
                 }
             },
-            onCancel: () => console.log('Google Sign-In cancelled'),
+            onCancel: () => logger.log('Google Sign-In cancelled'),
         });
 
         if (result.requires2FA && result.data) {
