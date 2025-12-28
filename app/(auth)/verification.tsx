@@ -12,14 +12,16 @@ import { Colors } from '@/constants/theme';
 import { resendVerificationOTP, verifyEmailOTP } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { VerificationHeader, OTPInput, OTPActions } from '@/components/auth';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function VerificationScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const theme = Colors[colorScheme || 'light'];
-    const { email, type, source } = useLocalSearchParams<{ email: string; type?: string; source?: string }>();
+    const { email, source } = useLocalSearchParams<{ email: string; source?: string }>();
     const { success, error } = useToast();
+    const { t } = useTranslation();
 
     const [loading, setLoading] = useState(false);
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -38,19 +40,19 @@ export default function VerificationScreen() {
     const handleContinue = async () => {
         const otpValue = otp.join('');
         if (otpValue.length < 6) {
-            error('Invalid Code', 'Please enter the full 6-digit code');
+            error(t('auth.invalidCode'), t('auth.invalidCodeMessage'));
             return;
         }
 
         if (!email) {
-            error('Error', 'Missing email address');
+            error(t('common.error'), t('auth.missingEmail'));
             return;
         }
 
         setLoading(true);
         try {
             const result = await verifyEmailOTP({ email, otp: otpValue });
-            success('Account Verified', result.message || 'Verification successful');
+            success(t('auth.accountVerified'), result.message || t('auth.verificationSuccessful'));
 
             if (source === 'forgot-password') {
                 router.replace({
@@ -62,7 +64,7 @@ export default function VerificationScreen() {
             }
         } catch (err: any) {
             console.error('Verification error:', err);
-            error('Verification failed', err.message || 'Please check the code and try again');
+            error(t('auth.verificationFailed'), err.message || t('auth.checkCodeAndTryAgain'));
         } finally {
             setLoading(false);
         }
@@ -73,12 +75,12 @@ export default function VerificationScreen() {
             setLoading(true);
             try {
                 const result = await resendVerificationOTP(email);
-                success('Code Sent', result.message || 'A new code has been sent to your email');
+                success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
                 setTimer(60);
                 setOtp(['', '', '', '', '', '']);
             } catch (err: any) {
                 console.error('Resend OTP error:', err);
-                error('Error', err.message || 'Failed to resend code');
+                error(t('common.error'), err.message || t('auth.codeSentMessage'));
             } finally {
                 setLoading(false);
             }
@@ -116,7 +118,7 @@ export default function VerificationScreen() {
                     isDark={isDark}
                     isLoading={loading}
                     timer={timer}
-                    buttonText="Continue"
+                    buttonText={t('auth.continue')}
                     onContinue={handleContinue}
                     onResend={handleResend}
                 />

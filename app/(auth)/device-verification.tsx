@@ -13,6 +13,7 @@ import { verifyDevice, resendDeviceVerificationOTP } from '@/services/AuthServic
 import { useToast } from '@/components/toast';
 import { DeviceVerificationHeader, OTPInput, OTPActions } from '@/components/auth';
 import { syncUserPreferences } from '@/libs/preferences-sync';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ============================================================================
 // Main Component
@@ -28,6 +29,7 @@ export default function DeviceVerificationScreen() {
         deviceFingerprint: string;
     }>();
     const { success, error } = useToast();
+    const { t } = useTranslation();
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [timer, setTimer] = useState(60);
@@ -60,12 +62,12 @@ export default function DeviceVerificationScreen() {
     const handleVerify = async () => {
         const otpValue = otp.join('');
         if (otpValue.length < 6) {
-            error('Invalid Code', 'Please enter the full 6-digit code');
+            error(t('auth.invalidCode'), t('auth.invalidCodeMessage'));
             return;
         }
 
         if (!emailOrUsername || !deviceFingerprint) {
-            error('Error', 'Missing verification data. Please try logging in again.');
+            error(t('common.error'), t('auth.missingVerificationData'));
             return;
         }
 
@@ -83,7 +85,7 @@ export default function DeviceVerificationScreen() {
             }
 
             await new Promise((resolve) => setTimeout(resolve, 200));
-            success('Device Verified', result.message || 'Device verified successfully');
+            success(t('auth.deviceVerified'), result.message || t('auth.deviceVerifiedMessage'));
 
             if (result.user?.onboardingCompleted) {
                 // Sync preferences before navigating to home
@@ -94,7 +96,7 @@ export default function DeviceVerificationScreen() {
             }
         } catch (err: any) {
             console.error('Device verification error:', err);
-            error('Verification Failed', err.message || 'Please check the code and try again');
+            error(t('auth.verificationFailed'), err.message || t('auth.checkCodeAndTryAgain'));
         } finally {
             setIsLoading(false);
         }
@@ -109,12 +111,12 @@ export default function DeviceVerificationScreen() {
                 emailOrUsername,
                 deviceFingerprint,
             });
-            success('Code Sent', result.message || 'A new verification code has been sent to your email');
+            success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
             setTimer(60);
             setOtp(['', '', '', '', '', '']);
         } catch (err: any) {
             console.error('Resend OTP error:', err);
-            error('Error', err.message || 'Failed to resend code');
+            error(t('common.error'), err.message || t('auth.codeSentMessage'));
         } finally {
             setIsLoading(false);
         }
@@ -157,7 +159,7 @@ export default function DeviceVerificationScreen() {
                     isDark={isDark}
                     isLoading={isLoading}
                     timer={timer}
-                    buttonText="Verify Device"
+                    buttonText={t('auth.verifyDevice')}
                     onContinue={handleVerify}
                     onResend={handleResend}
                 />

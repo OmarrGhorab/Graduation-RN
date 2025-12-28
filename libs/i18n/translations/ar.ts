@@ -68,12 +68,29 @@ export default {
     forgotPasswordTitle: 'نسيت كلمة المرور',
     forgotPasswordSubtitle: 'أدخل بريدك الإلكتروني وسنرسل لك رمز التحقق في الخطوة التالية.',
     continue: 'متابعة',
+    otpSent: 'تم إرسال الرمز',
+    otpSentMessage: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني',
+    emailRequired: 'يرجى إدخال بريدك الإلكتروني',
+    failedToSendCode: 'فشل إرسال رمز إعادة التعيين',
     
     // Verification
     verifyOTP: 'التحقق من الرمز',
     verifyOTPSubtitle: 'يرجى إدخال رمز الأمان المرسل إلى بريدك الإلكتروني لإعادة تعيين كلمة المرور.',
+    verificationCode: 'رمز التحقق',
+    verificationCodeSubtitle: 'يرجى تأكيد رمز الأمان المرسل إلى بريدك الإلكتروني المسجل.',
     resendCode: 'إعادة إرسال الرمز',
     resendIn: 'إعادة الإرسال خلال {{seconds}} ثانية',
+    didNotReceiveCode: 'لم تستلم الرمز؟',
+    sendAgain: 'إرسال مرة أخرى',
+    codeSent: 'تم إرسال الرمز',
+    codeSentMessage: 'تم إرسال رمز جديد إلى بريدك الإلكتروني',
+    codeVerified: 'تم التحقق من الرمز',
+    enterNewPassword: 'يرجى إدخال كلمة المرور الجديدة',
+    accountVerified: 'تم التحقق من الحساب',
+    verificationSuccessful: 'تم التحقق بنجاح',
+    verificationFailed: 'فشل التحقق',
+    checkCodeAndTryAgain: 'يرجى التحقق من الرمز والمحاولة مرة أخرى',
+    invalidCodeMessage: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
     
     // Reset Password
     resetPassword: 'إعادة تعيين كلمة المرور',
@@ -93,6 +110,9 @@ export default {
     deviceVerificationTitle: 'تحقق من جهازك',
     deviceVerificationSubtitle: 'لاحظنا أنك تسجل الدخول من جهاز جديد. يرجى إدخال رمز التحقق المرسل إلى بريدك الإلكتروني.',
     verifyDevice: 'تحقق من الجهاز',
+    deviceVerified: 'تم التحقق من الجهاز',
+    deviceVerifiedMessage: 'تم التحقق من الجهاز بنجاح',
+    missingVerificationData: 'بيانات التحقق مفقودة. يرجى محاولة تسجيل الدخول مرة أخرى.',
     
     // 2FA
     twoFactorTitle: 'المصادقة الثنائية',

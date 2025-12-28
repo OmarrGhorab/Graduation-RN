@@ -46,10 +46,10 @@ export const OTPActions: React.FC<OTPActionsProps> = ({
 
             {/* Resend Code */}
             <View style={styles.resendContainer}>
-                <Text style={styles.resendLabel}>{t('auth.resendIn', { seconds: '' }).replace('{{seconds}} ', '')}</Text>
+                <Text style={styles.resendLabel}>{t('auth.didNotReceiveCode')}</Text>
                 {timer === 0 ? (
                     <TouchableOpacity onPress={onResend} disabled={isLoading}>
-                        <Text style={styles.resendLink}>{t('auth.resendCode')}</Text>
+                        <Text style={styles.resendLink}>{t('auth.sendAgain')}</Text>
                     </TouchableOpacity>
                 ) : (
                     <Text style={styles.timerText}>{formattedTimer}</Text>

@@ -12,6 +12,7 @@ import { Colors } from '@/constants/theme';
 import { forgotPassword } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { VerifyOTPHeader, OTPInput, OTPActions } from '@/components/auth';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ============================================================================
 // Main Component
@@ -24,6 +25,7 @@ export default function VerifyResetOTPScreen() {
     const isDark = colorScheme === 'dark';
     const { email } = useLocalSearchParams<{ email: string }>();
     const { success, error } = useToast();
+    const { t } = useTranslation();
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [timer, setTimer] = useState(60);
@@ -44,16 +46,16 @@ export default function VerifyResetOTPScreen() {
     const handleContinue = async () => {
         const otpValue = otp.join('');
         if (otpValue.length < 6) {
-            error('Invalid Code', 'Please enter the full 6-digit code');
+            error(t('auth.invalidCode'), t('auth.invalidCodeMessage'));
             return;
         }
 
         if (!email) {
-            error('Error', 'Missing email address');
+            error(t('common.error'), t('auth.missingEmail'));
             return;
         }
 
-        success('Code Verified', 'Please enter your new password');
+        success(t('auth.codeVerified'), t('auth.enterNewPassword'));
         router.replace({
             pathname: '/reset-password',
             params: { email, otp: otpValue },
@@ -66,12 +68,12 @@ export default function VerifyResetOTPScreen() {
         setIsLoading(true);
         try {
             const result = await forgotPassword({ email });
-            success('Code Sent', result.message || 'A new code has been sent to your email');
+            success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
             setTimer(60);
             setOtp(['', '', '', '', '', '']);
         } catch (err: any) {
             console.error('Resend OTP error:', err);
-            error('Error', err.message || 'Failed to resend code');
+            error(t('common.error'), err.message || t('auth.codeSentMessage'));
         } finally {
             setIsLoading(false);
         }
@@ -99,8 +101,6 @@ export default function VerifyResetOTPScreen() {
                 <VerifyOTPHeader
                     theme={theme}
                     isDark={isDark}
-                    title="Verify OTP Code"
-                    subtitle="Please enter the security code sent to your email to reset your password."
                     onBack={handleBack}
                 />
 

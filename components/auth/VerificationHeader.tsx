@@ -2,6 +2,7 @@ import React from 'react';
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,32 +14,36 @@ interface VerificationHeaderProps {
     onBack: () => void;
 }
 
-export const VerificationHeader: React.FC<VerificationHeaderProps> = ({ theme, isDark, onBack }) => (
-    <>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color={theme.text} />
-            </TouchableOpacity>
-        </View>
-        <View style={styles.imageContainer}>
-            <Image
-                source={
-                    isDark
-                        ? require('@/assets/images/logo-white.png')
-                        : require('@/assets/images/logo-green.png')
-                }
-                style={styles.illustration}
-                resizeMode="contain"
-            />
-        </View>
-        <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.primary }]}>Verification Code</Text>
-            <Text style={[styles.subtitle, { color: theme.icon }]}>
-                Please confirm the security code received on your registered email.
-            </Text>
-        </View>
-    </>
-);
+export const VerificationHeader: React.FC<VerificationHeaderProps> = ({ theme, isDark, onBack }) => {
+    const { t } = useTranslation();
+    
+    return (
+        <>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={24} color={theme.text} />
+                </TouchableOpacity>
+            </View>
+            <View style={styles.imageContainer}>
+                <Image
+                    source={
+                        isDark
+                            ? require('@/assets/images/logo-white.png')
+                            : require('@/assets/images/logo-green.png')
+                    }
+                    style={styles.illustration}
+                    resizeMode="contain"
+                />
+            </View>
+            <View style={styles.titleContainer}>
+                <Text style={[styles.title, { color: theme.primary }]}>{t('auth.verificationCode')}</Text>
+                <Text style={[styles.subtitle, { color: theme.icon }]}>
+                    {t('auth.verificationCodeSubtitle')}
+                </Text>
+            </View>
+        </>
+    );
+};
 
 const styles = StyleSheet.create({
     header: {

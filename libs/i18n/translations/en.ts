@@ -68,12 +68,29 @@ export default {
     forgotPasswordTitle: 'Forgot Password',
     forgotPasswordSubtitle: 'Enter your email address We will send an OTP code for verification in the next step.',
     continue: 'Continue',
+    otpSent: 'OTP Sent',
+    otpSentMessage: 'An OTP has been sent to your email',
+    emailRequired: 'Please enter your email address',
+    failedToSendCode: 'Failed to send reset code',
     
     // Verification
     verifyOTP: 'Verify OTP Code',
     verifyOTPSubtitle: 'Please enter the security code sent to your email to reset your password.',
+    verificationCode: 'Verification Code',
+    verificationCodeSubtitle: 'Please confirm the security code received on your registered email.',
     resendCode: 'Resend Code',
     resendIn: 'Resend in {{seconds}}s',
+    didNotReceiveCode: 'Did not receive the code?',
+    sendAgain: 'Send Again',
+    codeSent: 'Code Sent',
+    codeSentMessage: 'A new code has been sent to your email',
+    codeVerified: 'Code Verified',
+    enterNewPassword: 'Please enter your new password',
+    accountVerified: 'Account Verified',
+    verificationSuccessful: 'Verification successful',
+    verificationFailed: 'Verification Failed',
+    checkCodeAndTryAgain: 'Please check the code and try again',
+    invalidCodeMessage: 'Please enter the full 6-digit code',
     
     // Reset Password
     resetPassword: 'Reset Password',
@@ -93,6 +110,9 @@ export default {
     deviceVerificationTitle: 'Verify Your Device',
     deviceVerificationSubtitle: 'We noticed you\'re logging in from a new device. Please enter the verification code sent to your email.',
     verifyDevice: 'Verify Device',
+    deviceVerified: 'Device Verified',
+    deviceVerifiedMessage: 'Device verified successfully',
+    missingVerificationData: 'Missing verification data. Please try logging in again.',
     
     // 2FA
     twoFactorTitle: 'Two-Factor Authentication',

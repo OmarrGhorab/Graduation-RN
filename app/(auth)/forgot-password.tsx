@@ -13,6 +13,7 @@ import { forgotPassword } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { ForgotPasswordHeader } from '@/components/auth/ForgotPasswordHeader';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
@@ -20,27 +21,28 @@ export default function ForgotPasswordScreen() {
     const isDark = colorScheme === 'dark';
     const theme = Colors[colorScheme || 'light'];
     const { success, error } = useToast();
+    const { t } = useTranslation();
 
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     const handleContinue = async () => {
         if (!email) {
-            error('Required', 'Please enter your email address');
+            error(t('common.required'), t('auth.emailRequired'));
             return;
         }
 
         setIsLoading(true);
         try {
             await forgotPassword({ email });
-            success('OTP Sent', 'An OTP has been sent to your email');
+            success(t('auth.otpSent'), t('auth.otpSentMessage'));
             router.push({
                 pathname: '/verify-reset-otp',
                 params: { email }
             } as any);
         } catch (err: any) {
             console.error('Forgot password error:', err);
-            error('Error', err.message || 'Failed to send reset code');
+            error(t('common.error'), err.message || t('auth.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }
