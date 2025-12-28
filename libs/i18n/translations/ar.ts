@@ -71,6 +71,7 @@ export default {
     otpSent: 'تم إرسال الرمز',
     otpSentMessage: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني',
     emailRequired: 'يرجى إدخال بريدك الإلكتروني',
+    emailOrUsernameRequired: 'يرجى إدخال بريدك الإلكتروني أو اسم المستخدم',
     failedToSendCode: 'فشل إرسال رمز إعادة التعيين',
     
     // Verification
@@ -99,6 +100,11 @@ export default {
     confirmPassword: 'تأكيد كلمة المرور',
     confirmPasswordPlaceholder: 'أكد كلمة المرور',
     confirm: 'تأكيد',
+    passwordsDoNotMatch: 'كلمات المرور غير متطابقة',
+    invalidPassword: 'كلمة مرور غير صالحة',
+    missingSessionInfo: 'معلومات الجلسة مفقودة. يرجى المحاولة مرة أخرى.',
+    resetFailed: 'فشل إعادة التعيين',
+    failedToResetPassword: 'فشل إعادة تعيين كلمة المرور',
     
     // Reset Success
     resetSuccessTitle: 'تم إعادة تعيين كلمة المرور بنجاح!',
@@ -135,7 +141,7 @@ export default {
     instantAccessDesc: 'عد إلى حسابك فوراً',
     
     // Validation messages
-    emailRequired: 'البريد الإلكتروني وكلمة المرور مطلوبان',
+    emailAndPasswordRequired: 'البريد الإلكتروني وكلمة المرور مطلوبان',
     invalidCode: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
     missingEmail: 'البريد الإلكتروني مفقود',
     passwordMismatch: 'كلمات المرور غير متطابقة',

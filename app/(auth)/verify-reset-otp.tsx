@@ -23,7 +23,7 @@ export default function VerifyResetOTPScreen() {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
     const isDark = colorScheme === 'dark';
-    const { email } = useLocalSearchParams<{ email: string }>();
+    const { emailOrUsername } = useLocalSearchParams<{ emailOrUsername: string }>();
     const { success, error } = useToast();
     const { t } = useTranslation();
 
@@ -50,7 +50,7 @@ export default function VerifyResetOTPScreen() {
             return;
         }
 
-        if (!email) {
+        if (!emailOrUsername) {
             error(t('common.error'), t('auth.missingEmail'));
             return;
         }
@@ -58,22 +58,22 @@ export default function VerifyResetOTPScreen() {
         success(t('auth.codeVerified'), t('auth.enterNewPassword'));
         router.replace({
             pathname: '/reset-password',
-            params: { email, otp: otpValue },
+            params: { emailOrUsername, otp: otpValue },
         } as any);
     };
 
     const handleResend = async () => {
-        if (timer > 0 || !email) return;
+        if (timer > 0 || !emailOrUsername) return;
 
         setIsLoading(true);
         try {
-            const result = await forgotPassword({ email });
+            const result = await forgotPassword({ emailOrUsername });
             success(t('auth.codeSent'), result.message || t('auth.codeSentMessage'));
             setTimer(60);
             setOtp(['', '', '', '', '', '']);
         } catch (err: any) {
             console.error('Resend OTP error:', err);
-            error(t('common.error'), err.message || t('auth.codeSentMessage'));
+            error(t('common.error'), err.message || t('auth.failedToSendCode'));
         } finally {
             setIsLoading(false);
         }

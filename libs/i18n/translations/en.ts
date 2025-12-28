@@ -71,6 +71,7 @@ export default {
     otpSent: 'OTP Sent',
     otpSentMessage: 'An OTP has been sent to your email',
     emailRequired: 'Please enter your email address',
+    emailOrUsernameRequired: 'Please enter your email or username',
     failedToSendCode: 'Failed to send reset code',
     
     // Verification
@@ -99,6 +100,11 @@ export default {
     confirmPassword: 'Confirm Password',
     confirmPasswordPlaceholder: 'Confirm your password',
     confirm: 'Confirm',
+    passwordsDoNotMatch: 'Passwords do not match',
+    invalidPassword: 'Invalid Password',
+    missingSessionInfo: 'Missing session information. Please try again.',
+    resetFailed: 'Reset Failed',
+    failedToResetPassword: 'Failed to reset password',
     
     // Reset Success
     resetSuccessTitle: 'Reset Password Successful!',
@@ -135,7 +141,7 @@ export default {
     instantAccessDesc: 'Get back to your account immediately',
     
     // Validation messages
-    emailRequired: 'Email and password are required',
+    emailAndPasswordRequired: 'Email and password are required',
     invalidCode: 'Please enter the full 6-digit code',
     missingEmail: 'Missing email address',
     passwordMismatch: 'Passwords do not match',

@@ -402,8 +402,8 @@ export async function verifyEmailOTP(data: VerifyEmailOTPRequest): Promise<Verif
 }
 
 /**
- * Forgot password - Send OTP to email
- * @param data - Email address
+ * Forgot password - Send OTP to email/username
+ * @param data - Email or username
  */
 export async function forgotPassword(data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
     try {
@@ -417,7 +417,7 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<Forgo
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    email: data.email,
+                    emailOrUsername: data.emailOrUsername,
                 }),
             }
         );
@@ -426,7 +426,7 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<Forgo
 
         if (!response.ok) {
             throw new ApiError(
-                responseData.message || `HTTP error! status: ${response.status}`,
+                responseData.error || responseData.message || `HTTP error! status: ${response.status}`,
                 response.status,
                 responseData
             );
@@ -453,7 +453,7 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<Forgo
 
 /**
  * Reset password - Reset password with OTP
- * @param data - Email, OTP, and new password
+ * @param data - Email/username, OTP, and new password
  */
 export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
     try {
@@ -467,7 +467,7 @@ export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPa
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    email: data.email,
+                    emailOrUsername: data.emailOrUsername,
                     otp: data.otp,
                     newPassword: data.newPassword,
                 }),
@@ -478,7 +478,7 @@ export async function resetPassword(data: ResetPasswordRequest): Promise<ResetPa
 
         if (!response.ok) {
             throw new ApiError(
-                responseData.message || `HTTP error! status: ${response.status}`,
+                responseData.error || responseData.message || `HTTP error! status: ${response.status}`,
                 response.status,
                 responseData
             );

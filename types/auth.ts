@@ -98,17 +98,18 @@ export interface VerifyEmailOTPResponse {
 }
 
 export interface ForgotPasswordRequest {
-    email: string;
+    emailOrUsername: string;
 }
 
 export interface ForgotPasswordResponse {
     message: string;
+    otp?: string; // Only in dev mode
 }
 
 export interface ResetPasswordRequest {
-    email: string;
+    emailOrUsername: string;
     otp: string;
-    newPassword: z.infer<typeof RegisterRequestSchema>['password'];
+    newPassword: string;
 }
 
 export interface ResetPasswordResponse {

@@ -12,6 +12,7 @@ import { Colors } from '@/constants/theme';
 import { resetPassword } from '@/services/AuthService';
 import { useToast } from '@/components/toast';
 import { ResetPasswordHeader, ResetPasswordForm } from '@/components/auth';
+import { useTranslation } from '@/hooks/useTranslation';
 
 // ============================================================================
 // Main Component
@@ -22,8 +23,9 @@ export default function ResetPasswordScreen() {
     const colorScheme = useColorScheme();
     const theme = Colors[colorScheme || 'light'];
     const isDark = colorScheme === 'dark';
-    const { email, otp } = useLocalSearchParams<{ email: string; otp: string }>();
+    const { emailOrUsername, otp } = useLocalSearchParams<{ emailOrUsername: string; otp: string }>();
     const { success, error } = useToast();
+    const { t } = useTranslation();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,34 +39,33 @@ export default function ResetPasswordScreen() {
 
     const handleConfirm = async () => {
         if (!password || !confirmPassword) {
-            error('Required', 'Please fill in all fields');
+            error(t('common.required'), t('auth.fillAllFields'));
             return;
         }
 
         if (password !== confirmPassword) {
-            error('Mismatch', 'Passwords do not match');
+            error(t('auth.passwordMismatch'), t('auth.passwordsDoNotMatch'));
             return;
         }
 
         if (password.length < 6) {
-            error('Invalid', 'Password must be at least 6 characters');
+            error(t('auth.invalidPassword'), t('auth.passwordTooShort'));
             return;
         }
 
-        if (!email || !otp) {
-            error('Error', 'Missing session information. Please try again.');
+        if (!emailOrUsername || !otp) {
+            error(t('common.error'), t('auth.missingSessionInfo'));
             router.replace('/forgot-password');
             return;
         }
 
         setIsLoading(true);
         try {
-            await resetPassword({ email, otp, newPassword: password });
-            success('Success', 'Your password has been reset successfully');
-            router.replace('/signin');
+            await resetPassword({ emailOrUsername, otp, newPassword: password });
+            router.replace('/reset-success');
         } catch (err: any) {
             console.error('Reset password error:', err);
-            error('Reset Failed', err.message || 'Failed to reset password');
+            error(t('auth.resetFailed'), err.message || t('auth.failedToResetPassword'));
         } finally {
             setIsLoading(false);
         }

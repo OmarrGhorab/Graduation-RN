@@ -23,22 +23,22 @@ export default function ForgotPasswordScreen() {
     const { success, error } = useToast();
     const { t } = useTranslation();
 
-    const [email, setEmail] = useState('');
+    const [emailOrUsername, setEmailOrUsername] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     const handleContinue = async () => {
-        if (!email) {
-            error(t('common.required'), t('auth.emailRequired'));
+        if (!emailOrUsername.trim()) {
+            error(t('common.required'), t('auth.emailOrUsernameRequired'));
             return;
         }
 
         setIsLoading(true);
         try {
-            await forgotPassword({ email });
+            await forgotPassword({ emailOrUsername: emailOrUsername.trim() });
             success(t('auth.otpSent'), t('auth.otpSentMessage'));
             router.push({
                 pathname: '/verify-reset-otp',
-                params: { email }
+                params: { emailOrUsername: emailOrUsername.trim() }
             } as any);
         } catch (err: any) {
             console.error('Forgot password error:', err);
@@ -69,9 +69,9 @@ export default function ForgotPasswordScreen() {
                 <ForgotPasswordForm
                     theme={theme}
                     isDark={isDark}
-                    email={email}
+                    email={emailOrUsername}
                     isLoading={isLoading}
-                    onEmailChange={setEmail}
+                    onEmailChange={setEmailOrUsername}
                     onContinue={handleContinue}
                 />
             </ScrollView>
