@@ -14,11 +14,19 @@
       },
       "oauth_client": [
         {
+          "client_id": "564438837664-3mnt789rjaq0rmotf80eg2ss5hv68qji.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.omarghorab.graduation",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "564438837664-o3jciigqr956a73jtu4l6fg7kgrh78md.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.omarghorab.graduation",
-            "certificate_hash": "0ddf1ac6f8fd1d5268994ac117d2ab5c51844f91"
+            "certificate_hash": "7f19006eb43f056e1196c158bc349ea5a7a64311"
           }
         },
         {

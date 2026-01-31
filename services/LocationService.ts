@@ -1,7 +1,7 @@
-import { apiClient } from './apiClient';
-import { DeviceService } from './DeviceService';
 import { logger } from '@/libs/logger';
 import { ApiError, isApiError } from '@/types/errors';
+import { apiClient } from './apiClient';
+import { DeviceService } from './DeviceService';
 
 // ==================== Types ====================
 
@@ -72,13 +72,13 @@ export const LocationService = {
   updateLocation: async (): Promise<LocationData | null> => {
     try {
       const location = await DeviceService.getPreciseLocation({ accuracy: 'high' });
-      
+
       if (!location) {
         logger.log('[LocationService] No location available to update');
         return null;
       }
 
-      const data = await apiClient.post<{ location?: LocationData }>('/api/v1/location/update', {
+      const data = await apiClient.post<{ location?: LocationData }>('/api/v1/location', {
         latitude: location.latitude,
         longitude: location.longitude,
         accuracy: location.accuracy,
