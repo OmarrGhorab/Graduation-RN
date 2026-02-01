@@ -15,6 +15,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmojiKeyboard } from 'rn-emoji-keyboard';
 
 export default function ChatDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +34,8 @@ export default function ChatDetailScreen() {
     const isFocused = useIsFocused();
     const lastTypingReport = useRef<number>(0);
     const [viewerImage, setViewerImage] = useState<string | null>(null);
+    const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+    const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
     // Fetch Conversation Details
     const { data: conversation } = useQuery({
@@ -172,8 +175,17 @@ export default function ChatDetailScreen() {
         }
     };
 
-    const handleSend = () => {
-        if (inputText.trim() && !sendMessageMutation.isPending) {
+    const handleSend = async () => {
+        if ((!inputText.trim() && selectedImages.length === 0) || sendMessageMutation.isPending || uploadingMedia) return;
+
+        if (selectedImages.length > 0) {
+            for (const uri of selectedImages) {
+                await uploadAndSendMessage(uri, 'image');
+            }
+            setSelectedImages([]);
+        }
+
+        if (inputText.trim()) {
             sendMessageMutation.mutate({
                 type: 'text',
                 content: inputText.trim(),
@@ -186,13 +198,14 @@ export default function ChatDetailScreen() {
         setIsAttachmentMenuVisible(false);
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            allowsEditing: true,
-            aspect: [4, 3],
+            allowsEditing: false,
+            allowsMultipleSelection: true,
             quality: 1,
         });
 
         if (!result.canceled) {
-            uploadAndSendMessage(result.assets[0].uri, 'image');
+            const uris = result.assets.map(a => a.uri);
+            setSelectedImages(prev => [...prev, ...uris]);
         }
     };
 
@@ -259,7 +272,7 @@ export default function ChatDetailScreen() {
     const AttachmentMenu = () => {
         if (!isAttachmentMenuVisible) return null;
         return (
-            <View style={[styles.attachmentMenu, { backgroundColor: theme.surface, borderTopColor: theme.divider }]}>
+            <View style={[styles.attachmentMenu, { backgroundColor: theme.surface, borderColor: theme.divider, borderWidth: 1 }]}>
                 <TouchableOpacity style={styles.attachmentItem} onPress={handlePickImage} disabled={uploadingMedia}>
                     <View style={[styles.attachmentIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF' }]}>
                         <Ionicons name="images" size={24} color="#3B82F6" />
@@ -369,8 +382,8 @@ export default function ChatDetailScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
                 {isLoading ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -409,6 +422,23 @@ export default function ChatDetailScreen() {
                     </View>
                 )}
 
+                {selectedImages.length > 0 && (
+                    <View style={[styles.thumbnailListContainer, { backgroundColor: theme.surfaceVariant }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 8 }}>
+                            {selectedImages.map((uri, index) => (
+                                <View key={index} style={styles.thumbnailWrapper}>
+                                    <Image source={{ uri }} style={styles.thumbnail} />
+                                    <TouchableOpacity
+                                        style={styles.removeThumbnail}
+                                        onPress={() => setSelectedImages(prev => prev.filter((_, i) => i !== index))}
+                                    >
+                                        <Ionicons name="close-circle" size={20} color="#EF4444" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
                 <View style={[styles.inputContainer, { backgroundColor: theme.background, borderTopColor: theme.divider, paddingBottom: insets.bottom || 20 }]}>
                     <AttachmentMenu />
 
@@ -446,8 +476,11 @@ export default function ChatDetailScreen() {
                                     multiline
                                     editable={!sendMessageMutation.isPending && !uploadingMedia}
                                 />
-                                <TouchableOpacity style={styles.smileyButton}>
-                                    <Ionicons name="happy-outline" size={24} color={theme.icon} />
+                                <TouchableOpacity
+                                    style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
+                                    onPress={() => setIsEmojiOpen(!isEmojiOpen)}
+                                >
+                                    <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
                                 </TouchableOpacity>
                             </View>
 
@@ -482,6 +515,21 @@ export default function ChatDetailScreen() {
                     )}
                 </View>
             </Modal>
+            {isEmojiOpen && (
+                <EmojiKeyboard
+                    onEmojiSelected={(emoji) => setInputText(prev => prev + emoji.emoji)}
+                    theme={{
+                        container: theme.surface,
+                        header: theme.surface,
+                        category: {
+                            icon: theme.icon,
+                            iconActive: theme.primary,
+                            container: theme.surface,
+                            containerActive: theme.surfaceVariant
+                        }
+                    }}
+                />
+            )}
         </View>
     );
 }
@@ -1082,23 +1130,24 @@ const styles = StyleSheet.create({
     },
     attachmentMenu: {
         position: 'absolute',
-        bottom: '100%',
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        padding: 20,
-        justifyContent: 'space-around',
-        borderTopWidth: 1,
+        bottom: 60,
+        left: 10,
+        width: 150,
+        flexDirection: 'column',
+        padding: 12,
+        gap: 12,
+        borderRadius: 16,
         elevation: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
         zIndex: 100,
     },
     attachmentItem: {
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 12,
     },
     attachmentIcon: {
         width: 50,
@@ -1186,5 +1235,23 @@ const styles = StyleSheet.create({
     viewerImage: {
         width: '100%',
         height: '80%',
+    },
+    thumbnailListContainer: {
+        paddingHorizontal: 8,
+    },
+    thumbnailWrapper: {
+        position: 'relative',
+    },
+    thumbnail: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+    },
+    removeThumbnail: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        backgroundColor: 'white',
+        borderRadius: 10,
     },
 });
