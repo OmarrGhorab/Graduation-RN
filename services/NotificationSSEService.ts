@@ -1,9 +1,9 @@
-import EventSource from 'react-native-sse';
 import { BASE_URL } from '@/constants/config';
+import { logger } from '@/libs/logger';
+import { getErrorMessage } from '@/types/errors';
+import EventSource from 'react-native-sse';
 import { getValidAccessToken } from './AuthService';
 import { ApiNotification } from './NotificationService';
-import { getErrorMessage } from '@/types/errors';
-import { logger } from '@/libs/logger';
 
 // Event types matching react-native-sse library types
 interface SSEMessageEvent {
@@ -42,7 +42,9 @@ export type SSENotificationType =
     | 'parent_link_request_declined'
     | 'unlink_request'
     | 'unlink_request_accepted'
-    | 'unlink_request_declined';
+    | 'unlink_request_declined'
+    | 'message'
+    | 'CHAT_MESSAGE';
 
 export interface SSENotification extends ApiNotification {
     type: SSENotificationType;
@@ -145,7 +147,7 @@ class NotificationSSEService {
             // Handle messages
             this.eventSource.addEventListener('message', (event: SSEMessageEvent) => {
                 logger.log('[SSE] Raw message received:', event.data);
-                
+
                 if (!event.data) return;
 
                 try {
@@ -161,7 +163,7 @@ class NotificationSSEService {
                 const errorMessage = 'message' in event ? event.message : event.type;
                 logger.error('[SSE] Error:', errorMessage);
                 this.isConnecting = false;
-                
+
                 const error = new Error(errorMessage || 'SSE connection error');
                 this.onErrorCallback?.(error);
                 this.onConnectionChangeCallback?.(false);
@@ -204,14 +206,14 @@ class NotificationSSEService {
 
         const notification = message as SSENotificationPayload;
         const isUpdate = notification.updated === true;
-        
+
         logger.log(
             `[SSE] ${isUpdate ? 'Updated' : 'New'} notification:`,
             notification.type,
             'id:',
             notification.id
         );
-        
+
         this.onNotificationCallback?.(notification, isUpdate);
     }
 
@@ -301,3 +303,4 @@ export const notificationSSEService = new NotificationSSEService();
 
 // Also export the class for testing purposes
 export { NotificationSSEService };
+

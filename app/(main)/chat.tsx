@@ -95,14 +95,14 @@ export default function ChatScreen() {
                         style={[styles.message, { color: theme.textSecondary, textAlign }]}
                         numberOfLines={1}
                     >
-                        {item.description || t('chat.no_messages')}
+                        {item.last_message?.content || item.description || t('chat.no_messages')}
                     </Text>
                 </View>
 
                 <View style={styles.metaContainer}>
                     <Text style={[styles.time, { color: theme.primary }]}>{formatTime(item.updated_at)}</Text>
                     {item.unread_count > 0 && (
-                        <View style={styles.unreadBadge}>
+                        <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
                             <Text style={styles.unreadText}>{item.unread_count}</Text>
                         </View>
                     )}

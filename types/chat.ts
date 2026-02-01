@@ -13,20 +13,6 @@ export const ChatMemberSchema = z.object({
 
 export type ChatMember = z.infer<typeof ChatMemberSchema>;
 
-export const ConversationSchema = z.object({
-    id: z.string(),
-    type: z.enum(['GROUP', 'DIRECT']),
-    name: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
-    created_by: z.string(),
-    created_at: z.string(),
-    updated_at: z.string(),
-    members: z.array(ChatMemberSchema).optional(),
-    unread_count: z.number().default(0),
-});
-
-export type Conversation = z.infer<typeof ConversationSchema>;
-
 export const MessageSchema = z.object({
     id: z.string(),
     content: z.string(),
@@ -44,6 +30,21 @@ export const MessageSchema = z.object({
 });
 
 export type Message = z.infer<typeof MessageSchema>;
+
+export const ConversationSchema = z.object({
+    id: z.string(),
+    type: z.enum(['GROUP', 'DIRECT']),
+    name: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    created_by: z.string(),
+    created_at: z.string(),
+    updated_at: z.string(),
+    members: z.array(ChatMemberSchema).optional(),
+    unread_count: z.number().default(0),
+    last_message: MessageSchema.nullable().optional(),
+});
+
+export type Conversation = z.infer<typeof ConversationSchema>;
 
 // Request Types
 export interface CreateGroupRequest {
