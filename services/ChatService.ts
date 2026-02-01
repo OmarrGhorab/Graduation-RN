@@ -85,8 +85,8 @@ export const ChatService = {
     },
 
     // Get Messages (History)
-    async getMessages(conversationId: string, query: { limit?: number; offset?: number; search?: string } = {}): Promise<{ messages: Message[] }> {
-        return apiClient.get<{ messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/messages`, {
+    async getMessages(conversationId: string, query: { limit?: number; offset?: number; search?: string } = {}): Promise<Message[]> {
+        return apiClient.get<Message[]>(`${PREFIX}/conversations/${conversationId}/messages`, {
             params: query
         });
     },

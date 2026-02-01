@@ -151,10 +151,34 @@ class NotificationSSEService {
                 if (!event.data) return;
 
                 try {
-                    const message = JSON.parse(event.data) as SSEMessage;
-                    this.handleMessage(message);
-                } catch (parseError) {
-                    logger.warn('[SSE] Failed to parse message:', event.data);
+                    // event.data might already be an object if the library parsed it, 
+                    // or it might be single or double-serialized string.
+                    let message: any = event.data;
+
+                    if (typeof message === 'string') {
+                        try {
+                            message = JSON.parse(message);
+                        } catch (e) {
+                            // First parse failed, might be normal string
+                        }
+                    }
+
+                    // Check if it's still a string that looks like JSON (double-serialized)
+                    if (typeof message === 'string' && (message.trim().startsWith('{') || message.trim().startsWith('['))) {
+                        try {
+                            message = JSON.parse(message);
+                        } catch (e) {
+                            logger.warn('[SSE] Failed to parse potential JSON string:', message);
+                            // It might be just a text message, so we'll leave it as string if this fails? 
+                            // Or return if we strictly expect JSON? 
+                            // For now, let's proceed and see if we can cast it.
+                        }
+                    }
+
+                    this.handleMessage(message as SSEMessage);
+
+                } catch (error) {
+                    logger.warn('[SSE] Error processing message:', error);
                 }
             });
 
@@ -206,13 +230,6 @@ class NotificationSSEService {
 
         const notification = message as SSENotificationPayload;
         const isUpdate = notification.updated === true;
-
-        logger.log(
-            `[SSE] ${isUpdate ? 'Updated' : 'New'} notification:`,
-            notification.type,
-            'id:',
-            notification.id
-        );
 
         this.onNotificationCallback?.(notification, isUpdate);
     }

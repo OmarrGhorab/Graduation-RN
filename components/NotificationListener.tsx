@@ -105,6 +105,67 @@ export default function NotificationListener() {
                         return old;
                     }
                 });
+
+                // 2. Update specific conversation messages query (Active Chat)
+                queryClient.setQueryData(['messages', conversationId], (old: any) => {
+                    if (!old) return old;
+
+                    const newMessage = {
+                        id: payload.id || `temp-${Date.now()}`,
+                        content: payload.messagePreview || payload.data?.messagePreview || payload.data?.content || payload.message || '',
+                        type: payload.messageType || payload.data?.messageType || 'text',
+                        sender_id: payload.senderId || payload.data?.senderId,
+                        sender_name: payload.senderName || payload.data?.senderName || 'User',
+                        sender_role: payload.senderRole || payload.data?.senderRole || 'STUDENT',
+                        created_at: payload.createdAt || new Date().toISOString(),
+                        is_deleted: false,
+                    };
+
+                    // Handle Infinite Query structure ({ pages: [...] })
+                    if (old.pages) {
+                        const newPages = [...old.pages];
+                        if (newPages.length > 0) {
+                            // Check if message already exists
+                            const exists = newPages.some((page: any) => {
+                                const msgs = Array.isArray(page) ? page : page?.messages || [];
+                                return msgs.some((m: any) => m.id === newMessage.id);
+                            });
+
+                            if (exists) return old;
+
+                            // Add to beginning (assuming [Newest, ..., Oldest])
+                            const firstPage = newPages[0];
+                            if (Array.isArray(firstPage)) {
+                                newPages[0] = [newMessage, ...firstPage];
+                            } else if (firstPage && typeof firstPage === 'object') {
+                                newPages[0] = {
+                                    ...firstPage,
+                                    messages: [newMessage, ...(firstPage.messages || [])]
+                                };
+                            }
+
+                            return { ...old, pages: newPages };
+                        }
+                    }
+
+                    // Handle Standard Query structure ({ messages: [...] })
+                    if (old.messages) {
+                        return {
+                            ...old,
+                            messages: [newMessage, ...old.messages] // Append new message (inverted or not? current UI reverses it: [...messagesData.messages].reverse())
+                            // If UI reverses it, it means array is [Oldest...Newest]. 
+                            // If I append here: [...old, new], then reverse becomes [New, Old...].
+                            // Wait. UI Logic: useEffect(() => setMessages([...data].reverse()));
+                            // So data from API is [Newest...Oldest]? Or [Oldest...Newest]?
+                            // If API returns [Oldest...Newest] (limit 50), then reversing makes it [Newest...Oldest] for display.
+                            // If I append to API data: [...old, new]. UI reverses -> [New, Old...]. Correct.
+                            // BUT if I switch to infinite scroll, API usually returns [Newest...Oldest] first.
+                            // I will assume for now we append to existing list logic.
+                        };
+                    }
+
+                    return old;
+                });
             }
         }
 

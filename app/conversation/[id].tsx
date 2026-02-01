@@ -6,14 +6,14 @@ import { ChatService } from '@/services/ChatService';
 import { Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, KeyboardAvoidingView, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmojiKeyboard } from 'rn-emoji-keyboard';
 
@@ -90,7 +90,7 @@ export default function ChatDetailScreen() {
     const currentUser = useAuthStore(state => state.user);
     const queryClient = useQueryClient();
     const [inputText, setInputText] = useState('');
-    const scrollViewRef = useRef<ScrollView>(null);
+    // const scrollViewRef = useRef<ScrollView>(null);
     const [isAttachmentMenuVisible, setIsAttachmentMenuVisible] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -108,87 +108,83 @@ export default function ChatDetailScreen() {
         enabled: !!id,
     });
 
-    // Initial Fetch for Message History
-    const { data: messagesData, isLoading } = useQuery({
+    // Infinite Query for Messages
+    const {
+        data: messagesData,
+        isLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage
+    } = useInfiniteQuery({
         queryKey: ['messages', id],
-        queryFn: () => ChatService.getMessages(id!, { limit: 50 }),
+        queryFn: ({ pageParam = 0 }) => ChatService.getMessages(id!, { limit: 20, offset: pageParam as number }),
+        initialPageParam: 0,
+        getNextPageParam: (lastPage: any, allPages) => {
+            // Defensive check for potentially undefined response or pages array
+            const messages = Array.isArray(lastPage) ? lastPage : lastPage?.messages;
+            if (!messages || messages.length < 20) return undefined;
+            return (allPages?.length || 0) * 20;
+        },
         enabled: !!id,
+        refetchOnMount: true, // Ensure we get fresh data when entering the chat
     });
 
-    const [messages, setMessages] = useState<Message[]>([]);
-    const messagesRef = useRef<Message[]>([]);
-
-    useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
-
-    useEffect(() => {
-        if (messagesData?.messages) {
-            const initialMessages = [...messagesData.messages].reverse();
-            setMessages(initialMessages);
-        }
-    }, [messagesData]);
-
-    // Long Polling Logic
-    useEffect(() => {
-        if (!id || !isFocused) return;
-
-        let isMounted = true;
-        const poll = async () => {
-            // Use ref to get the absolute latest messages
-            const currentMessages = messagesRef.current;
-            const lastMessageId = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1].id : undefined;
-
-            if (!lastMessageId) {
-                // If no messages yet, wait a bit and check again (or wait for messagesData)
-                if (isMounted) setTimeout(poll, 1000);
-                return;
+    // Flatten messages from pages
+    const messages = React.useMemo(() => {
+        if (!messagesData?.pages) return [];
+        console.log('[ChatDetail] Pages structure:', JSON.stringify(messagesData.pages[0], null, 2));
+        return messagesData.pages.flatMap(page => {
+            // Flexible handling for both Array and Object responses
+            if (Array.isArray(page)) return page;
+            if (page && typeof page === 'object' && 'messages' in page && Array.isArray((page as any).messages)) {
+                return (page as any).messages;
             }
+            return [];
+        });
+    }, [messagesData?.pages]);
 
-            try {
-                const res = await ChatService.pollMessages(id, lastMessageId);
-                if (isMounted && res.messages && res.messages.length > 0) {
-                    setMessages(prev => {
-                        const newMsgs = [...res.messages].reverse();
-                        const filteredNewMsgs = newMsgs.filter(nm => !prev.some(pm => pm.id === nm.id));
-                        return [...prev, ...filteredNewMsgs];
-                    });
+    // We don't use state for messages anymore, derived from query.
+    // We can remove the `useState`, `useRef` and `useEffect` for messages.
 
-                    // Mark as read if we received new messages while focused
-                    ChatService.markAsRead(id).catch(() => { });
-                }
-                // Immediately poll again
-                if (isMounted) poll();
-            } catch (error) {
-                // On error (e.g. timeout), retry
-                if (isMounted) {
-                    setTimeout(poll, 1000);
-                }
+    /*
+    // Removing old polling
+    // ...
+    */
+
+
+    // Handle focus for aggressive refetching
+    useFocusEffect(
+        React.useCallback(() => {
+            if (id) {
+                console.log('[ChatDetail] Application focused. Refetching conversation:', id);
+
+                // 1. Force Invalidate Queries
+                queryClient.cancelQueries({ queryKey: ['messages', id] }); // Cancel any in-flight
+                queryClient.invalidateQueries({ queryKey: ['messages', id] });
+                queryClient.refetchQueries({ queryKey: ['messages', id] }); // Force refetch
+
+                // 2. Mark as read
+                ChatService.markAsRead(id).catch(err => console.error('Failed to mark as read', err));
+
+                // 3. Optimistically update conversations list cache for UNREAD COUNT & PREVIEW
+                // We want to ensure we reset unread count to 0 in ALL lists.
+                queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
+                    if (!old?.conversations) return old;
+                    return {
+                        ...old,
+                        conversations: old.conversations.map((c: any) =>
+                            c.id === id ? { ...c, unread_count: 0 } : c
+                        )
+                    };
+                });
             }
-        };
+        }, [id, queryClient])
+    );
 
-        poll();
-        return () => { isMounted = false; };
-    }, [id, isFocused]); // Re-run if messages array was empty and now has data
-
-    // Mark as Read on Mount & Optimistic Update
-    useEffect(() => {
-        if (id && isFocused) {
-            // 1. Call API
-            ChatService.markAsRead(id).catch(err => console.error('Failed to mark as read', err));
-
-            // 2. Optimistically update conversations list cache
-            queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
-                if (!old?.conversations) return old;
-                return {
-                    ...old,
-                    conversations: old.conversations.map((c: any) =>
-                        c.id === id ? { ...c, unread_count: 0 } : c
-                    )
-                };
-            });
-        }
-    }, [id, isFocused, queryClient]);
+    /*
+    // Old useEffect for markAsRead (Removed in favor of useFocusEffect)
+    useEffect(() => { ... }, [id, isFocused, queryClient]);
+    */
 
     // Typing Polling (Listening) - Using useQuery for better lifecycle management
     const { data: typingData } = useQuery({
@@ -230,11 +226,59 @@ export default function ChatDetailScreen() {
         mutationFn: (data: any) => ChatService.sendMessage(id!, data),
         onSuccess: (newMessage) => {
             setInputText('');
-            setMessages(prev => {
-                if (prev.some(m => m.id === newMessage.id)) return prev;
-                return [...prev, newMessage];
+            // Optimistically update infinite query cache (Messages)
+            queryClient.setQueryData(['messages', id], (old: any) => {
+                if (!old) return old;
+
+                // Infinite Query Structure { pages: [ [Message, ...], [Message, ...] ] }
+                if (old.pages) {
+                    const newPages = [...old.pages];
+                    if (newPages.length > 0) {
+                        let targetPage = newPages[0];
+                        let isArray = Array.isArray(targetPage);
+                        let messages = isArray ? targetPage : targetPage.messages;
+
+                        // Check duplicate
+                        if (messages?.some((m: any) => m.id === newMessage.id)) return old;
+
+                        // Add to beginning
+                        const updatedMessages = [newMessage, ...(messages || [])];
+
+                        if (isArray) {
+                            newPages[0] = updatedMessages;
+                        } else {
+                            newPages[0] = { ...targetPage, messages: updatedMessages };
+                        }
+
+                        return { ...old, pages: newPages };
+                    }
+                }
+                return old;
             });
-            queryClient.invalidateQueries({ queryKey: ['messages', id] });
+
+            // Optimistically update conversations list cache (Last Message Preview)
+            queryClient.setQueryData(['conversations'], (old: any) => {
+                if (!old?.conversations) return old;
+
+                let updatedConversations = old.conversations.map((c: any) => {
+                    if (c.id === id) {
+                        return {
+                            ...c,
+                            last_message: {
+                                ...newMessage,
+                                sent_at: new Date().toISOString()
+                            },
+                            updated_at: new Date().toISOString()
+                        };
+                    }
+                    return c;
+                });
+
+                // Move updated conversation to top
+                updatedConversations.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+                return { ...old, conversations: updatedConversations };
+            });
         },
     });
 
@@ -435,59 +479,93 @@ export default function ChatDetailScreen() {
             />
             <Stack.Screen options={{ headerShown: false }} />
 
-                <ChatHeader
-                    headerInfo={headerInfo}
-                    insets={insets}
-                    theme={theme}
-                    isDark={isDark}
-                    router={router}
-                    id={id!}
-                    textAlign={textAlign}
-                />
+            <ChatHeader
+                headerInfo={headerInfo}
+                insets={insets}
+                theme={theme}
+                isDark={isDark}
+                router={router}
+                id={id!}
+                textAlign={textAlign}
+            />
 
-                <KeyboardAvoidingView
-                    style={styles.keyboardView}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-                >
-                    {isLoading ? (
-                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                            <ActivityIndicator size="large" color={theme.primary} />
-                        </View>
-                    ) : (
-                        <ScrollView
-                            ref={scrollViewRef}
-                            contentContainerStyle={[styles.messagesList, { paddingBottom: 20 }]}
-                            showsVerticalScrollIndicator={false}
-                            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-                        >
-                            <View style={styles.dateDivider}>
-                                <View style={[styles.dateBadge, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
-                                    <Text style={[styles.dateText, { color: theme.textSecondary }]}>TODAY</Text>
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+                {isLoading ? (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <ActivityIndicator size="large" color={theme.primary} />
+                    </View>
+                ) : (
+                    <FlatList
+                        data={messages}
+                        renderItem={
+                            ({ item, index }: { item: Message, index: number }) => {
+                                // Find sender details from members list
+                                const member = conversation?.members?.find(m => m.user_id === item.sender_id);
+                                const senderName = member?.user_name || item.sender_name || 'User';
+                                const senderImage = member?.user_image || item.sender_image;
+
+                                // Grouping Logic: Check if next message (visually below, so older) is from same sender
+                                const nextMessage = messages[index + 1];
+                                const isNewGroup = !nextMessage || nextMessage.sender_id !== item.sender_id || (new Date(item.created_at).getTime() - new Date(nextMessage.created_at).getTime() > 60000 * 5); // 5 min gap
+
+                                return (
+                                    <MessageBubble
+                                        message={item}
+                                        theme={theme}
+                                        isDark={isDark}
+                                        currentUserId={currentUser?.id}
+                                        onImagePress={setViewerImage}
+                                        senderName={senderName}
+                                        senderImage={senderImage}
+                                        showSenderInfo={isNewGroup}
+                                    />
+                                )
+                            }}
+                        keyExtractor={item => item.id}
+                        inverted
+                        contentContainerStyle={[
+                            styles.messagesList,
+                            { paddingBottom: 20, paddingTop: 20 }
+                        ]}
+                        showsVerticalScrollIndicator={false}
+                        onEndReached={() => {
+                            if (hasNextPage && !isFetchingNextPage) {
+                                fetchNextPage();
+                            }
+                        }}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={
+                            isFetchingNextPage ? (
+                                <View style={{ paddingVertical: 20 }}>
+                                    <ActivityIndicator size="small" color={theme.primary} />
                                 </View>
-                            </View>
+                            ) : (
+                                <View style={styles.dateDivider}>
+                                    <View style={[styles.dateBadge, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
+                                        <Text style={[styles.dateText, { color: theme.textSecondary }]}>TODAY</Text>
+                                    </View>
+                                </View>
+                            )
+                        }
+                    />
+                )
+                }
 
-                            {messages.map((msg: Message) => (
-                                <MessageBubble
-                                    key={msg.id}
-                                    message={msg}
-                                    theme={theme}
-                                    isDark={isDark}
-                                    currentUserId={currentUser?.id}
-                                    onImagePress={setViewerImage}
-                                />
-                            ))}
-                        </ScrollView>
-                    )}
-
-                    {getTypingMessage() && (
+                {
+                    getTypingMessage() && (
                         <View style={styles.typingIndicatorContainer}>
                             <AnimatedTypingDots theme={theme} />
                             <Text style={[styles.typingIndicatorText, { color: theme.textSecondary }]}>{getTypingMessage()}</Text>
                         </View>
-                    )}
+                    )
+                }
 
-                    {selectedImages.length > 0 && (
+                {
+                    selectedImages.length > 0 && (
                         <View style={[styles.thumbnailListContainer, { backgroundColor: theme.surfaceVariant }]}>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 8, gap: 8 }}>
                                 {selectedImages.map((uri, index) => (
@@ -503,178 +581,179 @@ export default function ChatDetailScreen() {
                                 ))}
                             </ScrollView>
                         </View>
-                    )}
-                    <View style={[styles.inputContainer, { backgroundColor: theme.background, borderTopColor: theme.divider, paddingBottom: insets.bottom || 20 }]}>
-                        <AttachmentMenu />
+                    )
+                }
+                <View style={[styles.inputContainer, { backgroundColor: theme.background, borderTopColor: theme.divider, paddingBottom: insets.bottom || 20 }]}>
+                    <AttachmentMenu />
 
-                        {isRecording ? (
-                            <View style={styles.recordingContainer}>
-                                <View style={styles.recordingIndicator}>
-                                    <VoiceWaveform theme={theme} />
-                                    <Text style={[styles.recordingText, { color: theme.text }]}>Recording...</Text>
-                                </View>
-                                <TouchableOpacity onPress={stopRecording} style={[styles.stopButton, { backgroundColor: theme.primary }]}>
-                                    <Ionicons name="stop" size={20} color="#FFFFFF" />
+                    {isRecording ? (
+                        <View style={styles.recordingContainer}>
+                            <View style={styles.recordingIndicator}>
+                                <VoiceWaveform theme={theme} />
+                                <Text style={[styles.recordingText, { color: theme.text }]}>Recording...</Text>
+                            </View>
+                            <TouchableOpacity onPress={stopRecording} style={[styles.stopButton, { backgroundColor: theme.primary }]}>
+                                <Ionicons name="stop" size={20} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <>
+                            <TouchableOpacity
+                                style={styles.attachButton}
+                                onPress={() => setIsAttachmentMenuVisible(!isAttachmentMenuVisible)}
+                                disabled={uploadingMedia}
+                            >
+                                <Ionicons
+                                    name={isAttachmentMenuVisible ? "close-circle" : "add-circle-outline"}
+                                    size={28}
+                                    color={isAttachmentMenuVisible ? theme.primary : theme.icon}
+                                />
+                            </TouchableOpacity>
+
+                            <View style={[styles.inputFieldContainer, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
+                                <TextInput
+                                    style={[styles.input, { color: theme.text, textAlign }]}
+                                    placeholder="Type a message..."
+                                    placeholderTextColor={theme.textTertiary}
+                                    value={inputText}
+                                    onChangeText={setInputText}
+                                    multiline
+                                    editable={!sendMessageMutation.isPending && !uploadingMedia}
+                                />
+                                <TouchableOpacity
+                                    style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
+                                    onPress={() => setIsEmojiOpen(!isEmojiOpen)}
+                                >
+                                    <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
                                 </TouchableOpacity>
                             </View>
-                        ) : (
-                            <>
-                                <TouchableOpacity
-                                    style={styles.attachButton}
-                                    onPress={() => setIsAttachmentMenuVisible(!isAttachmentMenuVisible)}
-                                    disabled={uploadingMedia}
-                                >
-                                    <Ionicons
-                                        name={isAttachmentMenuVisible ? "close-circle" : "add-circle-outline"}
-                                        size={28}
-                                        color={isAttachmentMenuVisible ? theme.primary : theme.icon}
-                                    />
-                                </TouchableOpacity>
 
-                                <View style={[styles.inputFieldContainer, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
-                                    <TextInput
-                                        style={[styles.input, { color: theme.text, textAlign }]}
-                                        placeholder="Type a message..."
-                                        placeholderTextColor={theme.textTertiary}
-                                        value={inputText}
-                                        onChangeText={setInputText}
-                                        multiline
-                                        editable={!sendMessageMutation.isPending && !uploadingMedia}
-                                    />
-                                    <TouchableOpacity
-                                        style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
-                                        onPress={() => setIsEmojiOpen(!isEmojiOpen)}
-                                    >
-                                        <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
-                                    </TouchableOpacity>
-                                </View>
+                            <TouchableOpacity
+                                style={[styles.sendButton, { backgroundColor: theme.primary, opacity: (sendMessageMutation.isPending || uploadingMedia) ? 0.7 : 1 }]}
+                                onPress={handleSend}
+                                disabled={sendMessageMutation.isPending || uploadingMedia}
+                            >
+                                {sendMessageMutation.isPending || uploadingMedia ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Ionicons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                                )}
+                            </TouchableOpacity>
+                        </>
+                    )}
+                </View>
+            </KeyboardAvoidingView >
 
-                                <TouchableOpacity
-                                    style={[styles.sendButton, { backgroundColor: theme.primary, opacity: (sendMessageMutation.isPending || uploadingMedia) ? 0.7 : 1 }]}
-                                    onPress={handleSend}
-                                    disabled={sendMessageMutation.isPending || uploadingMedia}
-                                >
-                                    {sendMessageMutation.isPending || uploadingMedia ? (
-                                        <ActivityIndicator size="small" color="#FFFFFF" />
-                                    ) : (
-                                        <Ionicons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
-                                    )}
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </KeyboardAvoidingView>
-
-                {/* Image Viewer Modal */}
-                <Modal visible={!!viewerImage} transparent animationType="fade" onRequestClose={() => setViewerImage(null)}>
-                    <View style={[styles.viewerContainer, { backgroundColor: 'rgba(0,0,0,0.95)' }]}>
-                        <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerImage(null)}>
-                            <Ionicons name="close" size={32} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        {viewerImage && (
-                            <Image
-                                source={{ uri: viewerImage }}
-                                style={styles.viewerImage}
-                                contentFit="contain"
-                            />
-                        )}
-                    </View>
-                </Modal>
-                {isEmojiOpen && (
-                    <EmojiKeyboard
-                        onEmojiSelected={(emoji) => setInputText(prev => prev + emoji.emoji)}
-                        theme={{
+            {/* Image Viewer Modal */}
+            < Modal visible={!!viewerImage} transparent animationType="fade" onRequestClose={() => setViewerImage(null)}>
+                <View style={[styles.viewerContainer, { backgroundColor: 'rgba(0,0,0,0.95)' }]}>
+                    <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerImage(null)}>
+                        <Ionicons name="close" size={32} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    {viewerImage && (
+                        <Image
+                            source={{ uri: viewerImage }}
+                            style={styles.viewerImage}
+                            contentFit="contain"
+                        />
+                    )}
+                </View>
+            </Modal >
+            {isEmojiOpen && (
+                <EmojiKeyboard
+                    onEmojiSelected={(emoji) => setInputText(prev => prev + emoji.emoji)}
+                    theme={{
+                        container: theme.surface,
+                        header: theme.surface,
+                        category: {
+                            icon: theme.icon,
+                            iconActive: theme.primary,
                             container: theme.surface,
-                            header: theme.surface,
-                            category: {
-                                icon: theme.icon,
-                                iconActive: theme.primary,
-                                container: theme.surface,
-                                containerActive: theme.surfaceVariant
-                            }
-                        }}
-                    />
-                )}
-            </View>
-            );
+                            containerActive: theme.surfaceVariant
+                        }
+                    }}
+                />
+            )}
+        </View >
+    );
 }
 
-            // Sub-components
-            const AnimatedTypingDots = ({theme}: {theme: any }) => {
+// Sub-components
+const AnimatedTypingDots = ({ theme }: { theme: any }) => {
     const dot1 = useRef(new Animated.Value(0)).current;
-            const dot2 = useRef(new Animated.Value(0)).current;
-            const dot3 = useRef(new Animated.Value(0)).current;
+    const dot2 = useRef(new Animated.Value(0)).current;
+    const dot3 = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         const createAnimation = (value: Animated.Value, delay: number) => {
             return Animated.loop(
-            Animated.sequence([
-            Animated.delay(delay),
-            Animated.timing(value, {
-                toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
+                Animated.sequence([
+                    Animated.delay(delay),
+                    Animated.timing(value, {
+                        toValue: 1,
+                        duration: 400,
+                        useNativeDriver: true,
                     }),
-            Animated.timing(value, {
-                toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
+                    Animated.timing(value, {
+                        toValue: 0,
+                        duration: 400,
+                        useNativeDriver: true,
                     }),
-            ])
+                ])
             );
         };
 
-            const animations = [
+        const animations = [
             createAnimation(dot1, 0),
             createAnimation(dot2, 200),
             createAnimation(dot3, 400),
-            ];
+        ];
 
         animations.forEach(anim => anim.start());
         return () => animations.forEach(anim => anim.stop());
     }, []);
 
     const dotStyle = (value: Animated.Value) => ({
-                transform: [{
-                translateY: value.interpolate({
+        transform: [{
+            translateY: value.interpolate({
                 inputRange: [0, 1],
-            outputRange: [0, -4],
+                outputRange: [0, -4],
             })
         }],
-            opacity: value.interpolate({
-                inputRange: [0, 1],
+        opacity: value.interpolate({
+            inputRange: [0, 1],
             outputRange: [0.3, 1],
         })
     });
 
-            return (
-            <View style={styles.typingDots}>
-                <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot1)]} />
-                <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot2)]} />
-                <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot3)]} />
-            </View>
-            );
+    return (
+        <View style={styles.typingDots}>
+            <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot1)]} />
+            <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot2)]} />
+            <Animated.View style={[styles.typingDot, { backgroundColor: theme.primary }, dotStyle(dot3)]} />
+        </View>
+    );
 };
 
-            const VoiceWaveform = ({theme}: {theme: any }) => {
+const VoiceWaveform = ({ theme }: { theme: any }) => {
     const bars = useRef([...Array(5)].map(() => new Animated.Value(0))).current;
 
     useEffect(() => {
         const animations = bars.map((bar, i) => {
             return Animated.loop(
-            Animated.sequence([
-            Animated.delay(i * 100),
-            Animated.timing(bar, {
-                toValue: 1,
-            duration: 300,
-            useNativeDriver: false, // height doesn't support native driver
+                Animated.sequence([
+                    Animated.delay(i * 100),
+                    Animated.timing(bar, {
+                        toValue: 1,
+                        duration: 300,
+                        useNativeDriver: false, // height doesn't support native driver
                     }),
-            Animated.timing(bar, {
-                toValue: 0,
-            duration: 300,
-            useNativeDriver: false,
+                    Animated.timing(bar, {
+                        toValue: 0,
+                        duration: 300,
+                        useNativeDriver: false,
                     }),
-            ])
+                ])
             );
         });
 
@@ -682,33 +761,53 @@ export default function ChatDetailScreen() {
         return () => animations.forEach(anim => anim.stop());
     }, []);
 
-            return (
-            <View style={styles.waveformAnimation}>
-                {bars.map((bar, i) => (
-                    <Animated.View
-                        key={i}
-                        style={[
-                            styles.waveformBarSmall,
-                            {
-                                backgroundColor: '#EF4444',
-                                height: bar.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [4, 16],
-                                })
-                            }
-                        ]}
-                    />
-                ))}
-            </View>
-            );
+    return (
+        <View style={styles.waveformAnimation}>
+            {bars.map((bar, i) => (
+                <Animated.View
+                    key={i}
+                    style={[
+                        styles.waveformBarSmall,
+                        {
+                            backgroundColor: '#EF4444',
+                            height: bar.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [4, 16],
+                            })
+                        }
+                    ]}
+                />
+            ))}
+        </View>
+    );
 };
-            const MessageBubble = ({message, theme, isDark, currentUserId, onImagePress}: {message: Message, theme: any, isDark: boolean, currentUserId?: string, onImagePress?: (uri: string) => void }) => {
+const MessageBubble = ({
+    message,
+    theme,
+    isDark,
+    currentUserId,
+    onImagePress,
+    senderName,
+    senderImage,
+    showSenderInfo = true
+}: {
+    message: Message,
+    theme: any,
+    isDark: boolean,
+    currentUserId?: string,
+    onImagePress?: (uri: string) => void,
+    senderName?: string,
+    senderImage?: string | null,
+    showSenderInfo?: boolean
+}) => {
     const isSender = message.sender_id === currentUserId;
-            const [isPlaying, setIsPlaying] = useState(false);
-            const [sound, setSound] = useState<Audio.Sound | null>(null);
-            const [progress, setProgress] = useState(0);
-            const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
-            const [waveformWidth, setWaveformWidth] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [progress, setProgress] = useState(0);
+    const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
+
+
+    const [waveformWidth, setWaveformWidth] = useState(0);
 
     useEffect(() => {
         return () => {
@@ -720,15 +819,15 @@ export default function ChatDetailScreen() {
 
     const handlePlaybackStatusUpdate = (status: any) => {
         if (status.isLoaded) {
-                setDuration(status.durationMillis || ((message.media_metadata?.duration || 0) * 1000));
+            setDuration(status.durationMillis || ((message.media_metadata?.duration || 0) * 1000));
             // Only update progress from player if we are NOT dragging
             if (!isDragging.current) {
                 setProgress(status.positionMillis);
             }
             if (status.didJustFinish) {
                 setIsPlaying(false);
-            sound?.setPositionAsync(0);
-            setProgress(0);
+                sound?.setPositionAsync(0);
+                setProgress(0);
             }
         }
     };
@@ -737,92 +836,92 @@ export default function ChatDetailScreen() {
         try {
             if (sound) {
                 if (isPlaying) {
-                await sound.pauseAsync();
-            setIsPlaying(false);
+                    await sound.pauseAsync();
+                    setIsPlaying(false);
                 } else {
-                await sound.playAsync();
-            setIsPlaying(true);
+                    await sound.playAsync();
+                    setIsPlaying(true);
                 }
-            return;
+                return;
             }
 
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
+                playsInSilentModeIOS: true,
             });
 
-            const {sound: newSound } = await Audio.Sound.createAsync(
-            {uri: message.content },
-            {shouldPlay: true },
-            handlePlaybackStatusUpdate
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: message.content },
+                { shouldPlay: true },
+                handlePlaybackStatusUpdate
             );
             setSound(newSound);
             setIsPlaying(true);
         } catch (error) {
-                console.error('Error playing sound', error);
+            console.error('Error playing sound', error);
         }
     };
 
-            const isDragging = useRef(false);
-            const startDragProgress = useRef(0);
+    const isDragging = useRef(false);
+    const startDragProgress = useRef(0);
 
-            const panResponder = useRef(
-            PanResponder.create({
-                onStartShouldSetPanResponder: () => true,
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
             onMoveShouldSetPanResponder: () => true,
             onStartShouldSetPanResponderCapture: () => true,
             onMoveShouldSetPanResponderCapture: () => true,
 
             onPanResponderGrant: () => {
                 isDragging.current = true;
-            startDragProgress.current = progress; // Store where we started
+                startDragProgress.current = progress; // Store where we started
             },
 
             onPanResponderMove: (evt, gestureState) => {
                 if (!waveformWidth || !duration) return;
 
-            // Calculate change in seconds based on pixel movement
-            const percentChange = gestureState.dx / waveformWidth;
-            const timeChange = percentChange * duration;
+                // Calculate change in seconds based on pixel movement
+                const percentChange = gestureState.dx / waveformWidth;
+                const timeChange = percentChange * duration;
 
-            // New position = start + change
-            let newPos = startDragProgress.current + timeChange;
+                // New position = start + change
+                let newPos = startDragProgress.current + timeChange;
 
-            // Clamp
-            newPos = Math.max(0, Math.min(newPos, duration));
+                // Clamp
+                newPos = Math.max(0, Math.min(newPos, duration));
 
-            // Update UI immediately
-            setProgress(newPos);
+                // Update UI immediately
+                setProgress(newPos);
             },
 
             onPanResponderRelease: async () => {
                 // Commit the seek
                 if (sound) {
-                await sound.setPositionAsync(progress);
-            if (!isPlaying) {
-                await sound.playAsync();
-            setIsPlaying(true);
+                    await sound.setPositionAsync(progress);
+                    if (!isPlaying) {
+                        await sound.playAsync();
+                        setIsPlaying(true);
                     }
                 }
-            isDragging.current = false;
+                isDragging.current = false;
             },
 
             onPanResponderTerminationRequest: () => false,
         })
-            ).current;
+    ).current;
 
     // We don't use handleSeek directly in PanResponder anymore
     const handleSeekTap = async (event: any) => {
         if (!waveformWidth || !duration) return;
-            const x = event.nativeEvent.locationX;
-            const seekPosition = (x / waveformWidth) * duration;
+        const x = event.nativeEvent.locationX;
+        const seekPosition = (x / waveformWidth) * duration;
 
-            if (sound) {
-                await sound.setPositionAsync(seekPosition);
+        if (sound) {
+            await sound.setPositionAsync(seekPosition);
             setProgress(seekPosition);
             if (!isPlaying) {
                 await sound.playAsync();
-            setIsPlaying(true);
+                setIsPlaying(true);
             }
         }
     };
@@ -830,12 +929,12 @@ export default function ChatDetailScreen() {
     const renderContent = () => {
         if (message.type === 'text') {
             return (
-            <Text style={[
-                styles.messageText,
-                { color: isSender ? '#FFFFFF' : theme.text }
-            ]}>
-                {message.content}
-            </Text>
+                <Text style={[
+                    styles.messageText,
+                    { color: isSender ? '#FFFFFF' : theme.text }
+                ]}>
+                    {message.content}
+                </Text>
             );
         } else if (message.type === 'voice') {
             const displayDuration = duration > 0 ? duration / 1000 : (message.media_metadata?.duration || 0);
@@ -844,71 +943,71 @@ export default function ChatDetailScreen() {
             const progressRatio = duration > 0 ? progress / duration : 0;
 
             return (
-            <View style={styles.audioContainer}>
-                <View style={styles.audioTopRow}>
-                    <TouchableOpacity onPress={playAudio} style={styles.playButton}>
-                        <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <View
-                        style={[
-                            styles.waveformContainer,
-                            { flex: 1, height: 32, justifyContent: 'center', maxWidth: 160, overflow: 'hidden' }
-                        ]}
-                        onLayout={(e) => setWaveformWidth(e.nativeEvent.layout.width)}
-                        {...panResponder.panHandlers}
-                    >
-                        <TouchableOpacity
-                            activeOpacity={1}
-                            onPress={handleSeekTap}
-                            style={{ flexDirection: 'row', alignItems: 'center', height: '100%', width: '100%', justifyContent: 'space-between' }}
-                        >
-                            {[...Array(20)].map((_, i) => { // Reduced to 20 to fit better
-                                const barProgress = i / 20;
-                                const isFilled = barProgress < progressRatio;
-                                const heightPattern = [12, 20, 32, 16, 24, 28, 12, 20, 32, 16, 24, 8, 14, 22, 18, 10, 26, 14, 18, 10];
-                                const barHeight = heightPattern[i % heightPattern.length];
-
-                                return (
-                                    <View
-                                        key={i}
-                                        style={[
-                                            styles.waveformBar,
-                                            {
-                                                height: barHeight,
-                                                width: 3,
-                                                backgroundColor: isFilled
-                                                    ? (isSender ? '#FFFFFF' : theme.primary)
-                                                    : (isSender ? 'rgba(255,255,255,0.4)' : theme.icon),
-                                                opacity: 1,
-                                                borderRadius: 1.5,
-                                            }
-                                        ]}
-                                    />
-                                );
-                            })}
+                <View style={styles.audioContainer}>
+                    <View style={styles.audioTopRow}>
+                        <TouchableOpacity onPress={playAudio} style={styles.playButton}>
+                            <Ionicons name={isPlaying ? "pause" : "play"} size={20} color="#FFFFFF" />
                         </TouchableOpacity>
+                        <View
+                            style={[
+                                styles.waveformContainer,
+                                { flex: 1, height: 32, justifyContent: 'center', maxWidth: 160, overflow: 'hidden' }
+                            ]}
+                            onLayout={(e) => setWaveformWidth(e.nativeEvent.layout.width)}
+                            {...panResponder.panHandlers}
+                        >
+                            <TouchableOpacity
+                                activeOpacity={1}
+                                onPress={handleSeekTap}
+                                style={{ flexDirection: 'row', alignItems: 'center', height: '100%', width: '100%', justifyContent: 'space-between' }}
+                            >
+                                {[...Array(20)].map((_, i) => { // Reduced to 20 to fit better
+                                    const barProgress = i / 20;
+                                    const isFilled = barProgress < progressRatio;
+                                    const heightPattern = [12, 20, 32, 16, 24, 28, 12, 20, 32, 16, 24, 8, 14, 22, 18, 10, 26, 14, 18, 10];
+                                    const barHeight = heightPattern[i % heightPattern.length];
+
+                                    return (
+                                        <View
+                                            key={i}
+                                            style={[
+                                                styles.waveformBar,
+                                                {
+                                                    height: barHeight,
+                                                    width: 3,
+                                                    backgroundColor: isFilled
+                                                        ? (isSender ? '#FFFFFF' : theme.primary)
+                                                        : (isSender ? 'rgba(255,255,255,0.4)' : theme.icon),
+                                                    opacity: 1,
+                                                    borderRadius: 1.5,
+                                                }
+                                            ]}
+                                        />
+                                    );
+                                })}
+                            </TouchableOpacity>
+                        </View>
                     </View>
+                    <Text style={[styles.audioDuration, {
+                        color: isSender ? 'rgba(255,255,255,0.7)' : theme.textTertiary,
+                        marginTop: 4,
+                        alignSelf: 'flex-start',
+                        marginLeft: 40 // Align with waveform start
+                    }]}>
+                        {`${Math.floor(currentSeconds / 60)}:${String(currentSeconds % 60).padStart(2, '0')} / ${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`}
+                    </Text>
                 </View>
-                <Text style={[styles.audioDuration, {
-                    color: isSender ? 'rgba(255,255,255,0.7)' : theme.textTertiary,
-                    marginTop: 4,
-                    alignSelf: 'flex-start',
-                    marginLeft: 40 // Align with waveform start
-                }]}>
-                    {`${Math.floor(currentSeconds / 60)}:${String(currentSeconds % 60).padStart(2, '0')} / ${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`}
-                </Text>
-            </View>
             );
         } else if (message.type === 'image') {
             return (
-            <TouchableOpacity onPress={() => onImagePress?.(message.content)} style={styles.imageMessageContainer}>
-                <Image
-                    source={{ uri: message.content }}
-                    style={styles.messageImage}
-                    contentFit="cover"
-                    transition={200}
-                />
-            </TouchableOpacity>
+                <TouchableOpacity onPress={() => onImagePress?.(message.content)} style={styles.imageMessageContainer}>
+                    <Image
+                        source={{ uri: message.content }}
+                        style={styles.messageImage}
+                        contentFit="cover"
+                        transition={200}
+                    />
+                </TouchableOpacity>
             );
         }
     };
@@ -916,407 +1015,422 @@ export default function ChatDetailScreen() {
     const formatTime = (dateString: string) => {
         try {
             const date = new Date(dateString);
-            return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } catch (e) {
             return '';
         }
     };
 
-            return (
-            <View style={[
-                styles.messageRow,
-                isSender ? styles.messageRowSender : styles.messageRowReceiver
-            ]}>
-                {!isSender && (
+    return (
+        <View style={[
+            styles.messageRow,
+            isSender ? styles.messageRowSender : styles.messageRowReceiver,
+            !showSenderInfo && !isSender && { marginTop: 2 }
+        ]}>
+            {!isSender && (
+                showSenderInfo ? (
                     <Image
-                        source={{ uri: message.sender_image || undefined }}
+                        source={{ uri: senderImage || undefined }}
                         style={styles.messageAvatar}
                         contentFit="cover"
                     />
+                ) : (
+                    <View style={{ width: 32, height: 32, marginRight: 8 }} />
+                )
+            )}
+
+            <View style={[styles.bubbleContainer, isSender ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
+                {!isSender && senderName && showSenderInfo && (
+                    <Text style={{
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                        marginBottom: 4,
+                        marginLeft: 4
+                    }}>
+                        {senderName}
+                    </Text>
                 )}
+                <View style={[
+                    styles.bubble,
+                    isSender ? [styles.bubbleSender, { backgroundColor: theme.primary }] : [styles.bubbleReceiver, { backgroundColor: isDark ? theme.surface : theme.surface }]
+                ]}>
+                    {renderContent()}
+                </View>
 
-                <View style={[styles.bubbleContainer, isSender ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
-                    <View style={[
-                        styles.bubble,
-                        isSender ? [styles.bubbleSender, { backgroundColor: theme.primary }] : [styles.bubbleReceiver, { backgroundColor: isDark ? theme.surface : theme.surface }]
-                    ]}>
-                        {renderContent()}
-                    </View>
-
-                    <View style={styles.messageMeta}>
-                        <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
-                            {formatTime(message.created_at)}
-                        </Text>
-                        {isSender && (
-                            <Ionicons name="checkmark-done-outline" size={16} color={theme.primary} />
-                        )}
-                    </View>
+                <View style={styles.messageMeta}>
+                    <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
+                        {formatTime(message.created_at)}
+                    </Text>
+                    {isSender && (
+                        <Ionicons name="checkmark-done-outline" size={16} color={theme.primary} />
+                    )}
                 </View>
             </View>
-            );
+        </View>
+    );
 };
 
-            const styles = StyleSheet.create({
-                container: {
-                flex: 1,
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
     },
-            header: {
-                position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 10,
-            borderBottomWidth: 1,
+    header: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        borderBottomWidth: 1,
     },
-            headerContent: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 16,
-            paddingBottom: 12,
-            paddingTop: 8, // Additional padding after safe area
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        paddingTop: 8, // Additional padding after safe area
     },
-            headerLeft: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            flex: 1,
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
     },
-            backButton: {
-                padding: 4,
+    backButton: {
+        padding: 4,
     },
-            headerProfile: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            flex: 1,
+    headerProfile: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1,
     },
-            headerAvatar: {
-                width: 40,
-            height: 40,
-            borderRadius: 20,
-            borderWidth: 1,
+    headerAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 1,
     },
-            onlineDot: {
-                position: 'absolute',
-            bottom: 0,
-            right: 0,
-            width: 12,
-            height: 12,
-            borderRadius: 6,
-            backgroundColor: '#48BB78',
-            borderWidth: 2,
+    onlineDot: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#48BB78',
+        borderWidth: 2,
     },
-            headerName: {
-                fontSize: 16,
-            fontFamily: Fonts.bold,
-            lineHeight: 20,
+    headerName: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+        lineHeight: 20,
     },
-            roleTag: {
-                paddingHorizontal: 6,
-            paddingVertical: 2,
-            borderRadius: 4,
-            alignSelf: 'flex-start',
+    roleTag: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        alignSelf: 'flex-start',
     },
-            roleText: {
-                fontSize: 10,
-            fontFamily: Fonts.bold,
-            letterSpacing: 1,
+    roleText: {
+        fontSize: 10,
+        fontFamily: Fonts.bold,
+        letterSpacing: 1,
     },
-            headerActions: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
     },
-            keyboardView: {
-                flex: 1,
-            paddingTop: 100, // Space for header
+    keyboardView: {
+        flex: 1,
+        paddingTop: 100, // Space for header
     },
-            messagesList: {
-                paddingHorizontal: 16,
-            paddingTop: 16,
-            gap: 20,
+    messagesList: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        gap: 20,
     },
-            dateDivider: {
-                alignItems: 'center',
-            marginVertical: 16,
+    dateDivider: {
+        alignItems: 'center',
+        marginVertical: 16,
     },
-            dateBadge: {
-                paddingHorizontal: 12,
-            paddingVertical: 4,
-            borderRadius: 12,
+    dateBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
     },
-            dateText: {
-                fontSize: 11,
-            fontFamily: Fonts.bold,
-            textTransform: 'uppercase',
-            letterSpacing: 1,
+    dateText: {
+        fontSize: 11,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
-            messageRow: {
-                flexDirection: 'row',
-            gap: 8,
-            maxWidth: '100%',
-            alignItems: 'flex-end',
+    messageRow: {
+        flexDirection: 'row',
+        gap: 8,
+        maxWidth: '100%',
+        alignItems: 'flex-end',
     },
-            messageRowSender: {
-                justifyContent: 'flex-end',
-            marginLeft: 'auto',
+    messageRowSender: {
+        justifyContent: 'flex-end',
+        marginLeft: 'auto',
     },
-            messageRowReceiver: {
-                justifyContent: 'flex-start',
+    messageRowReceiver: {
+        justifyContent: 'flex-start',
     },
-            messageAvatar: {
-                width: 32,
-            height: 32,
-            borderRadius: 16,
-            marginBottom: 20, // Align with bubble bottom
+    messageAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        marginBottom: 20, // Align with bubble bottom
     },
-            bubbleContainer: {
-                maxWidth: '85%',
-            gap: 4,
+    bubbleContainer: {
+        maxWidth: '85%',
+        gap: 4,
     },
-            bubble: {
-                paddingHorizontal: 16,
-            paddingVertical: 12,
-            borderRadius: 20,
-            shadowColor: "#000",
-            shadowOffset: {width: 0, height: 1 },
-            shadowOpacity: 0.1,
-            shadowRadius: 2,
-            elevation: 1,
+    bubble: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
     },
-            bubbleSender: {
-                borderBottomRightRadius: 4,
+    bubbleSender: {
+        borderBottomRightRadius: 4,
     },
-            bubbleReceiver: {
-                borderBottomLeftRadius: 4,
+    bubbleReceiver: {
+        borderBottomLeftRadius: 4,
     },
-            messageText: {
-                fontSize: 15,
-            fontFamily: Fonts.regular,
-            lineHeight: 22,
+    messageText: {
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        lineHeight: 22,
     },
-            messageMeta: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            paddingHorizontal: 2,
+    messageMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 2,
     },
-            timestamp: {
-                fontSize: 10,
+    timestamp: {
+        fontSize: 10,
     },
-            // Audio styling
-            audioContainer: {
-                minWidth: 150,
+    // Audio styling
+    audioContainer: {
+        minWidth: 150,
     },
-            audioTopRow: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
+    audioTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
-            playButton: {
-                width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: 'rgba(255,255,255,0.3)', // Or primary if receiver
-            justifyContent: 'center',
-            alignItems: 'center',
+    playButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.3)', // Or primary if receiver
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-            waveformContainer: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            height: 24,
-            gap: 2,
-            flex: 1,
+    waveformContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 24,
+        gap: 2,
+        flex: 1,
     },
-            waveformBar: {
-                width: 3,
-            borderRadius: 2,
+    waveformBar: {
+        width: 3,
+        borderRadius: 2,
     },
-            audioDuration: {
-                fontSize: 11,
-            fontFamily: Fonts.medium,
+    audioDuration: {
+        fontSize: 11,
+        fontFamily: Fonts.medium,
     },
-            // Image styling
-            imageMessageContainer: {
-                overflow: 'hidden',
+    // Image styling
+    imageMessageContainer: {
+        overflow: 'hidden',
         // padding: 0, // Reset padding for image bubble
     },
-            messageImage: {
-                width: 240,
-            height: 180,
-            borderRadius: 16,
+    messageImage: {
+        width: 240,
+        height: 180,
+        borderRadius: 16,
     },
-            captionContainer: {
-                marginTop: 8,
+    captionContainer: {
+        marginTop: 8,
     },
-            // Input styling
-            inputContainer: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            gap: 12,
-            borderTopWidth: 1,
+    // Input styling
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        gap: 12,
+        borderTopWidth: 1,
     },
-            attachButton: {
-                padding: 4,
+    attachButton: {
+        padding: 4,
     },
-            inputFieldContainer: {
-                flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderRadius: 20,
-            paddingHorizontal: 12,
-            minHeight: 40,
-            maxHeight: 100,
+    inputFieldContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        minHeight: 40,
+        maxHeight: 100,
     },
-            input: {
-                flex: 1,
-            fontSize: 15,
-            fontFamily: Fonts.regular,
-            paddingVertical: 8,
-            paddingRight: 8,
+    input: {
+        flex: 1,
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        paddingVertical: 8,
+        paddingRight: 8,
     },
-            smileyButton: {
-                padding: 4,
+    smileyButton: {
+        padding: 4,
     },
-            sendButton: {
-                width: 40,
-            height: 40,
-            borderRadius: 20,
-            justifyContent: 'center',
-            alignItems: 'center',
-            elevation: 2,
-            shadowColor: "#000",
-            shadowOffset: {width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 3,
+    sendButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 2,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
     },
-            attachmentMenu: {
-                position: 'absolute',
-            bottom: 60,
-            left: 10,
-            width: 150,
-            flexDirection: 'column',
-            padding: 12,
-            gap: 12,
-            borderRadius: 16,
-            elevation: 8,
-            shadowColor: '#000',
-            shadowOffset: {width: 0, height: 2 },
-            shadowOpacity: 0.2,
-            shadowRadius: 8,
-            zIndex: 100,
+    attachmentMenu: {
+        position: 'absolute',
+        bottom: 60,
+        left: 10,
+        width: 150,
+        flexDirection: 'column',
+        padding: 12,
+        gap: 12,
+        borderRadius: 16,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        zIndex: 100,
     },
-            attachmentItem: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
+    attachmentItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
-            attachmentIcon: {
-                width: 50,
-            height: 50,
-            borderRadius: 25,
-            justifyContent: 'center',
-            alignItems: 'center',
+    attachmentIcon: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-            attachmentText: {
-                fontSize: 12,
-            fontFamily: Fonts.medium,
+    attachmentText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
     },
-            recordingContainer: {
-                flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 8,
+    recordingContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 8,
     },
-            recordingIndicator: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
+    recordingIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
     },
-            recordingDot: {
-                width: 12,
-            height: 12,
-            borderRadius: 6,
-            backgroundColor: '#EF4444',
+    recordingDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#EF4444',
     },
-            recordingText: {
-                fontSize: 16,
-            fontFamily: Fonts.medium,
+    recordingText: {
+        fontSize: 16,
+        fontFamily: Fonts.medium,
     },
-            stopButton: {
-                width: 44,
-            height: 44,
-            borderRadius: 22,
-            justifyContent: 'center',
-            alignItems: 'center',
+    stopButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-            typingIndicatorContainer: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 20,
-            paddingVertical: 8,
-            gap: 8,
+    typingIndicatorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        gap: 8,
     },
-            typingDots: {
-                flexDirection: 'row',
-            gap: 3,
+    typingDots: {
+        flexDirection: 'row',
+        gap: 3,
     },
-            typingDot: {
-                width: 4,
-            height: 4,
-            borderRadius: 2,
+    typingDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
     },
-            typingIndicatorText: {
-                fontSize: 12,
-            fontFamily: Fonts.medium,
-            fontStyle: 'italic',
+    typingIndicatorText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        fontStyle: 'italic',
     },
-            waveformAnimation: {
-                flexDirection: 'row',
-            alignItems: 'center',
-            gap: 3,
-            marginRight: 8,
+    waveformAnimation: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        marginRight: 8,
     },
-            waveformBarSmall: {
-                width: 3,
-            borderRadius: 1.5,
+    waveformBarSmall: {
+        width: 3,
+        borderRadius: 1.5,
     },
-            viewerContainer: {
-                flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
+    viewerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-            viewerClose: {
-                position: 'absolute',
-            top: 40,
-            right: 20,
-            zIndex: 10,
-            padding: 8,
+    viewerClose: {
+        position: 'absolute',
+        top: 40,
+        right: 20,
+        zIndex: 10,
+        padding: 8,
     },
-            viewerImage: {
-                width: '100%',
-            height: '80%',
+    viewerImage: {
+        width: '100%',
+        height: '80%',
     },
-            thumbnailListContainer: {
-                paddingHorizontal: 8,
+    thumbnailListContainer: {
+        paddingHorizontal: 8,
     },
-            thumbnailWrapper: {
-                position: 'relative',
+    thumbnailWrapper: {
+        position: 'relative',
     },
-            thumbnail: {
-                width: 60,
-            height: 60,
-            borderRadius: 8,
+    thumbnail: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
     },
-            removeThumbnail: {
-                position: 'absolute',
-            top: -6,
-            right: -6,
-            backgroundColor: 'white',
-            borderRadius: 10,
+    removeThumbnail: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        backgroundColor: 'white',
+        borderRadius: 10,
     },
 });
