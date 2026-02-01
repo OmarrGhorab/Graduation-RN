@@ -1,3 +1,6 @@
+import CustomConfirmModal from '@/components/CustomConfirmModal';
+import { MessageActionSheet } from '@/components/MessageActionSheet';
+import { useToast } from '@/components/toast';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -9,6 +12,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -95,6 +99,10 @@ export default function ChatDetailScreen() {
     const [isRecording, setIsRecording] = useState(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [uploadingMedia, setUploadingMedia] = useState(false);
+    const flatListRef = useRef<FlatList>(null);
+    const toast = useToast();
+    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+    const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
     const isFocused = useIsFocused();
     const lastTypingReport = useRef<number>(0);
     const [viewerImage, setViewerImage] = useState<string | null>(null);
@@ -129,18 +137,153 @@ export default function ChatDetailScreen() {
         refetchOnMount: true, // Ensure we get fresh data when entering the chat
     });
 
+    // Pinned Messages Query
+    const { data: pinnedData, refetch: refetchPinned } = useQuery({
+        queryKey: ['pinned-messages', id],
+        queryFn: () => ChatService.getPinnedMessages(id!),
+        enabled: !!id,
+    });
+    const pinnedMessages = pinnedData?.pinned_messages || [];
+
+    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+    const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
+    const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
+    const [permissions, setPermissions] = useState({ canDelete: false, canPin: false });
+
+    // Determine Permissions
+    const checkPermissions = (message: Message) => {
+        const user = useAuthStore.getState().user;
+        const member = conversation?.members?.find(m => m.user_id === user?.id);
+        const globalRole = user?.role;
+
+        // Delete: Only own messages (for now)
+        const canDelete = message.sender_id === user?.id;
+
+        // Pin: Global Role OR (Owner/Admin in Group)
+        const isGlobalPinner = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
+        const isLocalPinner = ['OWNER', 'ADMIN'].includes(member?.member_role || '');
+        const canPin = isGlobalPinner || isLocalPinner;
+
+        return { canDelete, canPin };
+    };
+
+    const handleMessageLongPress = (message: Message) => {
+        const perms = checkPermissions(message);
+        setPermissions(perms);
+        setSelectedMessage(message);
+        setIsActionSheetVisible(true);
+    };
+
+    const closeActionSheet = () => {
+        setIsActionSheetVisible(false);
+        setSelectedMessage(null);
+    };
+
+    const handleReply = () => {
+        if (selectedMessage) {
+            setReplyToMessage(selectedMessage);
+        }
+        closeActionSheet();
+    };
+
+    const scrollToMessage = (messageId: string) => {
+        const index = messages.findIndex(m => m.id === messageId);
+        if (index !== -1) {
+            flatListRef.current?.scrollToIndex({
+                index,
+                animated: true,
+                viewPosition: 0.5
+            });
+        }
+    };
+
+    const handlePin = async () => {
+        if (!selectedMessage) return;
+        const isCurrentlyPinned = pinnedMessages.some(m => m.message_id === selectedMessage.id);
+
+        console.log(`[ChatDetail] Attempting to ${isCurrentlyPinned ? 'unpin' : 'pin'} message:`, {
+            conversationId: id,
+            messageId: selectedMessage.id
+        });
+
+        try {
+            if (isCurrentlyPinned) {
+                await ChatService.unpinMessage(id!, selectedMessage.id);
+                toast.success('Unpinned', 'Message unpinned successfully');
+            } else {
+                await ChatService.pinMessage(id!, selectedMessage.id);
+                toast.success('Pinned', 'Message pinned successfully');
+            }
+            refetchPinned();
+        } catch (error: any) {
+            console.error(`[ChatDetail] Pin/Unpin failed:`, error);
+            toast.error('Error', error.response?.data?.message || error.message);
+        }
+        closeActionSheet();
+    };
+
+    const handleCopy = async () => {
+        if (selectedMessage?.content) {
+            await Clipboard.setStringAsync(selectedMessage.content);
+            toast.info('Copied', 'Text copied to clipboard');
+        }
+        closeActionSheet();
+    };
+
+    const handleDelete = () => {
+        if (!selectedMessage) return;
+        setMessageToDelete(selectedMessage);
+        setIsDeleteModalVisible(true);
+        closeActionSheet();
+    };
+
+    const confirmDelete = async () => {
+        if (!messageToDelete) return;
+        try {
+            await ChatService.deleteMessage(id!, messageToDelete.id);
+            // Optimistic update
+            queryClient.setQueryData(['messages', id], (old: any) => {
+                if (!old) return old;
+                if (old.pages) {
+                    return {
+                        ...old,
+                        pages: old.pages.map((page: any) => {
+                            const msgs = Array.isArray(page) ? page : page.messages;
+                            const filtered = msgs.filter((m: any) => m.id !== messageToDelete.id);
+                            return Array.isArray(page) ? filtered : { ...page, messages: filtered };
+                        })
+                    };
+                }
+                return old;
+            });
+            toast.success('Deleted', 'Message deleted successfully');
+        } catch (error: any) {
+            console.error('[ChatDetail] Delete failed:', error);
+            toast.error('Error', 'Failed to delete message');
+        }
+        setMessageToDelete(null);
+    };
+
     // Flatten messages from pages
     const messages = React.useMemo(() => {
         if (!messagesData?.pages) return [];
-        console.log('[ChatDetail] Pages structure:', JSON.stringify(messagesData.pages[0], null, 2));
-        return messagesData.pages.flatMap(page => {
-            // Flexible handling for both Array and Object responses
-            if (Array.isArray(page)) return page;
-            if (page && typeof page === 'object' && 'messages' in page && Array.isArray((page as any).messages)) {
-                return (page as any).messages;
+
+        const allMessages: Message[] = [];
+        const seenIds = new Set<string>();
+
+        messagesData.pages.forEach(page => {
+            const msgs = Array.isArray(page) ? page : (page as any)?.messages;
+            if (Array.isArray(msgs)) {
+                msgs.forEach((m: Message) => {
+                    if (m && m.id && !seenIds.has(m.id)) {
+                        seenIds.add(m.id);
+                        allMessages.push(m);
+                    }
+                });
             }
-            return [];
         });
+
+        return allMessages;
     }, [messagesData?.pages]);
 
     // We don't use state for messages anymore, derived from query.
@@ -292,11 +435,13 @@ export default function ChatDetailScreen() {
             const payload = {
                 type,
                 content: mediaUrl,
-                media_metadata: type === 'voice' ? { duration } : undefined
+                media_metadata: type === 'voice' ? { duration } : undefined,
+                reply_to_id: replyToMessage?.id
             };
             console.log(`[ChatDetail] Sending message with payload:`, JSON.stringify(payload, null, 2));
 
             sendMessageMutation.mutate(payload);
+            setReplyToMessage(null);
         } catch (error: any) {
             console.error(`[ChatDetail] Upload/Send Error:`, error);
             Alert.alert('Process Failed', `Error: ${error.message}\n\nPlease check console for full data.`);
@@ -317,9 +462,13 @@ export default function ChatDetailScreen() {
 
         if (inputText.trim()) {
             sendMessageMutation.mutate({
-                type: 'text',
                 content: inputText.trim(),
+                type: 'text',
+                reply_to_id: replyToMessage?.id
             });
+            setInputText('');
+            setReplyToMessage(null);
+            setIsEmojiOpen(false);
         }
     };
 
@@ -489,8 +638,59 @@ export default function ChatDetailScreen() {
                 textAlign={textAlign}
             />
 
+            {pinnedMessages.length > 0 && (
+                <View style={[styles.pinnedBar, { backgroundColor: isDark ? 'rgba(9, 124, 70, 0.15)' : 'rgba(9, 124, 70, 0.05)', borderBottomColor: theme.divider }]}>
+                    <TouchableOpacity
+                        style={styles.pinnedContent}
+                        onPress={() => scrollToMessage(pinnedMessages[0].message_id)}
+                    >
+                        <Image
+                            source={{ uri: pinnedMessages[0].message?.sender_image || 'https://ui-avatars.com/api/?name=User' }}
+                            style={styles.pinnedAvatar}
+                        />
+                        <View style={styles.pinnedTextContainer}>
+                            <Text style={[styles.pinnedTitle, { color: theme.primary }]} numberOfLines={1}>
+                                {pinnedMessages[0].message?.sender_name || 'User'}
+                            </Text>
+                            <View style={styles.pinnedSnippetContainer}>
+                                {pinnedMessages[0].message?.type === 'image' ? (
+                                    <View style={styles.mediaPreview}>
+                                        <Ionicons name="image" size={14} color={theme.textSecondary} />
+                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>Photo</Text>
+                                    </View>
+                                ) : pinnedMessages[0].message?.type === 'voice' ? (
+                                    <View style={styles.mediaPreview}>
+                                        <Ionicons name="mic" size={14} color={theme.textSecondary} />
+                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>Voice Message</Text>
+                                    </View>
+                                ) : (
+                                    <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>
+                                        {pinnedMessages[0].message?.content}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                        {pinnedMessages[0].message?.type === 'image' && pinnedMessages[0].message?.content && (
+                            <Image
+                                source={{ uri: pinnedMessages[0].message.content }}
+                                style={styles.pinnedMediaThumbnail}
+                                contentFit="cover"
+                            />
+                        )}
+                        <Ionicons name="pin" size={16} color={theme.primary} style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                    {pinnedMessages.length > 1 && (
+                        <TouchableOpacity style={styles.pinnedCountContainer}>
+                            <Text style={[styles.pinnedCount, { color: theme.textTertiary }]}>
+                                +{pinnedMessages.length - 1}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+
             <KeyboardAvoidingView
-                style={styles.keyboardView}
+                style={[styles.keyboardView, pinnedMessages.length > 0 && { paddingTop: 0 }]}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
@@ -500,6 +700,7 @@ export default function ChatDetailScreen() {
                     </View>
                 ) : (
                     <FlatList
+                        ref={flatListRef}
                         data={messages}
                         renderItem={
                             ({ item, index }: { item: Message, index: number }) => {
@@ -522,6 +723,8 @@ export default function ChatDetailScreen() {
                                         senderName={senderName}
                                         senderImage={senderImage}
                                         showSenderInfo={isNewGroup}
+                                        onLongPress={() => handleMessageLongPress(item)}
+                                        onReplyPress={scrollToMessage}
                                     />
                                 )
                             }}
@@ -610,22 +813,35 @@ export default function ChatDetailScreen() {
                                 />
                             </TouchableOpacity>
 
-                            <View style={[styles.inputFieldContainer, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
-                                <TextInput
-                                    style={[styles.input, { color: theme.text, textAlign }]}
-                                    placeholder="Type a message..."
-                                    placeholderTextColor={theme.textTertiary}
-                                    value={inputText}
-                                    onChangeText={setInputText}
-                                    multiline
-                                    editable={!sendMessageMutation.isPending && !uploadingMedia}
-                                />
-                                <TouchableOpacity
-                                    style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
-                                    onPress={() => setIsEmojiOpen(!isEmojiOpen)}
-                                >
-                                    <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
-                                </TouchableOpacity>
+                            <View style={styles.inputFieldContainer}>
+                                {replyToMessage && (
+                                    <View style={[styles.replyPreview, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderLeftColor: theme.primary }]}>
+                                        <View style={styles.replyPreviewContent}>
+                                            <Text style={[styles.replyPreviewName, { color: theme.primary }]}>{replyToMessage.sender_name}</Text>
+                                            <Text style={[styles.replyPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>{replyToMessage.content}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => setReplyToMessage(null)}>
+                                            <Ionicons name="close" size={20} color={theme.textSecondary} />
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                                <View style={[styles.inputWrapper, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
+                                    <TextInput
+                                        style={[styles.input, { color: theme.text, textAlign }]}
+                                        placeholder="Type a message..."
+                                        placeholderTextColor={theme.textTertiary}
+                                        value={inputText}
+                                        onChangeText={setInputText}
+                                        multiline
+                                        editable={!sendMessageMutation.isPending && !uploadingMedia}
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
+                                        onPress={() => setIsEmojiOpen(!isEmojiOpen)}
+                                    >
+                                        <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
 
                             <TouchableOpacity
@@ -642,7 +858,36 @@ export default function ChatDetailScreen() {
                         </>
                     )}
                 </View>
+
+                {isActionSheetVisible && (
+                    <MessageActionSheet
+                        visible={isActionSheetVisible}
+                        onClose={closeActionSheet}
+                        onReply={handleReply}
+                        onPin={handlePin}
+                        onCopy={handleCopy}
+                        onDelete={handleDelete}
+                        isDark={isDark}
+                        theme={theme}
+                        message={selectedMessage}
+                        canDelete={permissions.canDelete}
+                        canPin={permissions.canPin}
+                        isPinned={selectedMessage ? pinnedMessages.some(m => m.message_id === selectedMessage.id) : false}
+                    />
+                )}
             </KeyboardAvoidingView >
+
+            <CustomConfirmModal
+                visible={isDeleteModalVisible}
+                onClose={() => setIsDeleteModalVisible(false)}
+                onConfirm={confirmDelete}
+                title="Delete Message"
+                message="Are you sure you want to delete this message? This action cannot be undone."
+                confirmText="Delete"
+                isDestructive
+                isDark={isDark}
+                theme={theme}
+            />
 
             {/* Image Viewer Modal */}
             < Modal visible={!!viewerImage} transparent animationType="fade" onRequestClose={() => setViewerImage(null)}>
@@ -789,7 +1034,9 @@ const MessageBubble = ({
     onImagePress,
     senderName,
     senderImage,
-    showSenderInfo = true
+    showSenderInfo = true,
+    onLongPress,
+    onReplyPress
 }: {
     message: Message,
     theme: any,
@@ -798,7 +1045,9 @@ const MessageBubble = ({
     onImagePress?: (uri: string) => void,
     senderName?: string,
     senderImage?: string | null,
-    showSenderInfo?: boolean
+    showSenderInfo?: boolean,
+    onLongPress?: () => void,
+    onReplyPress?: (messageId: string) => void
 }) => {
     const isSender = message.sender_id === currentUserId;
     const [isPlaying, setIsPlaying] = useState(false);
@@ -1050,12 +1299,27 @@ const MessageBubble = ({
                         {senderName}
                     </Text>
                 )}
-                <View style={[
-                    styles.bubble,
-                    isSender ? [styles.bubbleSender, { backgroundColor: theme.primary }] : [styles.bubbleReceiver, { backgroundColor: isDark ? theme.surface : theme.surface }]
-                ]}>
+                {message.reply_to && (
+                    <TouchableOpacity
+                        style={[styles.replyBubble, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderLeftColor: theme.primary }]}
+                        onPress={() => onReplyPress?.(message.reply_to!.id)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.replyName, { color: theme.primary }]}>{message.reply_to.sender_name}</Text>
+                        <Text style={[styles.replyText, { color: theme.textSecondary }]} numberOfLines={1}>{message.reply_to.content}</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    style={[
+                        styles.bubble,
+                        isSender ? [styles.bubbleSender, { backgroundColor: theme.primary }] : [styles.bubbleReceiver, { backgroundColor: isDark ? theme.surface : theme.surface }]
+                    ]}
+                    onLongPress={onLongPress}
+                    activeOpacity={0.9}
+                    delayLongPress={200}
+                >
                     {renderContent()}
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.messageMeta}>
                     <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
@@ -1205,6 +1469,21 @@ const styles = StyleSheet.create({
     bubbleReceiver: {
         borderBottomLeftRadius: 4,
     },
+    replyBubble: {
+        padding: 8,
+        borderRadius: 8,
+        marginBottom: 4,
+        borderLeftWidth: 3,
+    },
+    replyName: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        marginBottom: 2
+    },
+    replyText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+    },
     messageText: {
         fontSize: 15,
         fontFamily: Fonts.regular,
@@ -1278,12 +1557,93 @@ const styles = StyleSheet.create({
     },
     inputFieldContainer: {
         flex: 1,
+        marginHorizontal: 8,
+    },
+    pinnedBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 20,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        marginTop: 100, // Same as keyboardView paddingTop to start below header
+        zIndex: 5,
+    },
+    pinnedContent: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    pinnedAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    pinnedTextContainer: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    pinnedTitle: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        marginBottom: 2,
+    },
+    pinnedSnippetContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    mediaPreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    pinnedSnippet: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+    },
+    pinnedMediaThumbnail: {
+        width: 36,
+        height: 36,
+        borderRadius: 4,
+        marginLeft: 8,
+    },
+    pinnedCountContainer: {
+        paddingLeft: 8,
+        borderLeftWidth: 1,
+        borderLeftColor: 'rgba(0,0,0,0.1)',
+        marginLeft: 8,
+    },
+    pinnedCount: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 24,
         paddingHorizontal: 12,
-        minHeight: 40,
-        maxHeight: 100,
+        paddingVertical: 8,
+    },
+    replyPreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 8,
+        borderRadius: 8,
+        marginBottom: 8,
+        borderLeftWidth: 3,
+    },
+    replyPreviewContent: {
+        flex: 1,
+    },
+    replyPreviewName: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        marginBottom: 2
+    },
+    replyPreviewText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
     },
     input: {
         flex: 1,

@@ -6,6 +6,7 @@ import {
     MediaPresignRequest,
     MediaPresignResponse,
     Message,
+    PinnedMessage,
     SendMessageRequest
 } from '@/types/chat';
 import { Platform } from 'react-native';
@@ -99,13 +100,6 @@ export const ChatService = {
         });
     },
 
-    // Edit Message
-    async editMessage(conversationId: string, messageId: string, content: string): Promise<{ message: string }> {
-        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}`, {
-            content
-        });
-    },
-
     // Delete Message
     async deleteMessage(conversationId: string, messageId: string): Promise<{ message: string }> {
         return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}`);
@@ -121,9 +115,16 @@ export const ChatService = {
         return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/pin`);
     },
 
+    // Edit Message
+    async editMessage(conversationId: string, messageId: string, content: string): Promise<{ message: string }> {
+        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}`, {
+            content
+        });
+    },
+
     // Get Pinned Messages
-    async getPinnedMessages(conversationId: string): Promise<{ pinned_messages: Message[] }> {
-        return apiClient.get<{ pinned_messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/pinned`);
+    async getPinnedMessages(conversationId: string): Promise<{ pinned_messages: PinnedMessage[] }> {
+        return apiClient.get<{ pinned_messages: PinnedMessage[] }>(`${PREFIX}/conversations/${conversationId}/pinned`);
     },
 
     /**

@@ -22,6 +22,11 @@ export const MessageSchema = z.object({
     sender_name: z.string(),
     sender_image: z.string().nullable().optional(),
     reply_to_id: z.string().nullable().optional(),
+    reply_to: z.object({
+        id: z.string(),
+        content: z.string(),
+        sender_name: z.string()
+    }).optional(),
     media_urls: z.array(z.string()).optional(),
     media_metadata: z.record(z.string(), z.any()).optional(),
     is_deleted: z.boolean().default(false),
@@ -42,8 +47,19 @@ export const ConversationSchema = z.object({
     members: z.array(ChatMemberSchema).optional(),
     unread_count: z.number().default(0),
     last_message: MessageSchema.nullable().optional(),
+    preview_text: z.string().nullable().optional(),
 });
 
+export const PinnedMessageSchema = z.object({
+    id: z.string(),
+    message_id: z.string(),
+    conversation_id: z.string(),
+    pinned_by: z.string(),
+    pinned_at: z.string(),
+    message: MessageSchema
+});
+
+export type PinnedMessage = z.infer<typeof PinnedMessageSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
 
 // Request Types

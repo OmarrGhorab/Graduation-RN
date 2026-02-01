@@ -67,6 +67,18 @@ export default function ChatScreen() {
     const renderConversationItem = ({ item }: { item: Conversation }) => {
         const display = getConversationDisplay(item);
 
+        const getSubtitle = () => {
+            if (item.preview_text) return item.preview_text;
+            if (item.last_message) {
+                const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
+                const content = item.last_message.type === 'image' ? '📷 Image' :
+                    item.last_message.type === 'voice' ? '🎤 Voice Message' :
+                        item.last_message.content;
+                return isMe ? `${t('chat.you')}: ${content}` : content;
+            }
+            return item.description || t('chat.no_messages');
+        };
+
         return (
             <TouchableOpacity
                 style={[styles.itemContainer, { borderBottomColor: theme.divider }]}
@@ -95,7 +107,7 @@ export default function ChatScreen() {
                         style={[styles.message, { color: theme.textSecondary, textAlign }]}
                         numberOfLines={1}
                     >
-                        {item.last_message?.content || item.description || t('chat.no_messages')}
+                        {getSubtitle()}
                     </Text>
                 </View>
 
