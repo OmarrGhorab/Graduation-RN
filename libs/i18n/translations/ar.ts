@@ -40,7 +40,7 @@ export default {
     logIn: 'تسجيل الدخول',
     login: 'تسجيل الدخول',
     logout: 'تسجيل الخروج',
-    
+
     // Sign In screen
     signIn: 'تسجيل الدخول',
     emailUsername: 'البريد الإلكتروني / اسم المستخدم',
@@ -50,7 +50,7 @@ export default {
     forgotPassword: 'نسيت كلمة المرور؟',
     dontHaveAccount: 'ليس لديك حساب؟',
     or: 'أو',
-    
+
     // Sign Up screen
     createAccount: 'إنشاء حساب',
     fullName: 'الاسم الكامل',
@@ -63,7 +63,7 @@ export default {
     alreadyHaveAccount: 'لديك حساب بالفعل؟',
     usernameAvailable: 'اسم المستخدم متاح!',
     suggestions: 'اقتراحات:',
-    
+
     // Forgot Password
     forgotPasswordTitle: 'نسيت كلمة المرور',
     forgotPasswordSubtitle: 'أدخل بريدك الإلكتروني وسنرسل لك رمز التحقق في الخطوة التالية.',
@@ -75,7 +75,7 @@ export default {
     failedToSendCode: 'فشل إرسال رمز إعادة التعيين',
     userNotFound: 'المستخدم غير موجود',
     tooManyRequests: 'طلبات كثيرة جداً. يرجى الانتظار قبل المحاولة مرة أخرى.',
-    
+
     // Verification
     verifyOTP: 'التحقق من الرمز',
     verifyOTPSubtitle: 'يرجى إدخال رمز الأمان المرسل إلى بريدك الإلكتروني لإعادة تعيين كلمة المرور.',
@@ -95,7 +95,7 @@ export default {
     checkCodeAndTryAgain: 'يرجى التحقق من الرمز والمحاولة مرة أخرى',
     invalidOrExpiredOTP: 'رمز التحقق غير صالح أو منتهي الصلاحية',
     invalidCodeMessage: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
-    
+
     // Reset Password
     resetPassword: 'إعادة تعيين كلمة المرور',
     resetPasswordSubtitle: 'أنشئ كلمة مرور جديدة لحسابك.',
@@ -108,12 +108,12 @@ export default {
     missingSessionInfo: 'معلومات الجلسة مفقودة. يرجى المحاولة مرة أخرى.',
     resetFailed: 'فشل إعادة التعيين',
     failedToResetPassword: 'فشل إعادة تعيين كلمة المرور',
-    
+
     // Reset Success
     resetSuccessTitle: 'تم إعادة تعيين كلمة المرور بنجاح!',
     resetSuccessSubtitle: 'تم تغيير كلمة المرور الخاصة بك بنجاح.',
     goToLogin: 'الذهاب لتسجيل الدخول',
-    
+
     // Device Verification
     newDeviceDetected: 'تم اكتشاف جهاز جديد',
     newDeviceDetectedMessage: 'يرجى التحقق من هذا الجهاز باستخدام الرمز المرسل إلى بريدك الإلكتروني.',
@@ -123,7 +123,7 @@ export default {
     deviceVerified: 'تم التحقق من الجهاز',
     deviceVerifiedMessage: 'تم التحقق من الجهاز بنجاح',
     missingVerificationData: 'بيانات التحقق مفقودة. يرجى محاولة تسجيل الدخول مرة أخرى.',
-    
+
     // 2FA
     twoFactorTitle: 'المصادقة الثنائية',
     twoFactorSubtitle: 'أدخل الرمز المكون من 6 أرقام من تطبيق المصادقة.',
@@ -132,7 +132,7 @@ export default {
     verify: 'تحقق',
     useBackupCode: 'استخدم رمز احتياطي بدلاً من ذلك',
     useAuthenticator: 'استخدم تطبيق المصادقة بدلاً من ذلك',
-    
+
     // Reactivate Account
     welcomeBackTitle: 'مرحباً بعودتك!',
     accountDeactivated: 'تم تعطيل حسابك',
@@ -148,7 +148,7 @@ export default {
     dataPreservedDesc: 'جميع تقدمك وإعداداتك ومعلوماتك آمنة',
     instantAccess: 'وصول فوري',
     instantAccessDesc: 'عد إلى حسابك فوراً',
-    
+
     // Validation messages
     emailAndPasswordRequired: 'البريد الإلكتروني وكلمة المرور مطلوبان',
     invalidCode: 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً',
@@ -562,6 +562,7 @@ export default {
   tabs: {
     home: 'الرئيسية',
     course: 'الدورات',
+    chat: 'المحادثات',
     qr: 'QR',
     account: 'الحساب',
   },

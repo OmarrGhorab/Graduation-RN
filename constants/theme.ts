@@ -137,16 +137,16 @@ export const errorDarkColors = {
 
 // Light mode gradient
 export const primaryGradient = {
-  colors: ['#0A8F51', '#097D46', '#075F36'],
-  locations: [0.3908, 0.6689, 0.9122],
+  colors: ['#0A8F51', '#097D46', '#075F36'] as const,
+  locations: [0.3908, 0.6689, 0.9122] as const,
   start: { x: 0, y: 0 },
   end: { x: 1, y: 1 },
 };
 
 // Dark mode gradient - subtle and sophisticated
 export const primaryGradientDark = {
-  colors: ['#2A5F4D', '#1E4739', '#153328'],
-  locations: [0.3908, 0.6689, 0.9122],
+  colors: ['#2A5F4D', '#1E4739', '#153328'] as const,
+  locations: [0.3908, 0.6689, 0.9122] as const,
   start: { x: 0, y: 0 },
   end: { x: 1, y: 1 },
 };
@@ -159,20 +159,22 @@ export const Colors = {
   light: {
     // Text and background colors
     text: '#11181C',
+    textSecondary: '#696F77',     // Secondary text
+    textTertiary: '#949DA5',      // Tertiary text
     background: '#FFFFFF',
     surface: '#F7F8F9',           // Card/elevated surfaces
     surfaceVariant: '#E9EBED',    // Alternative surface
-    
+
     // Primary color (CSK Green)
     primary: '#097D46',
     primaryContainer: '#D4F4E5',  // Light primary background
     onPrimary: '#FFFFFF',         // Text on primary
-    
+
     // Icon colors
     icon: '#696F77',
     tabIconDefault: '#696F77',
     tabIconSelected: '#097D46',
-    
+
     // Borders and dividers
     border: '#D1D5D9',
     divider: '#E9EBED',
@@ -192,17 +194,17 @@ export const Colors = {
     background: '#121212',        // Main background - Material Design dark
     surface: '#1E1E1E',           // Card/elevated surfaces
     surfaceVariant: '#2A2A2A',    // Alternative surface (modals, sheets)
-    
+
     // Primary color (CSK Green - brighter for dark mode)
     primary: '#4FBF8A',           // Brighter green for visibility
     primaryContainer: '#1E4739',  // Dark green background
     onPrimary: '#0D1F17',         // Text on primary
-    
+
     // Icon colors
     icon: '#8B939C',
     tabIconDefault: '#8B939C',
     tabIconSelected: '#4FBF8A',
-    
+
     // Borders and dividers
     border: '#3A4048',            // Subtle borders
     divider: '#2D3239',           // Dividers

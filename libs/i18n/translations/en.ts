@@ -40,7 +40,7 @@ export default {
     logIn: 'Log In',
     login: 'Login',
     logout: 'Logout',
-    
+
     // Sign In screen
     signIn: 'Sign In',
     emailUsername: 'Email / Username',
@@ -50,7 +50,7 @@ export default {
     forgotPassword: 'Forgot password ?',
     dontHaveAccount: "Don't have an account?",
     or: 'Or',
-    
+
     // Sign Up screen
     createAccount: 'Create Account',
     fullName: 'Full Name',
@@ -63,7 +63,7 @@ export default {
     alreadyHaveAccount: 'Already have an account?',
     usernameAvailable: 'Username is available!',
     suggestions: 'Suggestions:',
-    
+
     // Forgot Password
     forgotPasswordTitle: 'Forgot Password',
     forgotPasswordSubtitle: 'Enter your email address We will send an OTP code for verification in the next step.',
@@ -75,7 +75,7 @@ export default {
     failedToSendCode: 'Failed to send reset code',
     userNotFound: 'User not found',
     tooManyRequests: 'Too many requests. Please wait before trying again.',
-    
+
     // Verification
     verifyOTP: 'Verify OTP Code',
     verifyOTPSubtitle: 'Please enter the security code sent to your email to reset your password.',
@@ -95,7 +95,7 @@ export default {
     checkCodeAndTryAgain: 'Please check the code and try again',
     invalidOrExpiredOTP: 'Invalid or expired OTP',
     invalidCodeMessage: 'Please enter the full 6-digit code',
-    
+
     // Reset Password
     resetPassword: 'Reset Password',
     resetPasswordSubtitle: 'Create a new password for your account.',
@@ -108,12 +108,12 @@ export default {
     missingSessionInfo: 'Missing session information. Please try again.',
     resetFailed: 'Reset Failed',
     failedToResetPassword: 'Failed to reset password',
-    
+
     // Reset Success
     resetSuccessTitle: 'Reset Password Successful!',
     resetSuccessSubtitle: 'Your password has been successfully changed.',
     goToLogin: 'Go To Log in',
-    
+
     // Device Verification
     newDeviceDetected: 'New Device Detected',
     newDeviceDetectedMessage: 'Please verify this device using the code sent to your email.',
@@ -123,7 +123,7 @@ export default {
     deviceVerified: 'Device Verified',
     deviceVerifiedMessage: 'Device verified successfully',
     missingVerificationData: 'Missing verification data. Please try logging in again.',
-    
+
     // 2FA
     twoFactorTitle: 'Two-Factor Authentication',
     twoFactorSubtitle: 'Enter the 6-digit code from your authenticator app.',
@@ -132,7 +132,7 @@ export default {
     verify: 'Verify',
     useBackupCode: 'Use backup code instead',
     useAuthenticator: 'Use authenticator app instead',
-    
+
     // Reactivate Account
     welcomeBackTitle: 'Welcome Back!',
     accountDeactivated: 'Your account was deactivated',
@@ -148,7 +148,7 @@ export default {
     dataPreservedDesc: 'All your progress, settings, and information are safe',
     instantAccess: 'Instant Access',
     instantAccessDesc: 'Get back to your account immediately',
-    
+
     // Validation messages
     emailAndPasswordRequired: 'Email and password are required',
     invalidCode: 'Please enter the full 6-digit code',
@@ -562,6 +562,7 @@ export default {
   tabs: {
     home: 'Home',
     course: 'Course',
+    chat: 'Chat',
     qr: 'QR',
     account: 'Account',
   },

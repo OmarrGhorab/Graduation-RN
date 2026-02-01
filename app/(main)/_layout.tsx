@@ -1,6 +1,6 @@
-import { Tabs } from 'expo-router';
 import { TabBarIcon, useTabBarStyles } from '@/components/navigation';
 import { useTranslation } from '@/hooks/useTranslation';
+import { Tabs } from 'expo-router';
 
 export default function MainLayout() {
     const { tabBarStyle, tabBarLabelStyle, activeTintColor, inactiveTintColor } = useTabBarStyles();
@@ -37,12 +37,12 @@ export default function MainLayout() {
                 }}
             />
             <Tabs.Screen
-                name="qr"
+                name="chat"
                 options={{
                     lazy: true,
-                    title: t('tabs.qr'),
+                    title: t('tabs.chat'),
                     tabBarIcon: ({ color, size }) => (
-                        <TabBarIcon name="qr-code-outline" size={size} color={color} />
+                        <TabBarIcon name="chatbubbles-outline" size={size} color={color} />
                     ),
                 }}
             />
