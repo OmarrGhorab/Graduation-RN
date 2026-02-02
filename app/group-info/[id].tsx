@@ -1,16 +1,18 @@
+import CustomConfirmModal from '@/components/CustomConfirmModal';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
+import { User } from '@/types/auth'; // Import User type
 import { ChatMember } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function GroupInfoScreen() {
@@ -32,6 +34,50 @@ export default function GroupInfoScreen() {
         queryKey: ['members', id],
         queryFn: () => ChatService.getMembers(id!),
         enabled: !!id,
+    });
+
+    // Add Member State
+    const [isAddMemberModalVisible, setIsAddMemberModalVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<User[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [isKickModalVisible, setIsKickModalVisible] = useState(false);
+    const [memberToKick, setMemberToKick] = useState<ChatMember | null>(null);
+
+    // Search Effect
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (searchQuery.trim().length > 1) {
+                setIsSearching(true);
+                try {
+                    const response = await ChatService.searchUsers(searchQuery);
+                    // Filter out existing members
+                    const existingIds = members?.map(m => m.user_id) || [];
+                    const filtered = (response.users || []).filter(u => !existingIds.includes(u.id));
+                    setSearchResults(filtered);
+                } catch (error) {
+                    console.error('Search failed:', error);
+                } finally {
+                    setIsSearching(false);
+                }
+            } else {
+                setSearchResults([]);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery, members]);
+
+    const addMemberMutation = useMutation({
+        mutationFn: (userId: string) => ChatService.addMember(id!, { user_id: userId }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['members', id] });
+            setIsAddMemberModalVisible(false);
+            setSearchQuery('');
+            Alert.alert('Success', 'Member added successfully');
+        },
+        onError: (error: any) => {
+            Alert.alert('Error', error.message || 'Failed to add member');
+        },
     });
 
     const leaveGroupMutation = useMutation({
@@ -56,21 +102,88 @@ export default function GroupInfoScreen() {
         );
     };
 
-    const renderMember = (member: ChatMember) => (
-        <View key={member.user_id} style={[styles.memberItem, { borderBottomColor: theme.divider }]}>
-            <Image
-                source={{ uri: member.user_image || `https://ui-avatars.com/api/?name=${member.user_name}` }}
-                style={styles.memberAvatar}
-                contentFit="cover"
-                transition={200}
-            />
-            <View style={styles.memberInfo}>
-                <Text style={[styles.memberName, { color: theme.text }]}>{member.user_name}</Text>
-                <Text style={[styles.memberStatus, { color: theme.textSecondary }]}>{member.user_role}</Text>
-            </View>
-            <RoleTag role={member.user_role} isDark={isDark} />
-        </View>
-    );
+    const kickMemberMutation = useMutation({
+        mutationFn: (userId: string) => ChatService.removeMember(id!, userId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['members', id] });
+            Alert.alert('Success', 'Member removed successfully');
+        },
+        onError: (error: any) => {
+            Alert.alert('Error', error.message || 'Failed to remove member');
+        },
+    });
+
+    const handleKickMember = (member: ChatMember) => {
+        setMemberToKick(member);
+        setIsKickModalVisible(true);
+    };
+
+    const confirmKickMember = () => {
+        if (memberToKick) {
+            kickMemberMutation.mutate(memberToKick.user_id);
+            setMemberToKick(null);
+            setIsKickModalVisible(false);
+        }
+    };
+
+    const canKick = (targetMember: ChatMember) => {
+        if (!currentUser) return false;
+        if (currentUser.id === targetMember.user_id) return false; // Self
+
+        const globalRole = currentUser.role;
+        const isGlobalAdmin = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
+        if (isGlobalAdmin) return true;
+
+        const currentMember = members?.find(m => m.user_id === currentUser.id);
+        if (!currentMember) return false;
+
+        const myRole = currentMember.member_role;
+        return myRole === 'OWNER' || myRole === 'ADMIN';
+    };
+
+    const renderMember = (member: ChatMember) => {
+        const canRemove = canKick(member);
+        return (
+            <TouchableOpacity
+                key={member.user_id}
+                style={[styles.memberItem, { borderBottomColor: theme.divider }]}
+                onPress={() => {
+                    // Navigate to profile or show options? For now just profile if we had one
+                }}
+            >
+                <Image
+                    source={{ uri: member.user_image || (member.user_name ? `https://ui-avatars.com/api/?name=${member.user_name}` : undefined) }}
+                    style={styles.memberAvatar}
+                    contentFit="cover"
+                />
+                <View style={styles.memberInfo}>
+                    <Text style={[styles.memberName, { color: theme.text }]}>
+                        {member.user_name}
+                        {member.user_id === currentUser?.id && <Text style={{ color: theme.textSecondary }}> (You)</Text>}
+                    </Text>
+                    <View style={styles.roleContainer}>
+                        <RoleTag role={member.member_role || 'STUDENT'} isDark={isDark} />
+                        {member.member_role === 'OWNER' && <Text style={{ fontSize: 10, color: theme.textSecondary, marginLeft: 4 }}>👑</Text>}
+                    </View>
+                </View>
+                {canRemove && (
+                    <TouchableOpacity
+                        onPress={() => handleKickMember(member)}
+                        style={{ padding: 8 }}
+                        disabled={kickMemberMutation.isPending}
+                    >
+                        {kickMemberMutation.isPending && kickMemberMutation.variables === member.user_id ? ( // Tracking loading state for specific item is tricky with simple isPending.
+                            // Simplified: just show spinner if global pending? No, that locks all.
+                            // For now standard icon.
+                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                        ) : (
+                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                        )}
+                    </TouchableOpacity>
+                )}
+            </TouchableOpacity>
+        );
+    };
 
     if (isConvLoading || isMembersLoading) {
         return (
@@ -83,9 +196,22 @@ export default function GroupInfoScreen() {
     if (!conversation) return null;
 
     const isDirect = conversation.type === 'DIRECT';
-    const displayInfo = isDirect ? (
-        conversation.members?.find(m => m.user_id !== currentUser?.id) || { user_name: 'User', user_image: '', user_role: 'STUDENT' }
-    ) : { user_name: conversation.name, user_image: '', user_role: 'GROUP' };
+    let displayInfo;
+
+    if (isDirect) {
+        const otherMember = conversation.members?.find(m => m.user_id !== currentUser?.id);
+        displayInfo = {
+            user_name: conversation.name || otherMember?.user_name || 'User',
+            user_image: conversation.image_url || otherMember?.user_image,
+            user_role: otherMember?.user_role || 'STUDENT'
+        };
+    } else {
+        displayInfo = {
+            user_name: conversation.name || 'Group Chat',
+            user_image: conversation.image_url,
+            user_role: 'GROUP'
+        };
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -160,7 +286,7 @@ export default function GroupInfoScreen() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={[styles.sectionHeading, { color: theme.text }]}>Members</Text>
-                            <TouchableOpacity>
+                            <TouchableOpacity onPress={() => setIsAddMemberModalVisible(true)}>
                                 <Text style={[styles.addButton, { color: theme.primary }]}>Add Member</Text>
                             </TouchableOpacity>
                         </View>
@@ -197,6 +323,82 @@ export default function GroupInfoScreen() {
                 )}
 
             </ScrollView>
+
+            <CustomConfirmModal
+                visible={isKickModalVisible}
+                onClose={() => setIsKickModalVisible(false)}
+                onConfirm={confirmKickMember}
+                title="Remove Member"
+                message={`Are you sure you want to remove ${memberToKick?.user_name || 'this member'}?`}
+                confirmText="Remove"
+                isDestructive
+                isDark={isDark}
+                theme={theme}
+            />
+
+            {/* Add Member Modal */}
+            <Modal
+                visible={isAddMemberModalVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={() => setIsAddMemberModalVisible(false)}
+            >
+                <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
+                    <View style={styles.modalHeader}>
+                        <Text style={[styles.modalTitle, { color: theme.text }]}>Add Member</Text>
+                        <TouchableOpacity onPress={() => setIsAddMemberModalVisible(false)}>
+                            <Text style={{ color: theme.primary, fontSize: 16 }}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={[styles.searchContainer, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
+                        <Ionicons name="search" size={20} color={theme.textSecondary} />
+                        <TextInput
+                            style={[styles.searchInput, { color: theme.text }]}
+                            placeholder="Search users..."
+                            placeholderTextColor={theme.textTertiary}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoFocus
+                        />
+                    </View>
+
+                    {isSearching ? (
+                        <ActivityIndicator style={{ marginTop: 20 }} color={theme.primary} />
+                    ) : (
+                        <FlatList
+                            data={searchResults}
+                            keyExtractor={item => item.id}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={[styles.userItem, { borderBottomColor: theme.divider }]}
+                                    onPress={() => addMemberMutation.mutate(item.id)}
+                                    disabled={addMemberMutation.isPending}
+                                >
+                                    <Image
+                                        source={{ uri: item.profileImg || `https://ui-avatars.com/api/?name=${item.name}` }}
+                                        style={styles.memberAvatar}
+                                    />
+                                    <View style={styles.memberInfo}>
+                                        <Text style={[styles.memberName, { color: theme.text }]}>{item.name}</Text>
+                                        <Text style={[styles.memberStatus, { color: theme.textSecondary }]}>{item.role}</Text>
+                                    </View>
+                                    {addMemberMutation.isPending ? (
+                                        <ActivityIndicator size="small" color={theme.primary} />
+                                    ) : (
+                                        <Ionicons name="add-circle-outline" size={24} color={theme.primary} />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                            ListEmptyComponent={
+                                searchQuery.length > 1 ? (
+                                    <Text style={{ textAlign: 'center', marginTop: 20, color: theme.textSecondary }}>No users found</Text>
+                                ) : null
+                            }
+                        />
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -412,5 +614,46 @@ const styles = StyleSheet.create({
         color: '#EF4444',
         fontSize: 16,
         fontFamily: Fonts.bold,
+    },
+    modalContainer: {
+        flex: 1,
+        padding: 16,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        marginBottom: 8,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 44,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        marginBottom: 16,
+        gap: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: Fonts.regular,
+        height: '100%',
+    },
+    roleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    userItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderBottomWidth: 1,
+        gap: 12,
     },
 });

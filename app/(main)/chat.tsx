@@ -38,15 +38,17 @@ export default function ChatScreen() {
     const getConversationDisplay = (item: Conversation) => {
         if (item.type === 'DIRECT') {
             const otherMember = item.members?.find(m => m.user_id !== currentUser?.id);
+            const displayName = item.name || otherMember?.user_name || 'User';
             return {
-                name: otherMember?.user_name || 'User',
-                avatar: otherMember?.user_image || 'https://ui-avatars.com/api/?name=User',
+                name: displayName,
+                avatar: item.image_url || otherMember?.user_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`,
                 role: otherMember?.user_role || 'STUDENT',
             };
         }
+        const groupName = item.name || 'Group Chat';
         return {
-            name: item.name || 'Group Chat',
-            avatar: 'https://ui-avatars.com/api/?name=' + (item.name || 'G'),
+            name: groupName,
+            avatar: item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
             role: 'GROUP',
         };
     };
@@ -76,7 +78,7 @@ export default function ChatScreen() {
                         item.last_message.content;
                 return isMe ? `${t('chat.you')}: ${content}` : content;
             }
-            return item.description || t('chat.no_messages');
+            return item.description || null;
         };
 
         return (
@@ -103,16 +105,18 @@ export default function ChatScreen() {
                         </Text>
                         <RoleBadge role={display.role} isDark={isDark} />
                     </View>
-                    <Text
-                        style={[styles.message, { color: theme.textSecondary, textAlign }]}
-                        numberOfLines={1}
-                    >
-                        {getSubtitle()}
-                    </Text>
+                    {getSubtitle() && (
+                        <Text
+                            style={[styles.message, { color: theme.textSecondary, textAlign }]}
+                            numberOfLines={1}
+                        >
+                            {getSubtitle()}
+                        </Text>
+                    )}
+                    <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]}>{formatTime(item.updated_at)}</Text>
                 </View>
 
                 <View style={styles.metaContainer}>
-                    <Text style={[styles.time, { color: theme.primary }]}>{formatTime(item.updated_at)}</Text>
                     {item.unread_count > 0 && (
                         <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
                             <Text style={styles.unreadText}>{item.unread_count}</Text>

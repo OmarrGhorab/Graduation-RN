@@ -40,6 +40,7 @@ export const ConversationSchema = z.object({
     id: z.string(),
     type: z.enum(['GROUP', 'DIRECT']),
     name: z.string().nullable().optional(),
+    image_url: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
     created_by: z.string(),
     created_at: z.string(),

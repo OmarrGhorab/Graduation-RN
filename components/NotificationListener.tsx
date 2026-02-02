@@ -1,5 +1,4 @@
 import { useNotificationSSE } from '@/hooks/useNotificationSSE';
-import { NOTIFICATIONS_QUERY_KEY } from '@/hooks/useNotifications';
 import { logger } from '@/libs/logger';
 import { DeviceService } from '@/services/DeviceService';
 import { LocationService } from '@/services/LocationService';
@@ -20,10 +19,13 @@ import { useCallback, useEffect, useRef } from 'react';
  * SSE provides real-time notifications that work on emulators and
  * when push notifications are disabled.
  */
+export const NOTIFICATIONS_QUERY_KEY = ['notifications'];
+
 export default function NotificationListener() {
     const notificationListener = useRef<Notifications.Subscription | null>(null);
     const responseListener = useRef<Notifications.Subscription | null>(null);
     const queryClient = useQueryClient();
+    const processedMessageIds = useRef<Set<string>>(new Set());
 
     // Add notification to React Query cache
     const addNotificationToCache = useCallback((notification: ApiNotification) => {
@@ -60,9 +62,26 @@ export default function NotificationListener() {
         logger.log(`[NotificationListener] SSE ${isUpdate ? 'update' : 'notification'} received:`, notification.type);
 
         if (notification.type === 'message' || notification.type === 'CHAT_MESSAGE') {
-            // The structure might vary. Based on logs, for CHAT_MESSAGE, the fields are top-level or in data.
-            // Let's handle both cases conservatively.
             const payload = notification as any;
+            const msgId = payload.id || payload.data?.id;
+
+            // Prevent duplicate processing
+            if (msgId && processedMessageIds.current.has(msgId)) {
+                logger.log('[NotificationListener] Skipping duplicate message:', msgId);
+                return;
+            }
+            if (msgId) {
+                processedMessageIds.current.add(msgId);
+                // Clean up old IDs periodically (optional, but good for memory)
+                if (processedMessageIds.current.size > 100) {
+                    const it = processedMessageIds.current.values();
+                    const oldestId = it.next().value;
+                    if (oldestId) {
+                        processedMessageIds.current.delete(oldestId);
+                    }
+                }
+            }
+
             const conversationId = payload.conversationId ||
                 payload.data?.conversationId ||
                 payload.data?.conversation_id ||
@@ -110,12 +129,41 @@ export default function NotificationListener() {
                 queryClient.setQueryData(['messages', conversationId], (old: any) => {
                     if (!old) return old;
 
+                    let senderName = payload.senderName || payload.data?.senderName || 'User';
+                    let senderImage = payload.senderImage || payload.data?.senderImage || payload.sender_image || payload.data?.sender_image || payload.userImage || payload.data?.userImage;
+                    let senderId = payload.senderId || payload.data?.senderId;
+
+                    // FIX: Backend sometimes sends UUID as senderName. Attempt to resolve from cache.
+                    // The log showed senderName holding the ID: "senderName":"fae09295..."
+                    const isNameUUID = senderName && senderName.includes('-') && senderName.length > 30;
+
+                    if (isNameUUID && !senderId) {
+                        senderId = senderName; // Assume the "name" is actually the ID
+                    }
+
+                    // Try to find the member in the cached conversation to get real details
+                    if (senderId) {
+                        const cachedConv = queryClient.getQueryData<any>(['conversation', conversationId]);
+                        if (cachedConv && cachedConv.members) {
+                            const member = cachedConv.members.find((m: any) => m.user_id === senderId);
+                            if (member) {
+                                if (isNameUUID || senderName === 'User') {
+                                    senderName = member.user_name || 'User';
+                                }
+                                if (!senderImage) {
+                                    senderImage = member.user_image;
+                                }
+                            }
+                        }
+                    }
+
                     const newMessage = {
                         id: payload.id || `temp-${Date.now()}`,
                         content: payload.messagePreview || payload.data?.messagePreview || payload.data?.content || payload.message || '',
                         type: payload.messageType || payload.data?.messageType || 'text',
-                        sender_id: payload.senderId || payload.data?.senderId,
-                        sender_name: payload.senderName || payload.data?.senderName || 'User',
+                        sender_id: senderId,
+                        sender_name: senderName,
+                        sender_image: senderImage,
                         sender_role: payload.senderRole || payload.data?.senderRole || 'STUDENT',
                         created_at: payload.createdAt || new Date().toISOString(),
                         is_deleted: false,
@@ -202,6 +250,26 @@ export default function NotificationListener() {
             const data = notification.request.content.data as Record<string, any>;
 
             if (data) {
+                // Check if this is a chat message notification
+                if (data.type === 'CHAT_MESSAGE' || data.type === 'message') {
+                    // 1. Manually call the SSE logic which already handles message cache updating perfectly
+                    // We reconstruct a "SSENotification" style object from the push data
+                    const ssePayload: SSENotification = {
+                        type: 'CHAT_MESSAGE',
+                        id: data.messageId || data.id,
+                        conversationId: data.conversationId || data.conversation_id,
+                        senderId: data.senderId || data.sender_id,
+                        senderName: data.senderName || data.sender_name,
+                        senderRole: data.senderRole || data.sender_role,
+                        userImage: data.userImage || data.user_image || data.senderImage || data.sender_image, // IMPORTANT: Capture image
+                        messagePreview: data.messagePreview || data.body || notification.request.content.body,
+                        createdAt: data.createdAt || new Date().toISOString()
+                    } as any;
+
+                    handleSSENotification(ssePayload, false);
+                    return;
+                }
+
                 // Handle silent location request from parent
                 if (data.type === 'location_request') {
                     logger.log('[NotificationListener] Location request received from parent');

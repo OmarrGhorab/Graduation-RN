@@ -148,11 +148,12 @@ export default function ChatDetailScreen() {
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
     const [replyToMessage, setReplyToMessage] = useState<Message | null>(null);
-    const [permissions, setPermissions] = useState({ canDelete: false, canPin: false });
+    const [permissions, setPermissions] = useState({ canDelete: false, canPin: false, canKick: false });
+    const [isKickModalVisible, setIsKickModalVisible] = useState(false);
 
     // Determine Permissions
     const checkPermissions = (message: Message) => {
-        const user = useAuthStore.getState().user;
+        const user = currentUser;
         const member = conversation?.members?.find(m => m.user_id === user?.id);
         const globalRole = user?.role;
 
@@ -164,7 +165,18 @@ export default function ChatDetailScreen() {
         const isLocalPinner = ['OWNER', 'ADMIN'].includes(member?.member_role || '');
         const canPin = isGlobalPinner || isLocalPinner;
 
-        return { canDelete, canPin };
+        // Kick: 
+        // 1. Cannot kick self
+        // 2. Global Admin can kick anyone
+        // 3. Group Owner/Admin can kick anyone (except maybe Owner, but simplified for now)
+        let canKick = false;
+        if (message.sender_id !== user?.id) {
+            const isGlobalAdmin = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
+            const isLocalAdmin = ['OWNER', 'ADMIN'].includes(member?.member_role || '');
+            canKick = isGlobalAdmin || isLocalAdmin;
+        }
+
+        return { canDelete, canPin, canKick };
     };
 
     const handleMessageLongPress = (message: Message) => {
@@ -230,6 +242,25 @@ export default function ChatDetailScreen() {
         closeActionSheet();
     };
 
+    const handleKick = () => {
+        if (!selectedMessage) return;
+        setIsKickModalVisible(true);
+        closeActionSheet();
+    };
+
+    const confirmKick = async () => {
+        if (!selectedMessage) return;
+        const userToKickName = selectedMessage.sender_name || 'this user';
+        try {
+            await ChatService.removeMember(id!, selectedMessage.sender_id);
+            toast.success('Removed', `${userToKickName} has been removed.`);
+            queryClient.invalidateQueries({ queryKey: ['members', id] });
+        } catch (error: any) {
+            toast.error('Error', 'Failed to remove user');
+        }
+        setIsKickModalVisible(false);
+    };
+
     const handleDelete = () => {
         if (!selectedMessage) return;
         setMessageToDelete(selectedMessage);
@@ -243,18 +274,16 @@ export default function ChatDetailScreen() {
             await ChatService.deleteMessage(id!, messageToDelete.id);
             // Optimistic update
             queryClient.setQueryData(['messages', id], (old: any) => {
-                if (!old) return old;
-                if (old.pages) {
-                    return {
-                        ...old,
-                        pages: old.pages.map((page: any) => {
-                            const msgs = Array.isArray(page) ? page : page.messages;
-                            const filtered = msgs.filter((m: any) => m.id !== messageToDelete.id);
-                            return Array.isArray(page) ? filtered : { ...page, messages: filtered };
-                        })
-                    };
-                }
-                return old;
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page: any) => {
+                        const msgs = Array.isArray(page) ? page : page.messages;
+                        if (!Array.isArray(msgs)) return page;
+                        const filtered = msgs.filter((m: any) => m.id !== messageToDelete.id);
+                        return Array.isArray(page) ? filtered : { ...page, messages: filtered };
+                    })
+                };
             });
             toast.success('Deleted', 'Message deleted successfully');
         } catch (error: any) {
@@ -272,7 +301,8 @@ export default function ChatDetailScreen() {
         const seenIds = new Set<string>();
 
         messagesData.pages.forEach(page => {
-            const msgs = Array.isArray(page) ? page : (page as any)?.messages;
+            const pageObj = page as any;
+            const msgs = Array.isArray(page) ? page : pageObj?.messages;
             if (Array.isArray(msgs)) {
                 msgs.forEach((m: Message) => {
                     if (m && m.id && !seenIds.has(m.id)) {
@@ -352,8 +382,22 @@ export default function ChatDetailScreen() {
         }
     }, [inputText, id, isFocused]);
 
+    // Mark as Read when new messages arrive and screen is focused
+    useEffect(() => {
+        if (isFocused && id && messages.length > 0) {
+            // We assume that if the user is focused and messages update, they read them.
+            // This covers the "User B reads -> User B's count = 0" case dynamically.
+            ChatService.markAsRead(id).catch(err => console.error('[ChatDetail] Failed to mark as read on update', err));
+        }
+    }, [messages, id, isFocused]);
+
     const getTypingMessage = () => {
-        const othersTyping = currentTypingUsers.filter(u => u.user_id !== currentUser?.id);
+        const latestMessageSenderId = messages.length > 0 ? messages[0].sender_id : null;
+        const othersTyping = currentTypingUsers.filter(u =>
+            u.user_id !== currentUser?.id &&
+            u.user_id !== latestMessageSenderId
+        );
+
         if (othersTyping.length === 0) return null;
 
         if (othersTyping.length === 1) {
@@ -590,15 +634,25 @@ export default function ChatDetailScreen() {
         if (conversation) {
             if (conversation.type === 'DIRECT') {
                 const otherMember = conversation.members?.find(m => m.user_id !== currentUser?.id);
+
+                const isInvalidName = (n?: string | null) => !n || (n.length > 30 && n.includes('-'));
+                let displayName = 'User';
+
+                if (!isInvalidName(conversation.name)) displayName = conversation.name!;
+                else if (!isInvalidName(otherMember?.user_name)) displayName = otherMember!.user_name!;
+
+                const displayImage = conversation.image_url || otherMember?.user_image || (displayName !== 'User' ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}` : undefined);
+
                 return {
-                    name: otherMember?.user_name || 'User',
-                    avatar: otherMember?.user_image || 'https://ui-avatars.com/api/?name=User',
+                    name: displayName,
+                    avatar: displayImage,
                     role: otherMember?.user_role || 'STUDENT',
                 };
             }
+            const groupName = conversation.name || 'Group Chat';
             return {
-                name: conversation.name || 'Group Chat',
-                avatar: 'https://ui-avatars.com/api/?name=' + (conversation.name || 'G'),
+                name: groupName,
+                avatar: conversation.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
                 role: 'GROUP',
             };
         }
@@ -622,7 +676,7 @@ export default function ChatDetailScreen() {
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             <Image
-                source={{ uri: isDark ? undefined : 'https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg' }}
+                source={isDark ? undefined : { uri: 'https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg' }}
                 style={[StyleSheet.absoluteFill, { opacity: 0.05 }]}
                 contentFit="cover"
             />
@@ -706,7 +760,29 @@ export default function ChatDetailScreen() {
                             ({ item, index }: { item: Message, index: number }) => {
                                 // Find sender details from members list
                                 const member = conversation?.members?.find(m => m.user_id === item.sender_id);
-                                const senderName = member?.user_name || item.sender_name || 'User';
+
+                                // Prioritize member name, then message sender name, avoiding UUIDs
+                                let senderName = member?.user_name || item.sender_name || 'User';
+                                if (senderName.includes('-') && senderName.length > 30) {
+                                    // If top pick is UUID, try the fallback
+                                    const fallback = item.sender_name;
+                                    if (fallback && (!fallback.includes('-') || fallback.length <= 30)) {
+                                        senderName = fallback;
+                                    } else {
+                                        senderName = 'User';
+                                    }
+                                }
+
+                                // Special handling for current user
+                                if (item.sender_id === currentUser?.id) {
+                                    senderName = currentUser?.name || 'Me';
+                                }
+
+                                // Hide "User" if it's the generic placeholder, as per user request
+                                if (senderName === 'User') {
+                                    senderName = '';
+                                }
+
                                 const senderImage = member?.user_image || item.sender_image;
 
                                 // Grouping Logic: Check if next message (visually below, so older) is from same sender
@@ -872,10 +948,12 @@ export default function ChatDetailScreen() {
                         message={selectedMessage}
                         canDelete={permissions.canDelete}
                         canPin={permissions.canPin}
+                        canKick={permissions.canKick}
+                        onKick={handleKick}
                         isPinned={selectedMessage ? pinnedMessages.some(m => m.message_id === selectedMessage.id) : false}
                     />
                 )}
-            </KeyboardAvoidingView >
+            </KeyboardAvoidingView>
 
             <CustomConfirmModal
                 visible={isDeleteModalVisible}
@@ -889,8 +967,20 @@ export default function ChatDetailScreen() {
                 theme={theme}
             />
 
+            <CustomConfirmModal
+                visible={isKickModalVisible}
+                onClose={() => setIsKickModalVisible(false)}
+                onConfirm={confirmKick}
+                title="Remove User"
+                message={`Are you sure you want to remove ${selectedMessage?.sender_name || 'this user'} from the group?`}
+                confirmText="Remove"
+                isDestructive
+                isDark={isDark}
+                theme={theme}
+            />
+
             {/* Image Viewer Modal */}
-            < Modal visible={!!viewerImage} transparent animationType="fade" onRequestClose={() => setViewerImage(null)}>
+            <Modal visible={!!viewerImage} transparent animationType="fade" onRequestClose={() => setViewerImage(null)}>
                 <View style={[styles.viewerContainer, { backgroundColor: 'rgba(0,0,0,0.95)' }]}>
                     <TouchableOpacity style={styles.viewerClose} onPress={() => setViewerImage(null)}>
                         <Ionicons name="close" size={32} color="#FFFFFF" />
@@ -903,7 +993,7 @@ export default function ChatDetailScreen() {
                         />
                     )}
                 </View>
-            </Modal >
+            </Modal>
             {isEmojiOpen && (
                 <EmojiKeyboard
                     onEmojiSelected={(emoji) => setInputText(prev => prev + emoji.emoji)}
@@ -919,7 +1009,7 @@ export default function ChatDetailScreen() {
                     }}
                 />
             )}
-        </View >
+        </View>
     );
 }
 
@@ -981,7 +1071,7 @@ const AnimatedTypingDots = ({ theme }: { theme: any }) => {
 };
 
 const VoiceWaveform = ({ theme }: { theme: any }) => {
-    const bars = useRef([...Array(5)].map(() => new Animated.Value(0))).current;
+    const bars = useRef(Array.from({ length: 5 }).map(() => new Animated.Value(0))).current;
 
     useEffect(() => {
         const animations = bars.map((bar, i) => {
@@ -1210,11 +1300,15 @@ const MessageBubble = ({
                                 onPress={handleSeekTap}
                                 style={{ flexDirection: 'row', alignItems: 'center', height: '100%', width: '100%', justifyContent: 'space-between' }}
                             >
-                                {[...Array(20)].map((_, i) => { // Reduced to 20 to fit better
+                                {Array.from({ length: 20 }).map((_, i) => { // Reduced to 20 to fit better
                                     const barProgress = i / 20;
                                     const isFilled = barProgress < progressRatio;
                                     const heightPattern = [12, 20, 32, 16, 24, 28, 12, 20, 32, 16, 24, 8, 14, 22, 18, 10, 26, 14, 18, 10];
                                     const barHeight = heightPattern[i % heightPattern.length];
+
+                                    const barColor = isFilled
+                                        ? (isSender ? '#FFFFFF' : theme.primary)
+                                        : (isSender ? 'rgba(255,255,255,0.4)' : theme.icon);
 
                                     return (
                                         <View
@@ -1224,9 +1318,7 @@ const MessageBubble = ({
                                                 {
                                                     height: barHeight,
                                                     width: 3,
-                                                    backgroundColor: isFilled
-                                                        ? (isSender ? '#FFFFFF' : theme.primary)
-                                                        : (isSender ? 'rgba(255,255,255,0.4)' : theme.icon),
+                                                    backgroundColor: barColor,
                                                     opacity: 1,
                                                     borderRadius: 1.5,
                                                 }
@@ -1243,7 +1335,7 @@ const MessageBubble = ({
                         alignSelf: 'flex-start',
                         marginLeft: 40 // Align with waveform start
                     }]}>
-                        {`${Math.floor(currentSeconds / 60)}:${String(currentSeconds % 60).padStart(2, '0')} / ${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`}
+                        {`${Math.floor(currentSeconds / 60)}:${(currentSeconds % 60).toString().padStart(2, '0')} / ${Math.floor(totalSeconds / 60)}:${(totalSeconds % 60).toString().padStart(2, '0')}`}
                     </Text>
                 </View>
             );
@@ -1312,7 +1404,8 @@ const MessageBubble = ({
                 <TouchableOpacity
                     style={[
                         styles.bubble,
-                        isSender ? [styles.bubbleSender, { backgroundColor: theme.primary }] : [styles.bubbleReceiver, { backgroundColor: isDark ? theme.surface : theme.surface }]
+                        isSender ? styles.bubbleSender : styles.bubbleReceiver,
+                        { backgroundColor: isSender ? theme.primary : (isDark ? theme.surface : theme.surface) }
                     ]}
                     onLongPress={onLongPress}
                     activeOpacity={0.9}

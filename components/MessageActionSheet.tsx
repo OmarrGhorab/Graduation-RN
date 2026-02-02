@@ -16,6 +16,7 @@ interface MessageActionSheetProps {
     message?: Message | null;
     canDelete?: boolean;
     canPin?: boolean;
+    canKick?: boolean;
     isPinned?: boolean;
 }
 
@@ -26,13 +27,15 @@ export function MessageActionSheet({
     onPin,
     onCopy,
     onDelete,
+    onKick,
     isDark,
     theme,
     message,
     canDelete,
     canPin,
+    canKick,
     isPinned
-}: MessageActionSheetProps) {
+}: MessageActionSheetProps & { onKick: () => void }) {
     if (!visible) return null;
 
     return (
@@ -83,18 +86,30 @@ export function MessageActionSheet({
                                 isDark={isDark}
                             />
 
+                            {(canDelete || canKick) && (
+                                <View style={[styles.divider, { backgroundColor: isDark ? '#2a3e35' : '#e2e8e5' }]} />
+                            )}
+
                             {canDelete && (
-                                <>
-                                    <View style={[styles.divider, { backgroundColor: isDark ? '#2a3e35' : '#e2e8e5' }]} />
-                                    <ActionItem
-                                        icon="trash-outline"
-                                        label="Delete Message"
-                                        onPress={onDelete}
-                                        theme={theme}
-                                        isDark={isDark}
-                                        isDestructive
-                                    />
-                                </>
+                                <ActionItem
+                                    icon="trash-outline"
+                                    label="Delete Message"
+                                    onPress={onDelete}
+                                    theme={theme}
+                                    isDark={isDark}
+                                    isDestructive
+                                />
+                            )}
+
+                            {canKick && (
+                                <ActionItem
+                                    icon="person-remove-outline"
+                                    label="Remove User"
+                                    onPress={onKick}
+                                    theme={theme}
+                                    isDark={isDark}
+                                    isDestructive
+                                />
                             )}
                         </View>
 
