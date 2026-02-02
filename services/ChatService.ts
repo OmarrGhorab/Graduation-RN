@@ -48,6 +48,18 @@ export const ChatService = {
         return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${id}/read`);
     },
 
+    // Delete Conversation (Admin only)
+    async deleteConversation(id: string): Promise<{ message: string }> {
+        return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${id}`);
+    },
+
+    // Update Group Image
+    async updateGroupImage(id: string, imageUrl: string): Promise<{ message: string }> {
+        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${id}/image`, {
+            image_url: imageUrl
+        });
+    },
+
     /**
      * 2. MEMBERS
      */
@@ -92,6 +104,13 @@ export const ChatService = {
         });
     },
 
+    // Get Media, Links, and Docs
+    async getChatMedia(conversationId: string, query: { limit?: number; offset?: number } = {}): Promise<{ messages: Message[] }> {
+        return apiClient.get<{ messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/messages/media`, {
+            params: query
+        });
+    },
+
     // Long Polling for Messages
     async pollMessages(conversationId: string, afterId: string): Promise<{ messages: Message[] }> {
         return apiClient.get<{ messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/poll`, {
@@ -124,7 +143,7 @@ export const ChatService = {
 
     // Get Pinned Messages
     async getPinnedMessages(conversationId: string): Promise<{ pinned_messages: PinnedMessage[] }> {
-        return apiClient.get<{ pinned_messages: PinnedMessage[] }>(`${PREFIX}/conversations/${conversationId}/pinned`);
+        return apiClient.get<{ pinned_messages: PinnedMessage[] }>(`${PREFIX}/conversations/${conversationId}/messages/pinned`);
     },
 
     /**

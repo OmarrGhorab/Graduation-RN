@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -42,6 +43,8 @@ export default function GroupInfoScreen() {
     const [searchResults, setSearchResults] = useState<User[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isKickModalVisible, setIsKickModalVisible] = useState(false);
+    const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
+    const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
     const [memberToKick, setMemberToKick] = useState<ChatMember | null>(null);
 
     // Search Effect
@@ -92,14 +95,7 @@ export default function GroupInfoScreen() {
     });
 
     const handleLeaveGroup = () => {
-        Alert.alert(
-            'Leave Group',
-            'Are you sure you want to leave this group?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Leave', style: 'destructive', onPress: () => leaveGroupMutation.mutate() },
-            ]
-        );
+        setIsLeaveModalVisible(true);
     };
 
     const kickMemberMutation = useMutation({
@@ -112,6 +108,104 @@ export default function GroupInfoScreen() {
             Alert.alert('Error', error.message || 'Failed to remove member');
         },
     });
+
+    const updateGroupImageMutation = useMutation({
+        mutationFn: (imageUrl: string) => ChatService.updateGroupImage(id!, imageUrl),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['conversation', id] });
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            // Alert removed as per user request to handle it via query refresh
+        },
+        onError: (error: any) => {
+            Alert.alert('Error', error.message || 'Failed to update image');
+        },
+    });
+
+    const updateMemberRoleMutation = useMutation({
+        mutationFn: ({ userId, role }: { userId: string, role: string }) =>
+            ChatService.updateMemberRole(id!, userId, role),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['members', id] });
+            Alert.alert('Success', 'Member role updated successfully');
+        },
+        onError: (error: any) => {
+            Alert.alert('Error', error.message || 'Failed to update role');
+        },
+    });
+
+    const deleteGroupMutation = useMutation({
+        mutationFn: () => ChatService.deleteConversation(id!),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            router.replace('/(main)/chat');
+        },
+        onError: (error: any) => {
+            Alert.alert('Error', error.message || 'Failed to delete group');
+        },
+    });
+
+    const handleDeleteGroup = () => {
+        setIsDeleteModalVisible(true);
+    };
+
+    const handleUpdateImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'], // Use array instead of deprecated string constant
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (!result.canceled) {
+            try {
+                const imageUrl = await ChatService.uploadMedia(result.assets[0].uri, 'image');
+                updateGroupImageMutation.mutate(imageUrl);
+            } catch (error) {
+                Alert.alert('Error', 'Failed to upload image');
+            }
+        }
+    };
+
+    const handleMemberOptions = (member: ChatMember) => {
+        if (!currentUser) return;
+
+        const currentMember = members?.find(m => m.user_id === currentUser.id);
+        const myRole = currentMember?.member_role;
+
+        // Management is strictly restricted to local roles as per documentation
+        const isAuthorized = myRole === 'OWNER' || myRole === 'ADMIN';
+
+        if (!isAuthorized || member.user_id === currentUser.id) return;
+
+        // Admin can only manage Members, Owner can manage anyone
+        if (myRole === 'ADMIN' && member.member_role !== 'MEMBER') return;
+
+        const options = ['Cancel'];
+        const actions: (() => void)[] = [() => { }];
+
+        // Role Management
+        if (member.member_role === 'MEMBER') {
+            options.push('Promote to Assistant (Admin)');
+            actions.push(() => updateMemberRoleMutation.mutate({ userId: member.user_id, role: 'ADMIN' }));
+        } else if (member.member_role === 'ADMIN') {
+            options.push('Demote to Member');
+            actions.push(() => updateMemberRoleMutation.mutate({ userId: member.user_id, role: 'MEMBER' }));
+        }
+
+        // Kicking handled by the trash icon, but could be added here too.
+
+        if (options.length > 1) {
+            Alert.alert(
+                'Member Options',
+                `What would you like to do with ${member.user_name}?`,
+                options.map((option, index) => ({
+                    text: option,
+                    style: option === 'Cancel' ? 'cancel' : 'default',
+                    onPress: actions[index]
+                }))
+            );
+        }
+    };
 
     const handleKickMember = (member: ChatMember) => {
         setMemberToKick(member);
@@ -130,15 +224,17 @@ export default function GroupInfoScreen() {
         if (!currentUser) return false;
         if (currentUser.id === targetMember.user_id) return false; // Self
 
-        const globalRole = currentUser.role;
-        const isGlobalAdmin = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
-        if (isGlobalAdmin) return true;
-
         const currentMember = members?.find(m => m.user_id === currentUser.id);
         if (!currentMember) return false;
 
         const myRole = currentMember.member_role;
-        return myRole === 'OWNER' || myRole === 'ADMIN';
+        const targetRole = targetMember.member_role;
+
+        // Logic strictly based on local group roles
+        if (myRole === 'OWNER') return true;
+        if (myRole === 'ADMIN') return targetRole === 'MEMBER';
+
+        return false;
     };
 
     const renderMember = (member: ChatMember) => {
@@ -166,19 +262,17 @@ export default function GroupInfoScreen() {
                         {member.member_role === 'OWNER' && <Text style={{ fontSize: 10, color: theme.textSecondary, marginLeft: 4 }}>👑</Text>}
                     </View>
                 </View>
-                {canRemove && (
+                {canRemove ? (
                     <TouchableOpacity
                         onPress={() => handleKickMember(member)}
                         style={{ padding: 8 }}
                         disabled={kickMemberMutation.isPending}
                     >
-                        {kickMemberMutation.isPending && kickMemberMutation.variables === member.user_id ? ( // Tracking loading state for specific item is tricky with simple isPending.
-                            // Simplified: just show spinner if global pending? No, that locks all.
-                            // For now standard icon.
-                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                        ) : (
-                            <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                        )}
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity onPress={() => handleMemberOptions(member)} style={{ padding: 8 }}>
+                        <Ionicons name="ellipsis-vertical" size={20} color={theme.textTertiary} />
                     </TouchableOpacity>
                 )}
             </TouchableOpacity>
@@ -241,8 +335,16 @@ export default function GroupInfoScreen() {
                             transition={200}
                         />
                         {!isDirect && (
-                            <TouchableOpacity style={[styles.editButton, { backgroundColor: theme.primary, borderColor: theme.background }]}>
-                                <Ionicons name="pencil" size={16} color="#FFFFFF" />
+                            <TouchableOpacity
+                                style={[styles.editButton, { backgroundColor: theme.primary, borderColor: theme.background }]}
+                                onPress={handleUpdateImage}
+                                disabled={updateGroupImageMutation.isPending}
+                            >
+                                {updateGroupImageMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Ionicons name="pencil" size={16} color="#FFFFFF" />
+                                )}
                             </TouchableOpacity>
                         )}
                     </View>
@@ -265,17 +367,21 @@ export default function GroupInfoScreen() {
                 {/* Resources */}
                 <View style={styles.section}>
                     <View style={[styles.card, { backgroundColor: isDark ? theme.surface : theme.surface, borderColor: theme.border, padding: 0, overflow: 'hidden' }]}>
-                        <TouchableOpacity style={[styles.resourceItem, { borderBottomColor: theme.divider }]}>
+                        <TouchableOpacity
+                            style={[styles.resourceItem, { borderBottomColor: theme.divider }]}
+                            onPress={() => router.push(`/group-info/pinned/${id}`)}
+                        >
                             <Ionicons name="bookmark" size={24} color={theme.primary} />
                             <Text style={[styles.resourceText, { color: theme.text }]}>Pinned Messages</Text>
                             <Ionicons name={textAlign === 'right' ? "chevron-back" : "chevron-forward"} size={20} color={theme.textTertiary} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.resourceItem}>
+                        <TouchableOpacity
+                            style={styles.resourceItem}
+                            onPress={() => router.push(`/group-info/media/${id}`)}
+                        >
                             <Ionicons name="images" size={24} color={theme.primary} />
-                            <View style={styles.mediaContent}>
-                                <Text style={[styles.resourceText, { color: theme.text }]}>Media, Links, and Docs</Text>
-                            </View>
+                            <Text style={[styles.resourceText, { color: theme.text }]}>Media, Links, and Docs</Text>
                             <Ionicons name={textAlign === 'right' ? "chevron-back" : "chevron-forward"} size={20} color={theme.textTertiary} />
                         </TouchableOpacity>
                     </View>
@@ -302,7 +408,7 @@ export default function GroupInfoScreen() {
                     </View>
                 )}
 
-                {/* Leave Group */}
+                {/* Leave Group / Delete Group */}
                 {!isDirect && (
                     <View style={styles.section}>
                         <TouchableOpacity
@@ -319,6 +425,28 @@ export default function GroupInfoScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
+
+                        {(members?.find(m => m.user_id === currentUser?.id)?.member_role === 'OWNER' ||
+                            members?.find(m => m.user_id === currentUser?.id)?.member_role === 'ADMIN') && (
+                                <TouchableOpacity
+                                    style={[styles.leaveButton, {
+                                        marginTop: 12,
+                                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FECACA',
+                                        borderColor: '#EF4444'
+                                    }]}
+                                    onPress={handleDeleteGroup}
+                                    disabled={deleteGroupMutation.isPending}
+                                >
+                                    {deleteGroupMutation.isPending ? (
+                                        <ActivityIndicator size="small" color="#EF4444" />
+                                    ) : (
+                                        <>
+                                            <Ionicons name="trash-outline" size={24} color="#EF4444" />
+                                            <Text style={[styles.leaveText, { color: '#B91C1C' }]}>Delete Group</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            )}
                     </View>
                 )}
 
@@ -331,6 +459,30 @@ export default function GroupInfoScreen() {
                 title="Remove Member"
                 message={`Are you sure you want to remove ${memberToKick?.user_name || 'this member'}?`}
                 confirmText="Remove"
+                isDestructive
+                isDark={isDark}
+                theme={theme}
+            />
+
+            <CustomConfirmModal
+                visible={isLeaveModalVisible}
+                onClose={() => setIsLeaveModalVisible(false)}
+                onConfirm={() => leaveGroupMutation.mutate()}
+                title="Leave Group"
+                message="Are you sure you want to leave this group?"
+                confirmText="Leave"
+                isDestructive
+                isDark={isDark}
+                theme={theme}
+            />
+
+            <CustomConfirmModal
+                visible={isDeleteModalVisible}
+                onClose={() => setIsDeleteModalVisible(false)}
+                onConfirm={() => deleteGroupMutation.mutate()}
+                title="Delete Group"
+                message="Are you sure you want to permanently delete this group and all its data? This action cannot be undone."
+                confirmText="Delete"
                 isDestructive
                 isDark={isDark}
                 theme={theme}
@@ -405,31 +557,36 @@ export default function GroupInfoScreen() {
 
 const RoleTag = ({ role, isDark }: { role: string, isDark: boolean }) => {
     let bg, color, border;
+    let label = role;
 
     switch (role) {
         case 'OWNER':
         case 'INSTRUCTOR':
+        case 'TEACHER':
             bg = '#097D46';
             color = '#FFFFFF';
             border = 'transparent';
             break;
+        case 'ADMIN':
         case 'ASSISTANT':
             bg = 'transparent';
             color = isDark ? '#4FBF8A' : '#097D46';
             border = isDark ? '#4FBF8A' : '#097D46';
+            label = 'ASSISTANT';
             break;
-        default: // STUDENT
+        default: // STUDENT, MEMBER
             bg = isDark ? '#2D3748' : '#F7FAFC';
             color = isDark ? '#A0AEC0' : '#4A5568';
             border = 'transparent';
+            label = role === 'MEMBER' ? 'MEMBER' : 'STUDENT';
     }
 
     return (
         <View style={[
             styles.roleTag,
-            { backgroundColor: bg, borderColor: border, borderWidth: role === 'ASSISTANT' ? 1 : 0 }
+            { backgroundColor: bg, borderColor: border, borderWidth: (role === 'ASSISTANT' || role === 'ADMIN') ? 1 : 0 }
         ]}>
-            <Text style={[styles.roleText, { color }]}>{role}</Text>
+            <Text style={[styles.roleText, { color }]}>{label}</Text>
         </View>
     );
 };

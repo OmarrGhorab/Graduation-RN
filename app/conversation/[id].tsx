@@ -56,6 +56,7 @@ const ChatHeader = React.memo(({
                 >
                     <View>
                         <Image
+                            key={headerInfo.avatar}
                             source={{ uri: headerInfo.avatar || 'https://ui-avatars.com/api/?name=User' }}
                             style={[styles.headerAvatar, { borderColor: theme.border }]}
                             contentFit="cover"
@@ -73,9 +74,6 @@ const ChatHeader = React.memo(({
             </View>
 
             <View style={styles.headerActions}>
-                <TouchableOpacity>
-                    <Ionicons name="videocam-outline" size={24} color={theme.primary} />
-                </TouchableOpacity>
                 <TouchableOpacity onPress={() => router.push(`/group-info/${id}`)}>
                     <Ionicons name="information-circle-outline" size={24} color={theme.primary} />
                 </TouchableOpacity>
@@ -85,8 +83,16 @@ const ChatHeader = React.memo(({
 ));
 
 export default function ChatDetailScreen() {
-    const params = useLocalSearchParams<{ id: string, name?: string, avatar?: string, role?: string, type?: string }>();
-    const { id, name: initialName, avatar: initialAvatar, role: initialRole, type: initialType } = params;
+    const params = useLocalSearchParams<{
+        id: string,
+        name?: string,
+        avatar?: string,
+        role?: string,
+        type?: string,
+        scrollTo?: string
+    }>();
+    const { id, name: initialName, avatar: initialAvatar, role: initialRole, type: initialType, scrollTo } = params;
+
     const { theme, isDark } = useTheme();
     const { t, textAlign } = useTranslation();
     const insets = useSafeAreaInsets();
@@ -134,8 +140,30 @@ export default function ChatDetailScreen() {
             return (allPages?.length || 0) * 20;
         },
         enabled: !!id,
-        refetchOnMount: true, // Ensure we get fresh data when entering the chat
     });
+
+    // Flatten messages from pages
+    const messages = React.useMemo(() => {
+        if (!messagesData?.pages) return [];
+
+        const allMessages: Message[] = [];
+        const seenIds = new Set<string>();
+
+        messagesData.pages.forEach(page => {
+            const pageObj = page as any;
+            const msgs = Array.isArray(page) ? page : pageObj?.messages;
+            if (Array.isArray(msgs)) {
+                msgs.forEach((m: Message) => {
+                    if (m && m.id && !seenIds.has(m.id)) {
+                        seenIds.add(m.id);
+                        allMessages.push(m);
+                    }
+                });
+            }
+        });
+
+        return allMessages;
+    }, [messagesData?.pages]);
 
     // Pinned Messages Query
     const { data: pinnedData, refetch: refetchPinned } = useQuery({
@@ -144,6 +172,8 @@ export default function ChatDetailScreen() {
         enabled: !!id,
     });
     const pinnedMessages = pinnedData?.pinned_messages || [];
+
+
 
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
@@ -160,20 +190,17 @@ export default function ChatDetailScreen() {
         // Delete: Only own messages (for now)
         const canDelete = message.sender_id === user?.id;
 
-        // Pin: Global Role OR (Owner/Admin in Group)
-        const isGlobalPinner = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
-        const isLocalPinner = ['OWNER', 'ADMIN'].includes(member?.member_role || '');
-        const canPin = isGlobalPinner || isLocalPinner;
+        // Pin: Only Owner/Admin in Group (Ignore global roles per doc update)
+        const canPin = member?.member_role === 'OWNER' || member?.member_role === 'ADMIN';
 
-        // Kick: 
-        // 1. Cannot kick self
-        // 2. Global Admin can kick anyone
-        // 3. Group Owner/Admin can kick anyone (except maybe Owner, but simplified for now)
+        // Kick: Strictly local roles. Owner can kick anyone, Admin can kick Members.
         let canKick = false;
-        if (message.sender_id !== user?.id) {
-            const isGlobalAdmin = ['INSTRUCTOR', 'TEACHER', 'ASSISTANT'].includes(globalRole || '');
-            const isLocalAdmin = ['OWNER', 'ADMIN'].includes(member?.member_role || '');
-            canKick = isGlobalAdmin || isLocalAdmin;
+        if (message.sender_id !== user?.id && member) {
+            const targetMember = conversation?.members?.find(m => m.user_id === message.sender_id);
+            const targetRole = targetMember?.member_role;
+
+            if (member.member_role === 'OWNER') canKick = true;
+            else if (member.member_role === 'ADMIN') canKick = targetRole === 'MEMBER';
         }
 
         return { canDelete, canPin, canKick };
@@ -293,54 +320,25 @@ export default function ChatDetailScreen() {
         setMessageToDelete(null);
     };
 
-    // Flatten messages from pages
-    const messages = React.useMemo(() => {
-        if (!messagesData?.pages) return [];
-
-        const allMessages: Message[] = [];
-        const seenIds = new Set<string>();
-
-        messagesData.pages.forEach(page => {
-            const pageObj = page as any;
-            const msgs = Array.isArray(page) ? page : pageObj?.messages;
-            if (Array.isArray(msgs)) {
-                msgs.forEach((m: Message) => {
-                    if (m && m.id && !seenIds.has(m.id)) {
-                        seenIds.add(m.id);
-                        allMessages.push(m);
-                    }
-                });
-            }
-        });
-
-        return allMessages;
-    }, [messagesData?.pages]);
-
-    // We don't use state for messages anymore, derived from query.
-    // We can remove the `useState`, `useRef` and `useEffect` for messages.
-
-    /*
-    // Removing old polling
-    // ...
-    */
 
 
-    // Handle focus for aggressive refetching
+    // Consolidated Focus and Scroll logic
     useFocusEffect(
         React.useCallback(() => {
             if (id) {
-                console.log('[ChatDetail] Application focused. Refetching conversation:', id);
+                console.log('[ChatDetail] Focused. Refreshing all data for:', id);
 
-                // 1. Force Invalidate Queries
-                queryClient.cancelQueries({ queryKey: ['messages', id] }); // Cancel any in-flight
+                // Invalidate and refetch everything to ensure UI is fresh (especially after group info changes)
+                queryClient.invalidateQueries({ queryKey: ['conversation', id] });
                 queryClient.invalidateQueries({ queryKey: ['messages', id] });
-                queryClient.refetchQueries({ queryKey: ['messages', id] }); // Force refetch
+                queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                queryClient.invalidateQueries({ queryKey: ['pinned-messages', id] });
+                queryClient.invalidateQueries({ queryKey: ['members', id] });
 
-                // 2. Mark as read
+                // Mark as read
                 ChatService.markAsRead(id).catch(err => console.error('Failed to mark as read', err));
 
-                // 3. Optimistically update conversations list cache for UNREAD COUNT & PREVIEW
-                // We want to ensure we reset unread count to 0 in ALL lists.
+                // Optimistically reset unread count
                 queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
                     if (!old?.conversations) return old;
                     return {
@@ -353,6 +351,16 @@ export default function ChatDetailScreen() {
             }
         }, [id, queryClient])
     );
+
+    useEffect(() => {
+        if (scrollTo && messages.length > 0) {
+            // Give some time for layouts to settle and messages to render
+            const timer = setTimeout(() => {
+                scrollToMessage(scrollTo);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [scrollTo, messages.length]);
 
     /*
     // Old useEffect for markAsRead (Removed in favor of useFocusEffect)
@@ -466,6 +474,22 @@ export default function ChatDetailScreen() {
 
                 return { ...old, conversations: updatedConversations };
             });
+
+            // Optimistically update chat-media query cache
+            const isMedia = ['image', 'voice', 'video', 'file'].includes(newMessage.type) ||
+                newMessage.content.includes('res.cloudinary.com');
+            const isLink = newMessage.content.includes('http') && !newMessage.content.includes('res.cloudinary.com');
+
+            if (isMedia || isLink) {
+                queryClient.setQueryData(['chat-media', id], (oldMedia: any) => {
+                    if (!oldMedia || !oldMedia.messages) return oldMedia;
+                    if (oldMedia.messages.some((m: any) => m.id === newMessage.id)) return oldMedia;
+                    return {
+                        ...oldMedia,
+                        messages: [newMessage, ...oldMedia.messages]
+                    };
+                });
+            }
         },
     });
 
@@ -1340,15 +1364,45 @@ const MessageBubble = ({
                 </View>
             );
         } else if (message.type === 'image') {
+            const imageUri = message.media_urls?.[0] || message.content;
             return (
-                <TouchableOpacity onPress={() => onImagePress?.(message.content)} style={styles.imageMessageContainer}>
+                <TouchableOpacity onPress={() => onImagePress?.(imageUri)} style={styles.imageMessageContainer}>
                     <Image
-                        source={{ uri: message.content }}
+                        source={{ uri: imageUri }}
                         style={styles.messageImage}
                         contentFit="cover"
                         transition={200}
                     />
                 </TouchableOpacity>
+            );
+        } else if (message.type === 'video') {
+            const thumbnailUri = message.media_urls?.[0] || message.content;
+            return (
+                <TouchableOpacity onPress={() => onImagePress?.(thumbnailUri)} style={styles.videoMessageContainer}>
+                    <Image
+                        source={{ uri: thumbnailUri }}
+                        style={styles.messageImage}
+                        contentFit="cover"
+                        transition={200}
+                    />
+                    <View style={styles.videoPlayOverlay}>
+                        <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                    </View>
+                </TouchableOpacity>
+            );
+        } else if (message.type === 'file') {
+            return (
+                <View style={styles.fileMessageContainer}>
+                    <Ionicons name="document-text" size={32} color={isSender ? '#FFFFFF' : theme.primary} />
+                    <View style={styles.fileInfo}>
+                        <Text style={[styles.fileName, { color: isSender ? '#FFFFFF' : theme.text }]} numberOfLines={1}>
+                            {message.content || 'Document'}
+                        </Text>
+                        <Text style={[styles.fileSize, { color: isSender ? 'rgba(255,255,255,0.7)' : theme.textTertiary }]}>
+                            {message.media_metadata?.size ? (message.media_metadata.size / 1024).toFixed(1) + ' KB' : 'File'}
+                        </Text>
+                    </View>
+                </View>
             );
         }
     };
@@ -1361,6 +1415,18 @@ const MessageBubble = ({
             return '';
         }
     };
+
+    if (message.type === 'system') {
+        return (
+            <View style={styles.systemMessageContainer}>
+                <View style={[styles.systemMessageBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+                    <Text style={[styles.systemMessageText, { color: theme.textSecondary }]}>
+                        {message.content}
+                    </Text>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={[
@@ -1581,6 +1647,51 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontFamily: Fonts.regular,
         lineHeight: 22,
+    },
+    systemMessageContainer: {
+        alignItems: 'center',
+        marginVertical: 12,
+        width: '100%',
+    },
+    systemMessageBadge: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    systemMessageText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        textAlign: 'center',
+    },
+    videoMessageContainer: {
+        position: 'relative',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    videoPlayOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    fileMessageContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 4,
+        gap: 12,
+        minWidth: 150,
+    },
+    fileInfo: {
+        flex: 1,
+    },
+    fileName: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        marginBottom: 2,
+    },
+    fileSize: {
+        fontSize: 11,
+        fontFamily: Fonts.regular,
     },
     messageMeta: {
         flexDirection: 'row',

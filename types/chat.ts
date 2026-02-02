@@ -16,7 +16,7 @@ export type ChatMember = z.infer<typeof ChatMemberSchema>;
 export const MessageSchema = z.object({
     id: z.string(),
     content: z.string(),
-    type: z.enum(['text', 'image', 'voice']),
+    type: z.enum(['text', 'image', 'voice', 'video', 'file', 'system']),
     sender_id: z.string(),
     sender_role: z.string(),
     sender_name: z.string(),

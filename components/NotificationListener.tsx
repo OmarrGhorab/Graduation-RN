@@ -166,6 +166,8 @@ export default function NotificationListener() {
                         sender_image: senderImage,
                         sender_role: payload.senderRole || payload.data?.senderRole || 'STUDENT',
                         created_at: payload.createdAt || new Date().toISOString(),
+                        media_urls: payload.mediaUrls || payload.data?.mediaUrls || payload.data?.media_urls || payload.media_urls || [],
+                        media_metadata: payload.mediaMetadata || payload.data?.mediaMetadata || payload.data?.media_metadata || payload.media_metadata || {},
                         is_deleted: false,
                     };
 
@@ -196,20 +198,23 @@ export default function NotificationListener() {
                         }
                     }
 
-                    // Handle Standard Query structure ({ messages: [...] })
-                    if (old.messages) {
-                        return {
-                            ...old,
-                            messages: [newMessage, ...old.messages] // Append new message (inverted or not? current UI reverses it: [...messagesData.messages].reverse())
-                            // If UI reverses it, it means array is [Oldest...Newest]. 
-                            // If I append here: [...old, new], then reverse becomes [New, Old...].
-                            // Wait. UI Logic: useEffect(() => setMessages([...data].reverse()));
-                            // So data from API is [Newest...Oldest]? Or [Oldest...Newest]?
-                            // If API returns [Oldest...Newest] (limit 50), then reversing makes it [Newest...Oldest] for display.
-                            // If I append to API data: [...old, new]. UI reverses -> [New, Old...]. Correct.
-                            // BUT if I switch to infinite scroll, API usually returns [Newest...Oldest] first.
-                            // I will assume for now we append to existing list logic.
-                        };
+                    // 3. Update chat-media query cache if it's a media message or a link
+                    const isMedia = ['image', 'voice', 'video', 'file'].includes(newMessage.type) ||
+                        newMessage.content.includes('res.cloudinary.com');
+                    const isLink = newMessage.content.includes('http') && !newMessage.content.includes('res.cloudinary.com');
+
+                    if (isMedia || isLink) {
+                        queryClient.setQueryData(['chat-media', conversationId], (oldMedia: any) => {
+                            if (!oldMedia || !oldMedia.messages) return oldMedia;
+
+                            // Check if already exists (shouldn't really happen with SSE unless duplicated)
+                            if (oldMedia.messages.some((m: any) => m.id === newMessage.id)) return oldMedia;
+
+                            return {
+                                ...oldMedia,
+                                messages: [newMessage, ...oldMedia.messages]
+                            };
+                        });
                     }
 
                     return old;
