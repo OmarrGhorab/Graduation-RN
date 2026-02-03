@@ -2,6 +2,7 @@
 // For physical devices, use your computer's local IP address
 // To find it: Run 'ipconfig' in terminal and look for IPv4 Address (usually starts with 192.168.x.x)
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+export const WS_URL = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:8001';
 // For Android emulator, use: 'http://10.0.2.2:3000'
 
 // Google OAuth Client IDs

@@ -2,8 +2,8 @@ import { User } from '@/types/auth';
 import {
     ChatMember,
     Conversation,
+    ConversationDetail,
     CreateGroupRequest,
-    MediaPresignRequest,
     MediaPresignResponse,
     Message,
     PinnedMessage,
@@ -25,27 +25,22 @@ export const ChatService = {
     },
 
     // Create Direct Chat
-    async createDirectChat(recipientId: string): Promise<Conversation> {
+    async createDirectChat(peerId: string): Promise<Conversation> {
         return apiClient.post<Conversation>(`${PREFIX}/conversations/direct`, {
-            recipient_id: recipientId
+            peer_id: peerId
         });
     },
 
     // Get User Conversations (List)
-    async getConversations(filters: { role?: string; type?: string; q?: string; limit?: number; offset?: number } = {}): Promise<{ conversations: Conversation[] }> {
-        return apiClient.get<{ conversations: Conversation[] }>(`${PREFIX}/conversations`, {
+    async getConversations(filters: { role?: string; type?: string; q?: string; limit?: number; offset?: number } = {}): Promise<Conversation[]> {
+        return apiClient.get<Conversation[]>(`${PREFIX}/conversations`, {
             params: filters
         });
     },
 
     // Get Conversation Details
-    async getConversationDetails(id: string): Promise<Conversation> {
-        return apiClient.get<Conversation>(`${PREFIX}/conversations/${id}`);
-    },
-
-    // Mark as Read
-    async markAsRead(id: string): Promise<{ message: string }> {
-        return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${id}/read`);
+    async getConversationDetails(id: string): Promise<ConversationDetail> {
+        return apiClient.get<ConversationDetail>(`${PREFIX}/conversations/${id}`);
     },
 
     // Delete Conversation (Admin only)
@@ -53,11 +48,9 @@ export const ChatService = {
         return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${id}`);
     },
 
-    // Update Group Image
-    async updateGroupImage(id: string, imageUrl: string): Promise<{ message: string }> {
-        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${id}/image`, {
-            image_url: imageUrl
-        });
+    // Leave Conversation
+    async leaveConversation(id: string): Promise<{ message: string }> {
+        return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${id}/leave`);
     },
 
     /**
@@ -66,25 +59,29 @@ export const ChatService = {
 
     // Get Members
     async getMembers(conversationId: string): Promise<ChatMember[]> {
-        // The API might return { members: [] } or just []
-        const data = await apiClient.get<any>(`${PREFIX}/conversations/${conversationId}/members`);
-        return data.members || data;
+        return apiClient.get<ChatMember[]>(`${PREFIX}/conversations/${conversationId}/members`);
     },
 
     // Add Member
-    async addMember(conversationId: string, data: { user_id: string; member_role?: string }): Promise<{ message: string }> {
-        return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members`, data);
+    async addMember(conversationId: string, userId: string): Promise<{ message: string }> {
+        return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members`, {
+            user_id: userId
+        });
     },
 
-    // Remove Member / Leave Group
-    async removeMember(conversationId: string, memberId: string): Promise<{ message: string }> {
-        return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members/${memberId}`);
+    // Remove Member
+    async removeMember(conversationId: string, userId: string): Promise<{ message: string }> {
+        // Note: DELETE with body - apiClient handles this via RequestOptions
+        return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members`, {
+            body: { user_id: userId }
+        } as any);
     },
 
     // Update Member Role
-    async updateMemberRole(conversationId: string, memberId: string, role: string): Promise<{ message: string }> {
-        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members/${memberId}/role`, {
-            member_role: role
+    async updateMemberRole(conversationId: string, userId: string, role: 'OWNER' | 'ADMIN' | 'MEMBER'): Promise<{ message: string }> {
+        return apiClient.put<{ message: string }>(`${PREFIX}/conversations/${conversationId}/members/role`, {
+            user_id: userId,
+            role
         });
     },
 
@@ -104,77 +101,53 @@ export const ChatService = {
         });
     },
 
-    // Get Media, Links, and Docs
-    async getChatMedia(conversationId: string, query: { limit?: number; offset?: number } = {}): Promise<{ messages: Message[] }> {
-        return apiClient.get<{ messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/messages/media`, {
-            params: query
-        });
-    },
-
-    // Long Polling for Messages
-    async pollMessages(conversationId: string, afterId: string): Promise<{ messages: Message[] }> {
-        return apiClient.get<{ messages: Message[] }>(`${PREFIX}/conversations/${conversationId}/poll`, {
-            params: { after: afterId },
-            timeout: 60000 // Increase timeout for long polling (60s)
-        });
-    },
-
     // Delete Message
     async deleteMessage(conversationId: string, messageId: string): Promise<{ message: string }> {
         return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}`);
     },
 
     // Pin Message
-    async pinMessage(conversationId: string, messageId: string): Promise<{ message: string }> {
-        return apiClient.post<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/pin`);
+    async pinMessage(conversationId: string, messageId: string): Promise<void> {
+        await apiClient.post(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/pin`);
     },
 
     // Unpin Message
-    async unpinMessage(conversationId: string, messageId: string): Promise<{ message: string }> {
-        return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/pin`);
-    },
-
-    // Edit Message
-    async editMessage(conversationId: string, messageId: string, content: string): Promise<{ message: string }> {
-        return apiClient.patch<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}`, {
-            content
-        });
+    async unpinMessage(conversationId: string, messageId: string): Promise<void> {
+        await apiClient.delete(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/pin`);
     },
 
     // Get Pinned Messages
-    async getPinnedMessages(conversationId: string): Promise<{ pinned_messages: PinnedMessage[] }> {
-        return apiClient.get<{ pinned_messages: PinnedMessage[] }>(`${PREFIX}/conversations/${conversationId}/messages/pinned`);
+    async getPinnedMessages(conversationId: string): Promise<PinnedMessage[]> {
+        const data = await apiClient.get<PinnedMessage[]>(`${PREFIX}/conversations/${conversationId}/messages/pinned`);
+        return Array.isArray(data) ? data : [];
     },
 
     /**
      * 4. MEDIA
      */
 
-    // Batch Presign
-    async batchPresign(data: MediaPresignRequest): Promise<MediaPresignResponse> {
-        return apiClient.post<MediaPresignResponse>(`${PREFIX}/media/batch-presign`, data);
+    // Get Presigned URL for media upload
+    async getPresignedUrl(folder: string): Promise<MediaPresignResponse> {
+        return apiClient.post<MediaPresignResponse>(`${PREFIX}/media/presign`, {
+            folder
+        });
     },
 
     /**
      * 5. TYPING INDICATORS
      */
 
-    // Set Typing Status (Report I am typing)
-    async setTypingStatus(conversationId: string): Promise<void> {
+    // Send Typing Indicator
+    async sendTyping(conversationId: string, isTyping: boolean): Promise<void> {
         try {
             await apiClient.post(`${PREFIX}/typing`, {
-                conversation_id: conversationId
+                conversation_id: conversationId,
+                is_typing: isTyping
             });
         } catch (error) {
             // Typing status is usually non-critical
+            console.warn('[ChatService] Failed to send typing indicator:', error);
         }
-    },
-
-    // Get Typing Users (Who is typing?)
-    async getTypingUsers(conversationId: string): Promise<{ typing_users: { user_id: string; user_role: string }[] }> {
-        return apiClient.get<{ typing_users: { user_id: string; user_role: string }[] }>(`${PREFIX}/typing`, {
-            params: { conversation_id: conversationId }
-        });
     },
 
     /**
@@ -190,55 +163,90 @@ export const ChatService = {
      * 7. MEDIA HELPERS
      */
     async uploadMedia(fileUri: string, type: 'image' | 'voice'): Promise<string> {
-        console.log(`[ChatService] Starting uploadMedia. Type: ${type}, URI: ${fileUri}`);
-        // 1. Get Presigned URL
-        const presignRes = await this.batchPresign({
-            files: [{
-                type,
-                content_type: type === 'image' ? 'image/jpeg' : 'audio/m4a',
-                file_size: 1000000 // Approximate size limit or metadata based
-            }]
-        });
-        console.log(`[ChatService] Presign response:`, JSON.stringify(presignRes, null, 2));
+        try {
+            console.log(`[ChatService] Starting media upload - Type: ${type}, URI: ${fileUri}`);
+            
+            // 1. Get presigned URL from backend
+            const folder = type === 'image' ? 'chat/images' : 'chat/voice';
+            console.log(`[ChatService] Requesting presigned URL for folder: ${folder}`);
+            
+            const presignData = await this.getPresignedUrl(folder);
+            console.log(`[ChatService] Received presign data:`, {
+                url: presignData.url,
+                folder: presignData.folder,
+                timestamp: presignData.timestamp
+            });
 
-        const fileInfo = presignRes.files[0];
+            // 2. Prepare file for upload
+            const fileData = {
+                uri: Platform.OS === 'ios' ? fileUri.replace('file://', '') : fileUri,
+                type: type === 'image' ? 'image/jpeg' : 'audio/m4a',
+                name: type === 'image' ? 'photo.jpg' : 'audio.m4a'
+            };
 
-        // 2. Upload to Cloudinary
-        const formData = new FormData();
-        formData.append('file', {
-            uri: Platform.OS === 'ios' ? fileUri.replace('file://', '') : fileUri,
-            type: type === 'image' ? 'image/jpeg' : 'audio/m4a',
-            name: type === 'image' ? 'photo.jpg' : 'audio.m4a'
-        } as any);
-        formData.append('api_key', fileInfo.api_key);
-        formData.append('timestamp', fileInfo.timestamp.toString());
-        formData.append('signature', fileInfo.signature);
+            // 3. Build FormData with Cloudinary credentials
+            const formData = new FormData();
+            formData.append('file', fileData as any);
+            formData.append('api_key', presignData.api_key);
+            formData.append('timestamp', presignData.timestamp.toString());
+            formData.append('signature', presignData.signature);
+            formData.append('folder', presignData.folder);
 
-        // Optional: Stay organized if backend provides folder/public_id
-        if (fileInfo.folder) {
-            formData.append('folder', fileInfo.folder);
+            console.log(`[ChatService] Uploading to Cloudinary...`);
+            
+            // 4. Upload to Cloudinary (don't set Content-Type header - FormData handles it)
+            const uploadRes = await fetch(presignData.url, {
+                method: 'POST',
+                body: formData,
+            });
+
+            // 5. Handle upload response
+            if (!uploadRes.ok) {
+                const errorText = await uploadRes.text();
+                let errorData;
+                try {
+                    errorData = JSON.parse(errorText);
+                } catch {
+                    errorData = { message: errorText };
+                }
+                
+                console.error(`[ChatService] Cloudinary upload failed:`, {
+                    status: uploadRes.status,
+                    statusText: uploadRes.statusText,
+                    error: errorData
+                });
+                
+                const errorMessage = errorData?.error?.message || 
+                                   errorData?.message || 
+                                   `Upload failed with status ${uploadRes.status}`;
+                throw new Error(`Media upload failed: ${errorMessage}`);
+            }
+
+            const uploadData = await uploadRes.json();
+            
+            if (!uploadData.secure_url) {
+                console.error(`[ChatService] No secure_url in response:`, uploadData);
+                throw new Error('Upload succeeded but no URL returned from Cloudinary');
+            }
+
+            console.log(`[ChatService] Upload successful - URL: ${uploadData.secure_url}`);
+            return uploadData.secure_url;
+            
+        } catch (error) {
+            console.error(`[ChatService] Media upload error:`, error);
+            
+            // Provide user-friendly error messages
+            if (error instanceof Error) {
+                if (error.message.includes('Network request failed')) {
+                    throw new Error('Network error: Please check your internet connection');
+                }
+                if (error.message.includes('presign')) {
+                    throw new Error('Failed to get upload credentials. Please try again.');
+                }
+                throw error;
+            }
+            
+            throw new Error('Failed to upload media. Please try again.');
         }
-        if (fileInfo.public_id) {
-            formData.append('public_id', fileInfo.public_id);
-        }
-
-        console.log(`[ChatService] Uploading to Cloudinary URL:`, fileInfo.upload_url);
-        const uploadRes = await fetch(fileInfo.upload_url, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-
-        if (!uploadRes.ok) {
-            const errorData = await uploadRes.json().catch(() => ({}));
-            console.error(`[ChatService] Cloudinary Upload Failed:`, errorData);
-            throw new Error(errorData.error?.message || `Cloudinary upload failed with status ${uploadRes.status}`);
-        }
-
-        const uploadData = await uploadRes.json();
-        console.log(`[ChatService] Cloudinary Upload Success:`, uploadData.secure_url);
-        return uploadData.secure_url;
     },
 };

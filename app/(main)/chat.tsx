@@ -1,19 +1,30 @@
 import { Fonts, primaryGradient } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
 import { Conversation } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FILTERS = ['ALL', 'INSTRUCTORS', 'STUDENTS', 'GROUPS'];
+
+interface ChatMessageNotification {
+    userId: string;
+    type: string;
+    messageId: string;
+    conversationId: string;
+    senderName: string;
+    messagePreview: string;
+    messageType: string;
+}
 
 export default function ChatScreen() {
     const { theme, isDark } = useTheme();
@@ -23,8 +34,9 @@ export default function ChatScreen() {
     const currentUser = useAuthStore(state => state.user);
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
+    const queryClient = useQueryClient();
 
-    const { data, isLoading, refetch, isRefetching } = useQuery({
+    const { data, isLoading, refetch, isRefetching, isError, error } = useQuery({
         queryKey: ['conversations', activeFilter, searchQuery],
         queryFn: () => ChatService.getConversations({
             type: activeFilter === 'GROUPS' ? 'GROUP' : undefined,
@@ -33,18 +45,91 @@ export default function ChatScreen() {
         }),
     });
 
-    const conversations = data?.conversations || [];
+    const { subscribe } = useWebSocket();
+
+    useEffect(() => {
+        const unsubscribe = subscribe('message.created', (payload: any) => {
+            try {
+                // Check if payload needs unpacking (some backends wrap in 'data')
+                const message = payload.data || payload;
+
+                // Validate message structure
+                if (!message || !message.conversation_id) {
+                    console.warn('[Chat] Invalid message.created payload:', payload);
+                    return;
+                }
+
+                // If we are filtering or searching, it's safer to just invalidate
+                if (activeFilter !== 'ALL' || searchQuery) {
+                    queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                    return;
+                }
+
+                // Optimistically update the conversation list with new message structure
+                queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
+                    if (!oldData) return oldData;
+
+                    const conversationId = message.conversation_id;
+                    const conversations = [...oldData];
+                    const index = conversations.findIndex(c => c.id === conversationId);
+
+                    if (index !== -1) {
+                        // Update existing conversation with new last_message structure
+                        const updatedConv = {
+                            ...conversations[index],
+                            last_message: {
+                                id: message.id,
+                                conversation_id: message.conversation_id,
+                                sender_id: message.sender_id,
+                                content: message.content,
+                                type: message.type,
+                                media_urls: message.media_urls || [],
+                                created_at: message.created_at,
+                                sender: message.sender || {
+                                    id: message.sender_id,
+                                    name: 'Unknown',
+                                    image: `https://ui-avatars.com/api/?name=Unknown`
+                                }
+                            },
+                            updated_at: message.created_at || new Date().toISOString(),
+                        };
+
+                        // Remove from current position and move to top
+                        conversations.splice(index, 1);
+                        conversations.unshift(updatedConv);
+
+                        return conversations;
+                    } else {
+                        // New conversation - invalidate to fetch fresh data
+                        // This handles edge case where user receives message in new conversation
+                        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                        return oldData;
+                    }
+                });
+            } catch (error) {
+                console.error('[Chat] Error handling message.created:', error);
+                // On error, invalidate to ensure consistency
+                queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            }
+        });
+
+        return unsubscribe;
+    }, [activeFilter, searchQuery, queryClient, subscribe]);
+
+    const conversations = data || [];
 
     const getConversationDisplay = (item: Conversation) => {
         if (item.type === 'DIRECT') {
-            const otherMember = item.members?.find(m => m.user_id !== currentUser?.id);
-            const displayName = item.name || otherMember?.user_name || 'User';
+            // Use peer_profile for DIRECT chats
+            const displayName = item.peer_profile?.name || item.name || 'User';
+            const displayImage = item.peer_profile?.image || item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
             return {
                 name: displayName,
-                avatar: item.image_url || otherMember?.user_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`,
-                role: otherMember?.user_role || 'STUDENT',
+                avatar: displayImage,
+                role: 'STUDENT', // Default role for direct chats
             };
         }
+        // Use name and image_url for GROUP chats
         const groupName = item.name || 'Group Chat';
         return {
             name: groupName,
@@ -70,13 +155,25 @@ export default function ChatScreen() {
         const display = getConversationDisplay(item);
 
         const getSubtitle = () => {
-            if (item.preview_text) return item.preview_text;
             if (item.last_message) {
                 const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
-                const content = item.last_message.type === 'image' ? '📷 Image' :
-                    item.last_message.type === 'voice' ? '🎤 Voice Message' :
-                        item.last_message.content;
-                return isMe ? `${t('chat.you')}: ${content}` : content;
+                const senderName = item.last_message.sender?.name || 'Someone';
+                
+                // Handle media types in preview
+                let content = item.last_message.content;
+                if (item.last_message.type === 'image') {
+                    content = '📷 Image';
+                } else if (item.last_message.type === 'voice') {
+                    content = '🎤 Voice Message';
+                }
+                
+                // Show sender name for group chats, or "You:" for own messages
+                if (item.type === 'GROUP' && !isMe) {
+                    return `${senderName}: ${content}`;
+                } else if (isMe) {
+                    return `${t('chat.you')}: ${content}`;
+                }
+                return content;
             }
             return item.description || null;
         };
@@ -117,11 +214,7 @@ export default function ChatScreen() {
                 </View>
 
                 <View style={styles.metaContainer}>
-                    {item.unread_count > 0 && (
-                        <View style={[styles.unreadBadge, { backgroundColor: theme.primary }]}>
-                            <Text style={styles.unreadText}>{item.unread_count}</Text>
-                        </View>
-                    )}
+                    {/* Unread badge removed - not provided by API */}
                 </View>
             </TouchableOpacity>
         );
@@ -199,9 +292,9 @@ export default function ChatScreen() {
 
             {/* Conversations List */}
             {isLoading ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color={theme.primary} />
-                </View>
+                <LoadingSkeleton theme={theme} isDark={isDark} />
+            ) : isError ? (
+                <ErrorState theme={theme} isDark={isDark} onRetry={refetch} />
             ) : (
                 <FlatList
                     data={conversations}
@@ -210,7 +303,12 @@ export default function ChatScreen() {
                     contentContainerStyle={[styles.listContent, conversations.length === 0 && { flex: 1 }]}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
-                        <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.primary} />
+                        <RefreshControl 
+                            refreshing={isRefetching} 
+                            onRefresh={refetch} 
+                            tintColor={theme.primary}
+                            colors={[theme.primary]}
+                        />
                     }
                     ListEmptyComponent={
                         <EmptyState
@@ -276,10 +374,20 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
     const getMessage = () => {
         if (searchQuery) return `No chats matching "${searchQuery}"`;
         switch (activeFilter) {
-            case 'INSTRUCTORS': return 'No instructors found';
-            case 'STUDENTS': return 'No students found';
-            case 'GROUPS': return 'No groups found';
+            case 'INSTRUCTORS': return 'No instructor conversations';
+            case 'STUDENTS': return 'No student conversations';
+            case 'GROUPS': return 'No group conversations';
             default: return 'No conversations yet';
+        }
+    };
+
+    const getSubtitle = () => {
+        if (searchQuery) return "Try adjusting your search or check your spelling";
+        switch (activeFilter) {
+            case 'INSTRUCTORS': return 'Start chatting with your instructors by creating a new conversation';
+            case 'STUDENTS': return 'Connect with students by starting a new conversation';
+            case 'GROUPS': return 'Create or join a group to start collaborating';
+            default: return 'Start a new conversation by tapping the + button below';
         }
     };
 
@@ -302,8 +410,53 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
                 {getMessage()}
             </Text>
             <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-                {searchQuery ? "Try checking your spelling or search for something else" : "Start a new conversation by tapping the button below"}
+                {getSubtitle()}
             </Text>
+        </View>
+    );
+}
+
+// Loading Skeleton Component
+function LoadingSkeleton({ theme, isDark }: { theme: any, isDark: boolean }) {
+    const skeletonColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)';
+    
+    return (
+        <View style={styles.loadingContainer}>
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+                <View key={item} style={[styles.skeletonItem, { borderBottomColor: theme.divider }]}>
+                    <View style={[styles.skeletonAvatar, { backgroundColor: skeletonColor }]} />
+                    <View style={styles.skeletonContent}>
+                        <View style={[styles.skeletonLine, styles.skeletonTitle, { backgroundColor: skeletonColor }]} />
+                        <View style={[styles.skeletonLine, styles.skeletonSubtitle, { backgroundColor: skeletonColor }]} />
+                        <View style={[styles.skeletonLine, styles.skeletonTime, { backgroundColor: skeletonColor }]} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+// Error State Component
+function ErrorState({ theme, isDark, onRetry }: { theme: any, isDark: boolean, onRetry: () => void }) {
+    return (
+        <View style={styles.emptyContainer}>
+            <View style={[styles.emptyIconContainer, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' }]}>
+                <Ionicons name="alert-circle-outline" size={60} color="#EF4444" />
+            </View>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                Failed to load conversations
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+                Something went wrong while loading your chats. Please check your connection and try again.
+            </Text>
+            <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                onPress={onRetry}
+                activeOpacity={0.8}
+            >
+                <Ionicons name="refresh" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -511,5 +664,53 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         textAlign: 'center',
         lineHeight: 22,
+    },
+    loadingContainer: {
+        flex: 1,
+    },
+    skeletonItem: {
+        flexDirection: 'row',
+        padding: 16,
+        borderBottomWidth: 1,
+        alignItems: 'center',
+        gap: 12,
+    },
+    skeletonAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    skeletonContent: {
+        flex: 1,
+        gap: 8,
+    },
+    skeletonLine: {
+        height: 12,
+        borderRadius: 6,
+    },
+    skeletonTitle: {
+        width: '60%',
+        height: 16,
+    },
+    skeletonSubtitle: {
+        width: '80%',
+    },
+    skeletonTime: {
+        width: '30%',
+        height: 10,
+    },
+    retryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+        marginTop: 24,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontFamily: Fonts.semiBold,
     },
 });

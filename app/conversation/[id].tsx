@@ -4,12 +4,14 @@ import { useToast } from '@/components/toast';
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
-import { Message } from '@/types/chat';
+import { ChatMember, Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
@@ -115,12 +117,59 @@ export default function ChatDetailScreen() {
     const [isEmojiOpen, setIsEmojiOpen] = useState(false);
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
+    // Real-time updates
+    const { subscribe, send } = useWebSocket();
+
+    // Typing indicator hook
+    const { sendTypingIndicator } = useTypingIndicator(id!);
+
     // Fetch Conversation Details
     const { data: conversation } = useQuery({
         queryKey: ['conversation', id],
         queryFn: () => ChatService.getConversationDetails(id!),
         enabled: !!id,
     });
+
+    // Real-time updates
+    useEffect(() => {
+        // Message Listener
+        const unsubMessage = subscribe('message.created', (payload: any) => {
+            const message = payload.data || payload;
+
+            if (message.conversation_id === id) {
+                queryClient.setQueryData(['messages', id], (old: any) => {
+                    if (!old) return old;
+                    if (old.pages) {
+                        const newPages = [...old.pages];
+                        if (newPages.length > 0) {
+                            let targetPage = newPages[0];
+                            let isArray = Array.isArray(targetPage);
+                            let messages = isArray ? targetPage : targetPage.messages;
+
+                            if (messages?.some((m: any) => m.id === message.id)) return old;
+
+                            const updatedMessages = [message, ...(messages || [])];
+
+                            if (isArray) {
+                                newPages[0] = updatedMessages;
+                            } else {
+                                newPages[0] = { ...targetPage, messages: updatedMessages };
+                            }
+
+                            return { ...old, pages: newPages };
+                        }
+                    }
+                    return old;
+                });
+            }
+        });
+
+        return () => {
+            unsubMessage();
+        };
+    }, [id, isFocused, queryClient]);
+
+
 
     // Infinite Query for Messages
     const {
@@ -171,7 +220,8 @@ export default function ChatDetailScreen() {
         queryFn: () => ChatService.getPinnedMessages(id!),
         enabled: !!id,
     });
-    const pinnedMessages = pinnedData?.pinned_messages || [];
+    // Handle array response (API returns array directly)
+    const pinnedMessages = pinnedData || [];
 
 
 
@@ -191,16 +241,16 @@ export default function ChatDetailScreen() {
         const canDelete = message.sender_id === user?.id;
 
         // Pin: Only Owner/Admin in Group (Ignore global roles per doc update)
-        const canPin = member?.member_role === 'OWNER' || member?.member_role === 'ADMIN';
+        const canPin = member?.role === 'OWNER' || member?.role === 'ADMIN';
 
         // Kick: Strictly local roles. Owner can kick anyone, Admin can kick Members.
         let canKick = false;
         if (message.sender_id !== user?.id && member) {
             const targetMember = conversation?.members?.find(m => m.user_id === message.sender_id);
-            const targetRole = targetMember?.member_role;
+            const targetRole = targetMember?.role;
 
-            if (member.member_role === 'OWNER') canKick = true;
-            else if (member.member_role === 'ADMIN') canKick = targetRole === 'MEMBER';
+            if (member.role === 'OWNER') canKick = true;
+            else if (member.role === 'ADMIN') canKick = targetRole === 'MEMBER';
         }
 
         return { canDelete, canPin, canKick };
@@ -277,7 +327,7 @@ export default function ChatDetailScreen() {
 
     const confirmKick = async () => {
         if (!selectedMessage) return;
-        const userToKickName = selectedMessage.sender_name || 'this user';
+        const userToKickName = selectedMessage.sender?.name || 'this user';
         try {
             await ChatService.removeMember(id!, selectedMessage.sender_id);
             toast.success('Removed', `${userToKickName} has been removed.`);
@@ -334,20 +384,6 @@ export default function ChatDetailScreen() {
                 queryClient.invalidateQueries({ queryKey: ['conversations'] });
                 queryClient.invalidateQueries({ queryKey: ['pinned-messages', id] });
                 queryClient.invalidateQueries({ queryKey: ['members', id] });
-
-                // Mark as read
-                ChatService.markAsRead(id).catch(err => console.error('Failed to mark as read', err));
-
-                // Optimistically reset unread count
-                queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
-                    if (!old?.conversations) return old;
-                    return {
-                        ...old,
-                        conversations: old.conversations.map((c: any) =>
-                            c.id === id ? { ...c, unread_count: 0 } : c
-                        )
-                    };
-                });
             }
         }, [id, queryClient])
     );
@@ -367,131 +403,209 @@ export default function ChatDetailScreen() {
     useEffect(() => { ... }, [id, isFocused, queryClient]);
     */
 
-    // Typing Polling (Listening) - Using useQuery for better lifecycle management
+    // Typing indicator data (managed by useTypingIndicator hook)
     const { data: typingData } = useQuery({
         queryKey: ['typing', id],
-        queryFn: () => ChatService.getTypingUsers(id!),
-        refetchInterval: isFocused ? 5000 : false, // Poll every 5s only when focused
-        enabled: !!id && isFocused,
+        queryFn: () => ({ typing_users: [] as { user_id: string; user_name: string }[] }),
+        staleTime: Infinity,
+        enabled: !!id,
     });
 
     const currentTypingUsers = typingData?.typing_users || [];
 
-
-
-    // Typing Reporting (I am typing)
+    // Debug typing data
     useEffect(() => {
-        if (inputText && id && isFocused) {
-            const now = Date.now();
-            if (now - lastTypingReport.current > 2000) {
-                lastTypingReport.current = now;
-                ChatService.setTypingStatus(id).catch(() => { });
-            }
-        }
-    }, [inputText, id, isFocused]);
+        console.log('[ChatDetail] Typing data updated:', {
+            typingData,
+            currentTypingUsers,
+            currentUserId: currentUser?.id,
+            othersTyping: currentTypingUsers.filter(u => u.user_id !== currentUser?.id)
+        });
+    }, [typingData, currentTypingUsers, currentUser?.id]);
 
-    // Mark as Read when new messages arrive and screen is focused
-    useEffect(() => {
-        if (isFocused && id && messages.length > 0) {
-            // We assume that if the user is focused and messages update, they read them.
-            // This covers the "User B reads -> User B's count = 0" case dynamically.
-            ChatService.markAsRead(id).catch(err => console.error('[ChatDetail] Failed to mark as read on update', err));
+
+    const handleInputChange = (text: string) => {
+        setInputText(text);
+        if (text.length > 0) {
+            sendTypingIndicator();
+        } else {
+            // Stop typing indicator when input is cleared
+            ChatService.sendTyping(id!, false).catch(err => 
+                console.log('[ChatDetail] Failed to stop typing:', err)
+            );
         }
-    }, [messages, id, isFocused]);
+    };
 
     const getTypingMessage = () => {
-        const latestMessageSenderId = messages.length > 0 ? messages[0].sender_id : null;
-        const othersTyping = currentTypingUsers.filter(u =>
-            u.user_id !== currentUser?.id &&
-            u.user_id !== latestMessageSenderId
-        );
-
+        // Filter out current user
+        const othersTyping = currentTypingUsers.filter(u => u.user_id !== currentUser?.id);
+        
+        console.log('[ChatDetail] getTypingMessage called:', {
+            currentTypingUsers,
+            othersTyping,
+            currentUserId: currentUser?.id
+        });
+        
         if (othersTyping.length === 0) return null;
-
-        if (othersTyping.length === 1) {
-            const member = conversation?.members?.find(m => m.user_id === othersTyping[0].user_id);
-            return `${member?.user_name || 'Someone'} is typing...`;
-        }
-
+        if (othersTyping.length === 1) return `${othersTyping[0].user_name} is typing...`;
         return `${othersTyping.length} people are typing...`;
     };
 
-    // Send Message Mutation
-    const sendMessageMutation = useMutation({
-        mutationFn: (data: any) => ChatService.sendMessage(id!, data),
-        onSuccess: (newMessage) => {
-            setInputText('');
-            // Optimistically update infinite query cache (Messages)
-            queryClient.setQueryData(['messages', id], (old: any) => {
-                if (!old) return old;
+    // Send Message via HTTP API (WebSocket will broadcast the created message)
+    const sendMessage = async (payload: { content: string, type: 'text' | 'image' | 'voice', reply_to_id?: string | null, media_metadata?: any }) => {
+        const localId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-                // Infinite Query Structure { pages: [ [Message, ...], [Message, ...] ] }
-                if (old.pages) {
-                    const newPages = [...old.pages];
-                    if (newPages.length > 0) {
-                        let targetPage = newPages[0];
-                        let isArray = Array.isArray(targetPage);
-                        let messages = isArray ? targetPage : targetPage.messages;
+        const newMessage: Message = {
+            id: localId,
+            conversation_id: id!,
+            content: payload.content,
+            type: payload.type as any,
+            sender_id: currentUser?.id || 'unknown',
+            media_urls: [],
+            // Use new sender object structure
+            sender: {
+                id: currentUser?.id || 'unknown',
+                name: currentUser?.name || 'Unknown',
+                image: currentUser?.profileImg || ''
+            },
+            created_at: new Date().toISOString(),
+            is_deleted: false,
+            reply_to_id: payload.reply_to_id || undefined,
+            media_metadata: payload.media_metadata
+        };
 
-                        // Check duplicate
-                        if (messages?.some((m: any) => m.id === newMessage.id)) return old;
+        // Optimistically update infinite query cache (Messages)
+        queryClient.setQueryData(['messages', id], (old: any) => {
+            if (!old) return old;
 
-                        // Add to beginning
-                        const updatedMessages = [newMessage, ...(messages || [])];
+            // Infinite Query Structure { pages: [ [Message, ...], [Message, ...] ] }
+            if (old.pages) {
+                const newPages = [...old.pages];
+                if (newPages.length > 0) {
+                    let targetPage = newPages[0];
+                    let isArray = Array.isArray(targetPage);
+                    let messages = isArray ? targetPage : targetPage.messages;
 
-                        if (isArray) {
-                            newPages[0] = updatedMessages;
-                        } else {
-                            newPages[0] = { ...targetPage, messages: updatedMessages };
-                        }
+                    // Check duplicate
+                    if (messages?.some((m: any) => m.id === newMessage.id)) return old;
 
-                        return { ...old, pages: newPages };
+                    // Add to beginning
+                    const updatedMessages = [newMessage, ...(messages || [])];
+
+                    if (isArray) {
+                        newPages[0] = updatedMessages;
+                    } else {
+                        newPages[0] = { ...targetPage, messages: updatedMessages };
                     }
+
+                    return { ...old, pages: newPages };
                 }
-                return old;
+            }
+            return old;
+        });
+
+        // Optimistically update conversations list cache (Last Message Preview)
+        queryClient.setQueryData(['conversations'], (old: any) => {
+            if (!old) return old;
+
+            // Handle both array and object responses
+            const conversations = Array.isArray(old) ? old : old.conversations;
+            if (!conversations) return old;
+
+            let updatedConversations = conversations.map((c: any) => {
+                if (c.id === id) {
+                    return {
+                        ...c,
+                        last_message: {
+                            ...newMessage,
+                            sent_at: new Date().toISOString()
+                        },
+                        updated_at: new Date().toISOString()
+                    };
+                }
+                return c;
             });
 
-            // Optimistically update conversations list cache (Last Message Preview)
-            queryClient.setQueryData(['conversations'], (old: any) => {
-                if (!old?.conversations) return old;
+            // Move updated conversation to top
+            updatedConversations.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-                let updatedConversations = old.conversations.map((c: any) => {
+            return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
+        });
+
+        // Send via HTTP API
+        try {
+            console.log('[ChatDetail] Sending message via HTTP API:', payload);
+            const sentMessage = await ChatService.sendMessage(id!, {
+                ...payload,
+                reply_to_id: payload.reply_to_id || undefined // Convert null to undefined
+            });
+            console.log('[ChatDetail] Message sent successfully:', sentMessage);
+
+            // Replace optimistic message with real message from server
+            queryClient.setQueryData(['messages', id], (old: any) => {
+                if (!old || !old.pages) return old;
+
+                const newPages = old.pages.map((page: any) => {
+                    const isArray = Array.isArray(page);
+                    const messages = isArray ? page : page.messages;
+                    
+                    if (!Array.isArray(messages)) return page;
+
+                    const updatedMessages = messages.map((m: any) => 
+                        m.id === localId ? sentMessage : m
+                    );
+
+                    return isArray ? updatedMessages : { ...page, messages: updatedMessages };
+                });
+
+                return { ...old, pages: newPages };
+            });
+
+            // Update conversations list with real message
+            queryClient.setQueryData(['conversations'], (old: any) => {
+                if (!old) return old;
+
+                const conversations = Array.isArray(old) ? old : old.conversations;
+                if (!conversations) return old;
+
+                const updatedConversations = conversations.map((c: any) => {
                     if (c.id === id) {
                         return {
                             ...c,
-                            last_message: {
-                                ...newMessage,
-                                sent_at: new Date().toISOString()
-                            },
-                            updated_at: new Date().toISOString()
+                            last_message: sentMessage,
+                            updated_at: sentMessage.created_at
                         };
                     }
                     return c;
                 });
 
-                // Move updated conversation to top
-                updatedConversations.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-
-                return { ...old, conversations: updatedConversations };
+                return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
             });
 
-            // Optimistically update chat-media query cache
-            const isMedia = ['image', 'voice', 'video', 'file'].includes(newMessage.type) ||
-                newMessage.content.includes('res.cloudinary.com');
-            const isLink = newMessage.content.includes('http') && !newMessage.content.includes('res.cloudinary.com');
+        } catch (error) {
+            console.error('[ChatDetail] Failed to send message:', error);
+            
+            // Remove optimistic message on error
+            queryClient.setQueryData(['messages', id], (old: any) => {
+                if (!old || !old.pages) return old;
 
-            if (isMedia || isLink) {
-                queryClient.setQueryData(['chat-media', id], (oldMedia: any) => {
-                    if (!oldMedia || !oldMedia.messages) return oldMedia;
-                    if (oldMedia.messages.some((m: any) => m.id === newMessage.id)) return oldMedia;
-                    return {
-                        ...oldMedia,
-                        messages: [newMessage, ...oldMedia.messages]
-                    };
+                const newPages = old.pages.map((page: any) => {
+                    const isArray = Array.isArray(page);
+                    const messages = isArray ? page : page.messages;
+                    
+                    if (!Array.isArray(messages)) return page;
+
+                    const filteredMessages = messages.filter((m: any) => m.id !== localId);
+
+                    return isArray ? filteredMessages : { ...page, messages: filteredMessages };
                 });
-            }
-        },
-    });
+
+                return { ...old, pages: newPages };
+            });
+
+            toast.error('Error', 'Failed to send message. Please try again.');
+        }
+    };
 
     const uploadAndSendMessage = async (uri: string, type: 'image' | 'voice', duration: number = 0) => {
         setUploadingMedia(true);
@@ -508,7 +622,7 @@ export default function ChatDetailScreen() {
             };
             console.log(`[ChatDetail] Sending message with payload:`, JSON.stringify(payload, null, 2));
 
-            sendMessageMutation.mutate(payload);
+            sendMessage(payload);
             setReplyToMessage(null);
         } catch (error: any) {
             console.error(`[ChatDetail] Upload/Send Error:`, error);
@@ -519,7 +633,14 @@ export default function ChatDetailScreen() {
     };
 
     const handleSend = async () => {
-        if ((!inputText.trim() && selectedImages.length === 0) || sendMessageMutation.isPending || uploadingMedia) return;
+        if ((!inputText.trim() && selectedImages.length === 0) || uploadingMedia) return;
+
+        // Stop typing indicator immediately when sending
+        try {
+            await ChatService.sendTyping(id!, false);
+        } catch (error) {
+            console.log('[ChatDetail] Failed to stop typing indicator:', error);
+        }
 
         if (selectedImages.length > 0) {
             for (const uri of selectedImages) {
@@ -529,7 +650,7 @@ export default function ChatDetailScreen() {
         }
 
         if (inputText.trim()) {
-            sendMessageMutation.mutate({
+            sendMessage({
                 content: inputText.trim(),
                 type: 'text',
                 reply_to_id: replyToMessage?.id
@@ -657,20 +778,21 @@ export default function ChatDetailScreen() {
 
         if (conversation) {
             if (conversation.type === 'DIRECT') {
-                const otherMember = conversation.members?.find(m => m.user_id !== currentUser?.id);
+                const otherMember = conversation.members?.find((m: ChatMember) => m.user_id !== currentUser?.id);
 
                 const isInvalidName = (n?: string | null) => !n || (n.length > 30 && n.includes('-'));
                 let displayName = 'User';
 
+                // Use new profile structure
                 if (!isInvalidName(conversation.name)) displayName = conversation.name!;
-                else if (!isInvalidName(otherMember?.user_name)) displayName = otherMember!.user_name!;
+                else if (!isInvalidName(otherMember?.profile?.name)) displayName = otherMember!.profile!.name!;
 
-                const displayImage = conversation.image_url || otherMember?.user_image || (displayName !== 'User' ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}` : undefined);
+                const displayImage = conversation.image_url || otherMember?.profile?.image || (displayName !== 'User' ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}` : undefined);
 
                 return {
                     name: displayName,
                     avatar: displayImage,
-                    role: otherMember?.user_role || 'STUDENT',
+                    role: otherMember?.role || 'STUDENT',
                 };
             }
             const groupName = conversation.name || 'Group Chat';
@@ -694,8 +816,6 @@ export default function ChatDetailScreen() {
     };
 
     const headerInfo = getHeaderInfo();
-
-
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -723,12 +843,12 @@ export default function ChatDetailScreen() {
                         onPress={() => scrollToMessage(pinnedMessages[0].message_id)}
                     >
                         <Image
-                            source={{ uri: pinnedMessages[0].message?.sender_image || 'https://ui-avatars.com/api/?name=User' }}
+                            source={{ uri: pinnedMessages[0].message?.sender?.image || 'https://ui-avatars.com/api/?name=User' }}
                             style={styles.pinnedAvatar}
                         />
                         <View style={styles.pinnedTextContainer}>
                             <Text style={[styles.pinnedTitle, { color: theme.primary }]} numberOfLines={1}>
-                                {pinnedMessages[0].message?.sender_name || 'User'}
+                                {pinnedMessages[0].message?.sender?.name || 'User'}
                             </Text>
                             <View style={styles.pinnedSnippetContainer}>
                                 {pinnedMessages[0].message?.type === 'image' ? (
@@ -782,32 +902,15 @@ export default function ChatDetailScreen() {
                         data={messages}
                         renderItem={
                             ({ item, index }: { item: Message, index: number }) => {
-                                // Find sender details from members list
-                                const member = conversation?.members?.find(m => m.user_id === item.sender_id);
-
-                                // Prioritize member name, then message sender name, avoiding UUIDs
-                                let senderName = member?.user_name || item.sender_name || 'User';
-                                if (senderName.includes('-') && senderName.length > 30) {
-                                    // If top pick is UUID, try the fallback
-                                    const fallback = item.sender_name;
-                                    if (fallback && (!fallback.includes('-') || fallback.length <= 30)) {
-                                        senderName = fallback;
-                                    } else {
-                                        senderName = 'User';
-                                    }
-                                }
-
+                                // Use sender data directly from message (no member lookup needed)
+                                let senderName = item.sender?.name || '';
+                                
                                 // Special handling for current user
                                 if (item.sender_id === currentUser?.id) {
                                     senderName = currentUser?.name || 'Me';
                                 }
 
-                                // Hide "User" if it's the generic placeholder, as per user request
-                                if (senderName === 'User') {
-                                    senderName = '';
-                                }
-
-                                const senderImage = member?.user_image || item.sender_image;
+                                const senderImage = item.sender?.image;
 
                                 // Grouping Logic: Check if next message (visually below, so older) is from same sender
                                 const nextMessage = messages[index + 1];
@@ -820,8 +923,6 @@ export default function ChatDetailScreen() {
                                         isDark={isDark}
                                         currentUserId={currentUser?.id}
                                         onImagePress={setViewerImage}
-                                        senderName={senderName}
-                                        senderImage={senderImage}
                                         showSenderInfo={isNewGroup}
                                         onLongPress={() => handleMessageLongPress(item)}
                                         onReplyPress={scrollToMessage}
@@ -917,7 +1018,7 @@ export default function ChatDetailScreen() {
                                 {replyToMessage && (
                                     <View style={[styles.replyPreview, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderLeftColor: theme.primary }]}>
                                         <View style={styles.replyPreviewContent}>
-                                            <Text style={[styles.replyPreviewName, { color: theme.primary }]}>{replyToMessage.sender_name}</Text>
+                                            <Text style={[styles.replyPreviewName, { color: theme.primary }]}>{replyToMessage.sender?.name || ''}</Text>
                                             <Text style={[styles.replyPreviewText, { color: theme.textSecondary }]} numberOfLines={1}>{replyToMessage.content}</Text>
                                         </View>
                                         <TouchableOpacity onPress={() => setReplyToMessage(null)}>
@@ -931,9 +1032,9 @@ export default function ChatDetailScreen() {
                                         placeholder="Type a message..."
                                         placeholderTextColor={theme.textTertiary}
                                         value={inputText}
-                                        onChangeText={setInputText}
+                                        onChangeText={handleInputChange}
                                         multiline
-                                        editable={!sendMessageMutation.isPending && !uploadingMedia}
+                                        editable={!uploadingMedia}
                                     />
                                     <TouchableOpacity
                                         style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
@@ -945,11 +1046,11 @@ export default function ChatDetailScreen() {
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.sendButton, { backgroundColor: theme.primary, opacity: (sendMessageMutation.isPending || uploadingMedia) ? 0.7 : 1 }]}
+                                style={[styles.sendButton, { backgroundColor: theme.primary, opacity: uploadingMedia ? 0.7 : 1 }]}
                                 onPress={handleSend}
-                                disabled={sendMessageMutation.isPending || uploadingMedia}
+                                disabled={uploadingMedia}
                             >
-                                {sendMessageMutation.isPending || uploadingMedia ? (
+                                {uploadingMedia ? (
                                     <ActivityIndicator size="small" color="#FFFFFF" />
                                 ) : (
                                     <Ionicons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
@@ -996,7 +1097,7 @@ export default function ChatDetailScreen() {
                 onClose={() => setIsKickModalVisible(false)}
                 onConfirm={confirmKick}
                 title="Remove User"
-                message={`Are you sure you want to remove ${selectedMessage?.sender_name || 'this user'} from the group?`}
+                message={`Are you sure you want to remove ${selectedMessage?.sender?.name || 'this user'} from the group?`}
                 confirmText="Remove"
                 isDestructive
                 isDark={isDark}
@@ -1146,8 +1247,6 @@ const MessageBubble = ({
     isDark,
     currentUserId,
     onImagePress,
-    senderName,
-    senderImage,
     showSenderInfo = true,
     onLongPress,
     onReplyPress
@@ -1157,8 +1256,6 @@ const MessageBubble = ({
     isDark: boolean,
     currentUserId?: string,
     onImagePress?: (uri: string) => void,
-    senderName?: string,
-    senderImage?: string | null,
     showSenderInfo?: boolean,
     onLongPress?: () => void,
     onReplyPress?: (messageId: string) => void
@@ -1168,6 +1265,10 @@ const MessageBubble = ({
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [progress, setProgress] = useState(0);
     const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
+
+    // Get sender info directly from message
+    const senderName = message.sender?.name || '';
+    const senderImage = message.sender?.image;
 
 
     const [waveformWidth, setWaveformWidth] = useState(0);
@@ -1416,12 +1517,12 @@ const MessageBubble = ({
         }
     };
 
-    if (message.type === 'system') {
+    if (message.type === 'text' && message.content.startsWith('[SYSTEM]')) {
         return (
             <View style={styles.systemMessageContainer}>
                 <View style={[styles.systemMessageBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
                     <Text style={[styles.systemMessageText, { color: theme.textSecondary }]}>
-                        {message.content}
+                        {message.content.replace('[SYSTEM]', '').trim()}
                     </Text>
                 </View>
             </View>
@@ -1463,7 +1564,7 @@ const MessageBubble = ({
                         onPress={() => onReplyPress?.(message.reply_to!.id)}
                         activeOpacity={0.7}
                     >
-                        <Text style={[styles.replyName, { color: theme.primary }]}>{message.reply_to.sender_name}</Text>
+                        <Text style={[styles.replyName, { color: theme.primary }]}>{message.reply_to.sender?.name || ''}</Text>
                         <Text style={[styles.replyText, { color: theme.textSecondary }]} numberOfLines={1}>{message.reply_to.content}</Text>
                     </TouchableOpacity>
                 )}
