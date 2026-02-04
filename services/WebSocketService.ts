@@ -14,6 +14,7 @@ export type WebSocketEventType =
     | 'typing.stop'
     | 'typing.update'
     | 'typing' // Unified typing event
+    | 'chat.user.presence' // User presence event
     | 'connection.established'
     | 'error';
 
@@ -232,6 +233,11 @@ class WebSocketService {
                         // Handle unified typing event
                         if (message.type === 'typing') {
                             logger.log('[WS] Typing event received:', message.payload);
+                        }
+                        
+                        // Handle user presence event
+                        if (message.type === 'chat.user.presence') {
+                            logger.log('[WS] User presence event received:', message.payload);
                         }
                         
                         // Emit the normalized event

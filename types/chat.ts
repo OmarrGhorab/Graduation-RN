@@ -11,6 +11,7 @@ export const ChatMemberSchema = z.object({
         name: z.string(),
         image: z.string(),
     }),
+    is_online: z.boolean().optional(),
 });
 
 export type ChatMember = z.infer<typeof ChatMemberSchema>;
@@ -72,6 +73,7 @@ export const ConversationSchema = z.object({
         name: z.string(),
         image: z.string(),
     }).optional(),
+    peer_online: z.boolean().optional(),
 });
 
 export type Conversation = z.infer<typeof ConversationSchema>;
@@ -86,6 +88,12 @@ export const ConversationDetailSchema = z.object({
     created_at: z.string(),
     updated_at: z.string(),
     members: z.array(ChatMemberSchema),
+    peer_profile: z.object({
+        id: z.string(),
+        name: z.string(),
+        image: z.string(),
+    }).optional(),
+    peer_online: z.boolean().optional(),
 });
 
 export type ConversationDetail = z.infer<typeof ConversationDetailSchema>;
@@ -136,4 +144,19 @@ export interface MediaPresignResponse {
 export interface TypingUser {
     id: string;
     name: string;
+}
+
+// Presence types
+export interface UserPresenceRequest {
+    user_ids: string[];
+}
+
+export interface UserPresenceResponse {
+    presence: Record<string, boolean>;
+}
+
+export interface UserPresenceEvent {
+    user_id: string;
+    is_online: boolean;
+    timestamp: string;
 }

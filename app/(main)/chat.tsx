@@ -1,4 +1,5 @@
 import { Fonts, primaryGradient } from '@/constants/theme';
+import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -16,14 +17,133 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FILTERS = ['ALL', 'INSTRUCTORS', 'STUDENTS', 'GROUPS'];
 
-interface ChatMessageNotification {
-    userId: string;
-    type: string;
-    messageId: string;
-    conversationId: string;
-    senderName: string;
-    messagePreview: string;
-    messageType: string;
+// Conversation Item Component with Presence
+function ConversationItem({ item, theme, router, t, textAlign }: { 
+    item: Conversation, 
+    theme: any, 
+    router: any, 
+    t: any, 
+    textAlign: 'left' | 'right'
+}) {
+    // Add real-time presence tracking
+    const conversationWithPresence = useConversationPresence(item);
+    const isOnline = conversationWithPresence?.type === 'DIRECT' 
+        ? (conversationWithPresence.peer_online ?? false)
+        : false;
+
+    // Debug logging
+    React.useEffect(() => {
+        if (item.type === 'DIRECT') {
+            console.log('[ConversationItem] Presence Debug:', {
+                conversationId: item.id,
+                peerName: item.peer_profile?.name,
+                peer_online: conversationWithPresence?.peer_online,
+                isOnline: isOnline,
+                hasPresenceData: conversationWithPresence !== null
+            });
+        }
+    }, [conversationWithPresence?.peer_online, isOnline]);
+
+    const getConversationDisplay = (item: Conversation) => {
+        if (item.type === 'DIRECT') {
+            const displayName = item.peer_profile?.name || item.name || 'User';
+            const displayImage = item.peer_profile?.image || item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
+            return {
+                name: displayName,
+                avatar: displayImage,
+                role: 'STUDENT',
+            };
+        }
+        const groupName = item.name || 'Group Chat';
+        return {
+            name: groupName,
+            avatar: item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
+            role: 'GROUP',
+        };
+    };
+
+    const formatTime = (dateString: string) => {
+        try {
+            const date = new Date(dateString);
+            const now = new Date();
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+            return date.toLocaleDateString();
+        } catch (e) {
+            return '';
+        }
+    };
+
+    const getSubtitle = () => {
+        if (item.last_message) {
+            const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
+            const senderName = item.last_message.sender?.name || 'Someone';
+            
+            let content = item.last_message.content;
+            if (item.last_message.type === 'image') {
+                content = '📷 Image';
+            } else if (item.last_message.type === 'voice') {
+                content = '🎤 Voice Message';
+            }
+            
+            if (item.type === 'GROUP' && !isMe) {
+                return `${senderName}: ${content}`;
+            } else if (isMe) {
+                return `You: ${content}`;
+            }
+            return content;
+        }
+        return null;
+    };
+
+    const display = getConversationDisplay(item);
+
+    return (
+        <TouchableOpacity
+            style={[styles.itemContainer, { borderBottomColor: theme.divider }]}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/conversation/${item.id}`)}
+        >
+            <View style={styles.avatarContainer}>
+                <Image
+                    source={{ uri: display.avatar }}
+                    style={styles.avatar}
+                    contentFit="cover"
+                    transition={200}
+                />
+                {/* Show online indicator for direct chats */}
+                {item.type === 'DIRECT' && isOnline && (
+                    <View style={[styles.onlineIndicator, { borderColor: theme.background }]} />
+                )}
+            </View>
+
+            <View style={styles.contentContainer}>
+                <View style={[styles.headerRow, { direction: textAlign === 'right' ? 'rtl' : 'ltr' }]}>
+                    <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+                        {display.name}
+                    </Text>
+                    <RoleBadge role={display.role} isDark={theme.isDark} />
+                </View>
+                {/* Always show last message content */}
+                {getSubtitle() ? (
+                    <Text
+                        style={[styles.message, { color: theme.textSecondary, textAlign }]}
+                        numberOfLines={1}
+                    >
+                        {getSubtitle()}
+                    </Text>
+                ) : null}
+                <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]}>
+                    {formatTime(item.updated_at)}
+                </Text>
+            </View>
+
+            <View style={styles.metaContainer}>
+                {/* Unread badge removed - not provided by API */}
+            </View>
+        </TouchableOpacity>
+    );
 }
 
 export default function ChatScreen() {
@@ -36,13 +156,28 @@ export default function ChatScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const queryClient = useQueryClient();
 
-    const { data, isLoading, refetch, isRefetching, isError, error } = useQuery({
+    const { data, isLoading, refetch, isRefetching, isError } = useQuery({
         queryKey: ['conversations', activeFilter, searchQuery],
-        queryFn: () => ChatService.getConversations({
-            type: activeFilter === 'GROUPS' ? 'GROUP' : undefined,
-            role: activeFilter === 'INSTRUCTORS' ? 'INSTRUCTOR' : activeFilter === 'STUDENTS' ? 'STUDENT' : undefined,
-            q: searchQuery || undefined
-        }),
+        queryFn: async () => {
+            const conversations = await ChatService.getConversations({
+                type: activeFilter === 'GROUPS' ? 'GROUP' : undefined,
+                role: activeFilter === 'INSTRUCTORS' ? 'INSTRUCTOR' : activeFilter === 'STUDENTS' ? 'STUDENT' : undefined,
+                q: searchQuery || undefined
+            });
+            
+            // Debug: Log first conversation to see if peer_online exists
+            if (conversations && conversations.length > 0) {
+                console.log('[ChatScreen] First conversation from API:', {
+                    id: conversations[0].id,
+                    type: conversations[0].type,
+                    peer_online: conversations[0].peer_online,
+                    peer_profile: conversations[0].peer_profile,
+                    hasPresenceField: 'peer_online' in conversations[0]
+                });
+            }
+            
+            return conversations;
+        },
     });
 
     const { subscribe } = useWebSocket();
@@ -118,106 +253,8 @@ export default function ChatScreen() {
 
     const conversations = data || [];
 
-    const getConversationDisplay = (item: Conversation) => {
-        if (item.type === 'DIRECT') {
-            // Use peer_profile for DIRECT chats
-            const displayName = item.peer_profile?.name || item.name || 'User';
-            const displayImage = item.peer_profile?.image || item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
-            return {
-                name: displayName,
-                avatar: displayImage,
-                role: 'STUDENT', // Default role for direct chats
-            };
-        }
-        // Use name and image_url for GROUP chats
-        const groupName = item.name || 'Group Chat';
-        return {
-            name: groupName,
-            avatar: item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
-            role: 'GROUP',
-        };
-    };
-
-    const formatTime = (dateString: string) => {
-        try {
-            const date = new Date(dateString);
-            const now = new Date();
-            if (date.toDateString() === now.toDateString()) {
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            }
-            return date.toLocaleDateString();
-        } catch (e) {
-            return '';
-        }
-    };
-
     const renderConversationItem = ({ item }: { item: Conversation }) => {
-        const display = getConversationDisplay(item);
-
-        const getSubtitle = () => {
-            if (item.last_message) {
-                const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
-                const senderName = item.last_message.sender?.name || 'Someone';
-                
-                // Handle media types in preview
-                let content = item.last_message.content;
-                if (item.last_message.type === 'image') {
-                    content = '📷 Image';
-                } else if (item.last_message.type === 'voice') {
-                    content = '🎤 Voice Message';
-                }
-                
-                // Show sender name for group chats, or "You:" for own messages
-                if (item.type === 'GROUP' && !isMe) {
-                    return `${senderName}: ${content}`;
-                } else if (isMe) {
-                    return `${t('chat.you')}: ${content}`;
-                }
-                return content;
-            }
-            return item.description || null;
-        };
-
-        return (
-            <TouchableOpacity
-                style={[styles.itemContainer, { borderBottomColor: theme.divider }]}
-                activeOpacity={0.7}
-                onPress={() => {
-                    router.push(`/conversation/${item.id}`);
-                }}
-            >
-                <View style={styles.avatarContainer}>
-                    <Image
-                        source={{ uri: display.avatar }}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        transition={200}
-                    />
-                </View>
-
-                <View style={styles.contentContainer}>
-                    <View style={[styles.headerRow, { direction: textAlign === 'right' ? 'rtl' : 'ltr' }]}>
-                        <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-                            {display.name}
-                        </Text>
-                        <RoleBadge role={display.role} isDark={isDark} />
-                    </View>
-                    {getSubtitle() && (
-                        <Text
-                            style={[styles.message, { color: theme.textSecondary, textAlign }]}
-                            numberOfLines={1}
-                        >
-                            {getSubtitle()}
-                        </Text>
-                    )}
-                    <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]}>{formatTime(item.updated_at)}</Text>
-                </View>
-
-                <View style={styles.metaContainer}>
-                    {/* Unread badge removed - not provided by API */}
-                </View>
-            </TouchableOpacity>
-        );
+        return <ConversationItem item={item} theme={theme} router={router} t={t} textAlign={textAlign} />;
     };
 
     return (

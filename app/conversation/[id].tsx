@@ -2,6 +2,7 @@ import CustomConfirmModal from '@/components/CustomConfirmModal';
 import { MessageActionSheet } from '@/components/MessageActionSheet';
 import { useToast } from '@/components/toast';
 import { Fonts } from '@/constants/theme';
+import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
@@ -31,7 +32,8 @@ const ChatHeader = React.memo(({
     isDark,
     router,
     id,
-    textAlign
+    textAlign,
+    isOnline
 }: {
     headerInfo: any,
     insets: any,
@@ -39,7 +41,8 @@ const ChatHeader = React.memo(({
     isDark: boolean,
     router: any,
     id: string,
-    textAlign: 'left' | 'right'
+    textAlign: 'left' | 'right',
+    isOnline?: boolean
 }) => (
     <BlurView
         intensity={Platform.OS === 'android' ? 50 : 80}
@@ -56,7 +59,7 @@ const ChatHeader = React.memo(({
                     style={styles.headerProfile}
                     onPress={() => router.push(`/group-info/${id}`)}
                 >
-                    <View>
+                    <View style={{ position: 'relative' }}>
                         <Image
                             key={headerInfo.avatar}
                             source={{ uri: headerInfo.avatar || 'https://ui-avatars.com/api/?name=User' }}
@@ -64,13 +67,23 @@ const ChatHeader = React.memo(({
                             contentFit="cover"
                             transition={200}
                         />
-                        <View style={[styles.onlineDot, { borderColor: theme.background }]} />
+                        {/* Show online indicator only if user is online */}
+                        {isOnline && (
+                            <View style={[styles.onlineDot, { borderColor: theme.background }]} />
+                        )}
                     </View>
                     <View>
                         <Text style={[styles.headerName, { color: theme.text }]}>{headerInfo.name}</Text>
-                        <View style={[styles.roleTag, { backgroundColor: isDark ? 'rgba(9, 125, 70, 0.2)' : 'rgba(9, 125, 70, 0.1)' }]}>
-                            <Text style={[styles.roleText, { color: theme.primary }]}>{headerInfo.role}</Text>
-                        </View>
+                        {/* Show "Online" text if user is online, otherwise show role */}
+                        {isOnline ? (
+                            <Text style={{ fontSize: 12, color: '#10B981', fontFamily: Fonts.medium, marginTop: 2 }}>
+                                Online
+                            </Text>
+                        ) : (
+                            <View style={[styles.roleTag, { backgroundColor: isDark ? 'rgba(9, 125, 70, 0.2)' : 'rgba(9, 125, 70, 0.1)' }]}>
+                                <Text style={[styles.roleText, { color: theme.primary }]}>{headerInfo.role}</Text>
+                            </View>
+                        )}
                     </View>
                 </TouchableOpacity>
             </View>
@@ -130,6 +143,9 @@ export default function ChatDetailScreen() {
         enabled: !!id,
     });
 
+    // Add real-time presence tracking
+    const conversationWithPresence = useConversationPresence(conversation || null);
+
     // Real-time updates
     useEffect(() => {
         // Message Listener
@@ -137,6 +153,12 @@ export default function ChatDetailScreen() {
             const message = payload.data || payload;
 
             if (message.conversation_id === id) {
+                // Skip if this is our own message (already handled optimistically)
+                if (message.sender_id === currentUser?.id) {
+                    console.log('[ChatDetail] Skipping own message from WebSocket (already optimistic)');
+                    return;
+                }
+
                 queryClient.setQueryData(['messages', id], (old: any) => {
                     if (!old) return old;
                     if (old.pages) {
@@ -447,7 +469,19 @@ export default function ChatDetailScreen() {
         });
         
         if (othersTyping.length === 0) return null;
-        if (othersTyping.length === 1) return `${othersTyping[0].user_name} is typing...`;
+        
+        if (othersTyping.length === 1) {
+            // Try to get the actual name from conversation members if "Someone" is used
+            let displayName = othersTyping[0].user_name;
+            if (displayName === 'Someone' && conversation?.members) {
+                const member = conversation.members.find(m => m.user_id === othersTyping[0].user_id);
+                if (member?.profile?.name) {
+                    displayName = member.profile.name;
+                }
+            }
+            return `${displayName} is typing...`;
+        }
+        
         return `${othersTyping.length} people are typing...`;
     };
 
@@ -776,30 +810,38 @@ export default function ChatDetailScreen() {
             type: initialType
         };
 
-        if (conversation) {
-            if (conversation.type === 'DIRECT') {
-                const otherMember = conversation.members?.find((m: ChatMember) => m.user_id !== currentUser?.id);
+        // Use conversationWithPresence instead of conversation
+        const conv = conversationWithPresence || conversation;
+
+        if (conv) {
+            if (conv.type === 'DIRECT') {
+                const otherMember = conv.members?.find((m: ChatMember) => m.user_id !== currentUser?.id);
 
                 const isInvalidName = (n?: string | null) => !n || (n.length > 30 && n.includes('-'));
                 let displayName = 'User';
 
                 // Use new profile structure
-                if (!isInvalidName(conversation.name)) displayName = conversation.name!;
+                if (!isInvalidName(conv.name)) displayName = conv.name!;
                 else if (!isInvalidName(otherMember?.profile?.name)) displayName = otherMember!.profile!.name!;
 
-                const displayImage = conversation.image_url || otherMember?.profile?.image || (displayName !== 'User' ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}` : undefined);
+                const displayImage = conv.image_url || otherMember?.profile?.image || (displayName !== 'User' ? `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}` : undefined);
+
+                // Prefer member's is_online status if available, otherwise use peer_online
+                const isOnline = otherMember?.is_online ?? conv.peer_online ?? false;
 
                 return {
                     name: displayName,
                     avatar: displayImage,
                     role: otherMember?.role || 'STUDENT',
+                    isOnline: isOnline,
                 };
             }
-            const groupName = conversation.name || 'Group Chat';
+            const groupName = conv.name || 'Group Chat';
             return {
                 name: groupName,
-                avatar: conversation.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
+                avatar: conv.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
                 role: 'GROUP',
+                isOnline: false, // Groups don't have online status
             };
         }
 
@@ -808,11 +850,12 @@ export default function ChatDetailScreen() {
             return {
                 name: paramInfo.name,
                 avatar: paramInfo.avatar || 'https://ui-avatars.com/api/?name=User',
-                role: paramInfo.role || 'STUDENT'
+                role: paramInfo.role || 'STUDENT',
+                isOnline: false,
             };
         }
 
-        return { name: '...', avatar: undefined, role: '' };
+        return { name: '...', avatar: undefined, role: '', isOnline: false };
     };
 
     const headerInfo = getHeaderInfo();
@@ -834,6 +877,7 @@ export default function ChatDetailScreen() {
                 router={router}
                 id={id!}
                 textAlign={textAlign}
+                isOnline={headerInfo.isOnline}
             />
 
             {pinnedMessages.length > 0 && (

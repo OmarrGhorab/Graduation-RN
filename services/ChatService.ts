@@ -7,7 +7,8 @@ import {
     MediaPresignResponse,
     Message,
     PinnedMessage,
-    SendMessageRequest
+    SendMessageRequest,
+    UserPresenceResponse
 } from '@/types/chat';
 import { Platform } from 'react-native';
 import { apiClient } from './apiClient';
@@ -160,7 +161,16 @@ export const ChatService = {
     },
 
     /**
-     * 7. MEDIA HELPERS
+     * 7. USER PRESENCE
+     */
+    async checkUserPresence(userIds: string[]): Promise<UserPresenceResponse> {
+        return apiClient.post<UserPresenceResponse>(`/api/presence`, {
+            user_ids: userIds
+        });
+    },
+
+    /**
+     * 8. MEDIA HELPERS
      */
     async uploadMedia(fileUri: string, type: 'image' | 'voice'): Promise<string> {
         try {
