@@ -124,6 +124,7 @@ export default function ChatDetailScreen() {
     const toast = useToast();
     const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
     const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+    const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
     const isFocused = useIsFocused();
     const lastTypingReport = useRef<number>(0);
     const [viewerImage, setViewerImage] = useState<string | null>(null);
@@ -369,27 +370,36 @@ export default function ChatDetailScreen() {
 
     const confirmDelete = async () => {
         if (!messageToDelete) return;
-        try {
-            await ChatService.deleteMessage(id!, messageToDelete.id);
-            // Optimistic update
-            queryClient.setQueryData(['messages', id], (old: any) => {
-                if (!old || !old.pages) return old;
-                return {
-                    ...old,
-                    pages: old.pages.map((page: any) => {
-                        const msgs = Array.isArray(page) ? page : page.messages;
-                        if (!Array.isArray(msgs)) return page;
-                        const filtered = msgs.filter((m: any) => m.id !== messageToDelete.id);
-                        return Array.isArray(page) ? filtered : { ...page, messages: filtered };
-                    })
-                };
-            });
-            toast.success('Deleted', 'Message deleted successfully');
-        } catch (error: any) {
-            console.error('[ChatDetail] Delete failed:', error);
-            toast.error('Error', 'Failed to delete message');
-        }
-        setMessageToDelete(null);
+        
+        // Start delete animation
+        setDeletingMessageId(messageToDelete.id);
+        setIsDeleteModalVisible(false);
+        
+        // Wait for animation to complete
+        setTimeout(async () => {
+            try {
+                await ChatService.deleteMessage(id!, messageToDelete.id);
+                // Optimistic update
+                queryClient.setQueryData(['messages', id], (old: any) => {
+                    if (!old || !old.pages) return old;
+                    return {
+                        ...old,
+                        pages: old.pages.map((page: any) => {
+                            const msgs = Array.isArray(page) ? page : page.messages;
+                            if (!Array.isArray(msgs)) return page;
+                            const filtered = msgs.filter((m: any) => m.id !== messageToDelete.id);
+                            return Array.isArray(page) ? filtered : { ...page, messages: filtered };
+                        })
+                    };
+                });
+                toast.success('Deleted', 'Message deleted successfully');
+            } catch (error: any) {
+                console.error('[ChatDetail] Delete failed:', error);
+                toast.error('Error', 'Failed to delete message');
+            }
+            setMessageToDelete(null);
+            setDeletingMessageId(null);
+        }, 600); // Animation duration
     };
 
 
@@ -486,8 +496,22 @@ export default function ChatDetailScreen() {
     };
 
     // Send Message via HTTP API (WebSocket will broadcast the created message)
-    const sendMessage = async (payload: { content: string, type: 'text' | 'image' | 'voice', reply_to_id?: string | null, media_metadata?: any }) => {
+    const sendMessage = async (payload: { content: string, type: 'text' | 'image' | 'voice', reply_to_id?: string | null, media_urls?: string[], media_metadata?: any }) => {
         const localId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Build reply_to object if replying
+        let replyToObject = undefined;
+        if (payload.reply_to_id && replyToMessage) {
+            replyToObject = {
+                id: replyToMessage.id,
+                content: replyToMessage.content,
+                sender: replyToMessage.sender || {
+                    id: replyToMessage.sender_id,
+                    name: 'User',
+                    image: ''
+                }
+            };
+        }
 
         const newMessage: Message = {
             id: localId,
@@ -495,7 +519,7 @@ export default function ChatDetailScreen() {
             content: payload.content,
             type: payload.type as any,
             sender_id: currentUser?.id || 'unknown',
-            media_urls: [],
+            media_urls: payload.media_urls || [],
             // Use new sender object structure
             sender: {
                 id: currentUser?.id || 'unknown',
@@ -505,6 +529,7 @@ export default function ChatDetailScreen() {
             created_at: new Date().toISOString(),
             is_deleted: false,
             reply_to_id: payload.reply_to_id || undefined,
+            reply_to: replyToObject,
             media_metadata: payload.media_metadata
         };
 
@@ -650,7 +675,8 @@ export default function ChatDetailScreen() {
 
             const payload = {
                 type,
-                content: mediaUrl,
+                content: type === 'image' ? 'Image' : 'Voice message',  // Text description
+                media_urls: [mediaUrl],  // URL in media_urls array
                 media_metadata: type === 'voice' ? { duration } : undefined,
                 reply_to_id: replyToMessage?.id
             };
@@ -676,14 +702,41 @@ export default function ChatDetailScreen() {
             console.log('[ChatDetail] Failed to stop typing indicator:', error);
         }
 
+        // Upload all images first if any
         if (selectedImages.length > 0) {
-            for (const uri of selectedImages) {
-                await uploadAndSendMessage(uri, 'image');
+            setUploadingMedia(true);
+            try {
+                const uploadedUrls: string[] = [];
+                
+                // Upload all images
+                for (const uri of selectedImages) {
+                    console.log(`[ChatDetail] Uploading image:`, uri);
+                    const mediaUrl = await ChatService.uploadMedia(uri, 'image');
+                    uploadedUrls.push(mediaUrl);
+                }
+                
+                console.log(`[ChatDetail] All images uploaded:`, uploadedUrls);
+                
+                // Send one message with all images and optional text
+                sendMessage({
+                    content: inputText.trim() || 'Image',  // Use text or default to "Image"
+                    type: 'image',
+                    media_urls: uploadedUrls,
+                    reply_to_id: replyToMessage?.id
+                });
+                
+                setSelectedImages([]);
+                setInputText('');
+                setReplyToMessage(null);
+                setIsEmojiOpen(false);
+            } catch (error) {
+                console.error('[ChatDetail] Failed to upload images:', error);
+                toast.error('Error', 'Failed to upload images. Please try again.');
+            } finally {
+                setUploadingMedia(false);
             }
-            setSelectedImages([]);
-        }
-
-        if (inputText.trim()) {
+        } else if (inputText.trim()) {
+            // Send text-only message
             sendMessage({
                 content: inputText.trim(),
                 type: 'text',
@@ -958,7 +1011,9 @@ export default function ChatDetailScreen() {
 
                                 // Grouping Logic: Check if next message (visually below, so older) is from same sender
                                 const nextMessage = messages[index + 1];
-                                const isNewGroup = !nextMessage || nextMessage.sender_id !== item.sender_id || (new Date(item.created_at).getTime() - new Date(nextMessage.created_at).getTime() > 60000 * 5); // 5 min gap
+                                const isNewGroup = !nextMessage || 
+                                    nextMessage.sender_id !== item.sender_id || 
+                                    (new Date(item.created_at).getTime() - new Date(nextMessage.created_at).getTime() > 60000); // 1 min gap
 
                                 return (
                                     <MessageBubble
@@ -970,6 +1025,7 @@ export default function ChatDetailScreen() {
                                         showSenderInfo={isNewGroup}
                                         onLongPress={() => handleMessageLongPress(item)}
                                         onReplyPress={scrollToMessage}
+                                        isDeleting={deletingMessageId === item.id}
                                     />
                                 )
                             }}
@@ -1293,7 +1349,8 @@ const MessageBubble = ({
     onImagePress,
     showSenderInfo = true,
     onLongPress,
-    onReplyPress
+    onReplyPress,
+    isDeleting = false
 }: {
     message: Message,
     theme: any,
@@ -1302,12 +1359,42 @@ const MessageBubble = ({
     onImagePress?: (uri: string) => void,
     showSenderInfo?: boolean,
     onLongPress?: () => void,
-    onReplyPress?: (messageId: string) => void
+    onReplyPress?: (messageId: string) => void,
+    isDeleting?: boolean
 }) => {
     const isSender = message.sender_id === currentUserId;
     const [isPlaying, setIsPlaying] = useState(false);
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [progress, setProgress] = useState(0);
+    
+    // Delete animation
+    const deleteAnim = useRef(new Animated.Value(1)).current;
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    
+    useEffect(() => {
+        if (isDeleting) {
+            Animated.parallel([
+                Animated.timing(deleteAnim, {
+                    toValue: 0,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+                Animated.sequence([
+                    Animated.timing(scaleAnim, {
+                        toValue: 1.1,
+                        duration: 100,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(scaleAnim, {
+                        toValue: 0,
+                        duration: 500,
+                        useNativeDriver: true,
+                    }),
+                ]),
+            ]).start();
+        }
+    }, [isDeleting]);
+
     const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
 
     // Get sender info directly from message
@@ -1358,8 +1445,11 @@ const MessageBubble = ({
                 playsInSilentModeIOS: true,
             });
 
+            // Get audio URL from media_urls or fallback to content
+            const audioUri = message.media_urls?.[0] || message.content;
+
             const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: message.content },
+                { uri: audioUri },
                 { shouldPlay: true },
                 handlePlaybackStatusUpdate
             );
@@ -1509,16 +1599,116 @@ const MessageBubble = ({
                 </View>
             );
         } else if (message.type === 'image') {
-            const imageUri = message.media_urls?.[0] || message.content;
+            const imageUrls = message.media_urls && message.media_urls.length > 0 
+                ? message.media_urls 
+                : [message.content];
+            
+            const imageCount = imageUrls.length;
+            
             return (
-                <TouchableOpacity onPress={() => onImagePress?.(imageUri)} style={styles.imageMessageContainer}>
-                    <Image
-                        source={{ uri: imageUri }}
-                        style={styles.messageImage}
-                        contentFit="cover"
-                        transition={200}
-                    />
-                </TouchableOpacity>
+                <View>
+                    {/* Show text if it's not just "Image" */}
+                    {message.content && message.content !== 'Image' && (
+                        <Text style={[
+                            styles.messageText,
+                            { color: isSender ? '#FFFFFF' : theme.text, marginBottom: 8 }
+                        ]}>
+                            {message.content}
+                        </Text>
+                    )}
+                    
+                    {/* Image Grid */}
+                    {imageCount === 1 ? (
+                        // Single image
+                        <TouchableOpacity onPress={() => onImagePress?.(imageUrls[0])}>
+                            <Image
+                                source={{ uri: imageUrls[0] }}
+                                style={styles.singleImage}
+                                contentFit="cover"
+                                transition={200}
+                            />
+                        </TouchableOpacity>
+                    ) : imageCount === 2 ? (
+                        // Two images side by side
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                            {imageUrls.slice(0, 2).map((imageUri, index) => (
+                                <TouchableOpacity key={index} onPress={() => onImagePress?.(imageUri)}>
+                                    <Image
+                                        source={{ uri: imageUri }}
+                                        style={styles.doubleImage}
+                                        contentFit="cover"
+                                        transition={200}
+                                    />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    ) : imageCount === 3 ? (
+                        // Three images: 1 large on top, 2 small below
+                        <View style={{ gap: 4 }}>
+                            <TouchableOpacity onPress={() => onImagePress?.(imageUrls[0])}>
+                                <Image
+                                    source={{ uri: imageUrls[0] }}
+                                    style={styles.tripleImageLarge}
+                                    contentFit="cover"
+                                    transition={200}
+                                />
+                            </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 4 }}>
+                                {imageUrls.slice(1, 3).map((imageUri, index) => (
+                                    <TouchableOpacity key={index} onPress={() => onImagePress?.(imageUri)}>
+                                        <Image
+                                            source={{ uri: imageUri }}
+                                            style={styles.tripleImageSmall}
+                                            contentFit="cover"
+                                            transition={200}
+                                        />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    ) : (
+                        // 4+ images: 2x2 grid, show +N on 3rd image
+                        <View style={{ gap: 4 }}>
+                            <View style={{ flexDirection: 'row', gap: 4 }}>
+                                {imageUrls.slice(0, 2).map((imageUri, index) => (
+                                    <TouchableOpacity key={index} onPress={() => onImagePress?.(imageUri)}>
+                                        <Image
+                                            source={{ uri: imageUri }}
+                                            style={styles.gridImage}
+                                            contentFit="cover"
+                                            transition={200}
+                                        />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 4 }}>
+                                <TouchableOpacity onPress={() => onImagePress?.(imageUrls[2])}>
+                                    <Image
+                                        source={{ uri: imageUrls[2] }}
+                                        style={styles.gridImage}
+                                        contentFit="cover"
+                                        transition={200}
+                                    />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => onImagePress?.(imageUrls[3] || imageUrls[2])}>
+                                    <View>
+                                        <Image
+                                            source={{ uri: imageUrls[3] || imageUrls[2] }}
+                                            style={styles.gridImage}
+                                            contentFit="cover"
+                                            transition={200}
+                                        />
+                                        {imageCount > 4 && (
+                                            <View style={styles.moreImagesOverlay}>
+                                                <Text style={styles.moreImagesText}>+{imageCount - 4}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+                </View>
             );
         } else if (message.type === 'video') {
             const thumbnailUri = message.media_urls?.[0] || message.content;
@@ -1574,10 +1764,14 @@ const MessageBubble = ({
     }
 
     return (
-        <View style={[
+        <Animated.View style={[
             styles.messageRow,
             isSender ? styles.messageRowSender : styles.messageRowReceiver,
-            !showSenderInfo && !isSender && { marginTop: 2 }
+            !showSenderInfo && { marginTop: 2 },  // Tighter spacing for grouped messages
+            {
+                opacity: deleteAnim,
+                transform: [{ scale: scaleAnim }],
+            }
         ]}>
             {!isSender && (
                 showSenderInfo ? (
@@ -1587,7 +1781,7 @@ const MessageBubble = ({
                         contentFit="cover"
                     />
                 ) : (
-                    <View style={{ width: 32, height: 32, marginRight: 8 }} />
+                    <View style={{ width: 32, height: 32, marginRight: 8 }} />  // Spacer to align grouped messages
                 )
             )}
 
@@ -1634,7 +1828,7 @@ const MessageBubble = ({
                     )}
                 </View>
             </View>
-        </View>
+        </Animated.View>
     );
 };
 
@@ -1884,10 +2078,57 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         // padding: 0, // Reset padding for image bubble
     },
+    imageGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        maxWidth: 280,
+    },
     messageImage: {
         width: 240,
         height: 180,
         borderRadius: 16,
+    },
+    singleImage: {
+        width: 240,
+        height: 180,
+        borderRadius: 16,
+    },
+    doubleImage: {
+        width: 136,
+        height: 136,
+        borderRadius: 12,
+    },
+    tripleImageLarge: {
+        width: 276,
+        height: 180,
+        borderRadius: 12,
+        marginBottom: 4,
+    },
+    tripleImageSmall: {
+        width: 136,
+        height: 136,
+        borderRadius: 12,
+    },
+    gridImage: {
+        width: 136,
+        height: 136,
+        borderRadius: 12,
+    },
+    moreImagesOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 12,
+    },
+    moreImagesText: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: 'bold',
     },
     captionContainer: {
         marginTop: 8,
