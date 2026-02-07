@@ -1,22 +1,24 @@
-import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, View, Text, FlatList, StatusBar } from 'react-native';
-import Animated, {
-    useSharedValue,
-    useAnimatedScrollHandler,
-} from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
-import { Fonts, cskColors } from '@/constants/theme';
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
-import { SubjectCard, TeacherCard, ScheduleCard } from '@/components/home';
+import { ScheduleCard, SubjectCard, TeacherCard } from '@/components/home';
+import { Fonts, cskColors } from '@/constants/theme';
 import {
-    useNotifications,
-    useMarkAsReadMutation,
-    useMarkAllAsReadMutation,
     useDeleteNotificationMutation,
+    useMarkAllAsReadMutation,
+    useMarkAsReadMutation,
+    useNotifications,
 } from '@/hooks/useNotifications';
+import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { logger } from '@/libs/logger';
+import { ApiNotification } from '@/services/NotificationService';
+import { useRouter } from 'expo-router';
+import React, { useCallback } from 'react';
+import { FlatList, StatusBar, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+    useAnimatedScrollHandler,
+    useSharedValue,
+} from 'react-native-reanimated';
 
 // Mock data - replace with real data from your API
 const subjects = [
@@ -114,7 +116,25 @@ export default function MainHomeScreen() {
         markAllAsReadMutation.mutate();
     }, [markAllAsReadMutation]);
 
-    const handleNotificationItemPress = useCallback((notification: any) => {
+    const handleNotificationItemPress = useCallback((notification: ApiNotification) => {
+        const { action } = notification;
+
+        if (action && action.type === 'navigate') {
+            logger.log('[Home] Unified Action Navigate:', action.target, action.params);
+
+            if (action.target === 'chat-detail' && action.params?.conversationId) {
+                router.push(`/conversation/${action.params.conversationId}`);
+            } else if (action.target === 'link-requests') {
+                router.push('/settings?section=parentLink');
+            } else if (action.params) {
+                router.push({ pathname: action.target as any, params: action.params });
+            } else if (action.target) {
+                router.push(action.target as any);
+            }
+            return;
+        }
+
+        // Backward compatibility for legacy notifications
         if (
             notification.type === 'parent_link_request' ||
             notification.type === 'parent_link_accepted' ||
@@ -142,24 +162,24 @@ export default function MainHomeScreen() {
     const handleSearchSubmit = useCallback((query: string) => {
         // TODO: Implement search functionality
     }, []);
-    
+
     const handleCloseNotifications = useCallback(() => {
         setShowNotifications(false);
     }, []);
-    
+
     const handleRefreshNotifications = useCallback(() => {
         refetch();
     }, [refetch]);
-    
+
     // Memoized render functions for FlatLists
     const renderSubjectItem = useCallback(({ item }: { item: typeof subjects[0] }) => (
         <SubjectCard {...item} />
     ), []);
-    
+
     const renderTeacherItem = useCallback(({ item }: { item: typeof teachers[0] }) => (
         <TeacherCard {...item} />
     ), []);
-    
+
     const subjectKeyExtractor = useCallback((item: typeof subjects[0]) => item.id, []);
     const teacherKeyExtractor = useCallback((item: typeof teachers[0]) => item.id, []);
 

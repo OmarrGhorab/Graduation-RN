@@ -9,35 +9,22 @@ export interface NotificationChild {
     profileImg: string | null;
 }
 
-export interface NotificationData {
-    // Legacy fields
-    title?: string;
-    createdAt?: string;
-    requestId?: string;
-    child?: NotificationChild;
-
-    // Flattened Chat fields (New)
-    conversation_name?: string;
-    sender_name?: string;
-    sender_image?: string;
-    body: string;
-    unread_count?: string | number;
-    type: string;
-
-    /** Status after parent responds: "ACCEPTED" or "DECLINED" */
-    status?: 'ACCEPTED' | 'DECLINED' | 'PENDING';
-    /** Action taken by parent: "accept" or "decline" */
-    actionTaken?: 'accept' | 'decline';
-    /** Timestamp when parent responded */
-    respondedAt?: string;
+export interface NotificationAction {
+    type: 'navigate' | 'external_url';
+    target: string;
+    params?: Record<string, any>;
 }
 
 export interface ApiNotification {
     id: string;
     type: string;
-    data: NotificationData;
+    title: string;
+    body: string;
+    image: string | null;
+    action: NotificationAction | null;
     read: boolean;
     createdAt: string;
+    data: Record<string, any>;
 }
 
 export interface NotificationPagination {

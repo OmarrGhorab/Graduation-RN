@@ -1,119 +1,275 @@
-import React, { memo } from 'react';
-import { View, Text, Pressable, Image, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { Ionicons } from '@expo/vector-icons';
+import React, { memo } from 'react';
+import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NotificationItemProps } from './types';
-import { getNotificationIcon, formatTimeAgo } from './utils';
 import { useNotificationStyles } from './useNotificationStyles';
+import { formatTimeAgo, getNotificationIcon } from './utils';
 
 const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProps) => {
     const { styles, colors, isDark } = useNotificationStyles();
     const { t } = useTranslation();
-    
+
     const icon = getNotificationIcon(item.type, isDark);
-    const profileImg = item.data.child?.profileImg;
-    const childName = item.data.child?.name || t('notifications.someone');
     const time = formatTimeAgo(item.createdAt, t);
     const isParentLinkRequest = item.type === 'parent_link_request';
-    
+    const isChatMessage = item.type === 'chat.message' || item.type === 'message' || item.type === 'CHAT_MESSAGE';
+
     // Check if this request has been responded to
-    const status = item.data.status;
+    const status = item.data?.status;
     const isAccepted = status === 'ACCEPTED';
     const isDeclined = status === 'DECLINED';
     const hasResponded = isAccepted || isDeclined;
 
-    // Dynamic title and body based on status
-    let title = item.data.title || item.type.replace(/_/g, ' ');
-    let body = item.data.body;
-    
-    if (isParentLinkRequest && hasResponded) {
-        if (isAccepted) {
-            title = t('notifications.linkRequestAccepted');
-            body = t('notifications.acceptedRequest', { name: childName });
-        } else {
-            title = t('notifications.linkRequestDeclined');
-            body = t('notifications.declinedRequest', { name: childName });
-        }
-    }
+    // Get icon background color based on type
+    const getIconBgColor = () => {
+        if (isChatMessage) return isDark ? 'rgba(79, 191, 138, 0.15)' : 'rgba(9, 125, 70, 0.1)';
+        if (isParentLinkRequest) return isDark ? 'rgba(147, 51, 234, 0.15)' : 'rgba(147, 51, 234, 0.1)';
+        if (item.type.includes('security')) return isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)';
+        if (item.type.includes('grade') || item.type.includes('school')) return isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)';
+        return isDark ? 'rgba(156, 163, 175, 0.15)' : 'rgba(156, 163, 175, 0.1)';
+    };
 
     return (
         <Pressable
-            style={[styles.notificationItem, !item.read && styles.unreadItem]}
+            style={[
+                localStyles.card,
+                {
+                    backgroundColor: isDark ? '#1E2A24' : '#FFFFFF',
+                    borderColor: !item.read
+                        ? (isDark ? 'rgba(79, 191, 138, 0.3)' : 'rgba(9, 125, 70, 0.2)')
+                        : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)')
+                }
+            ]}
             onPress={() => onPress(item)}
         >
-            {/* Profile Image or Icon */}
-            <View style={styles.avatarContainer}>
-                {profileImg ? (
-                    <Image source={{ uri: profileImg }} style={styles.avatar} />
+            {/* Unread Indicator Dot */}
+            {!item.read && (
+                <View style={[localStyles.unreadDot, { backgroundColor: '#48BB78' }]} />
+            )}
+
+            {/* Avatar / Icon */}
+            <View style={localStyles.avatarContainer}>
+                {item.image ? (
+                    <View style={localStyles.avatarWrapper}>
+                        <Image source={{ uri: item.image }} style={localStyles.avatar} />
+                        {isChatMessage && (
+                            <View style={[localStyles.iconBadge, { backgroundColor: isDark ? '#1E2A24' : '#FFFFFF' }]}>
+                                <Ionicons name="chatbubble" size={12} color="#48BB78" />
+                            </View>
+                        )}
+                    </View>
                 ) : (
-                    <View style={[styles.iconContainer, { backgroundColor: `${icon.color}15` }]}>
+                    <View style={[localStyles.iconCircle, { backgroundColor: getIconBgColor() }]}>
                         <Ionicons name={icon.name as any} size={24} color={icon.color} />
                     </View>
                 )}
             </View>
 
-            <View style={styles.notificationContent}>
-                <View style={styles.notificationHeader}>
-                    <Text style={styles.notificationTitle} numberOfLines={1}>
-                        {title}
+            {/* Content */}
+            <View style={localStyles.content}>
+                <View style={localStyles.headerRow}>
+                    <Text
+                        style={[localStyles.title, { color: isDark ? '#FFFFFF' : '#0D1B15' }]}
+                        numberOfLines={1}
+                    >
+                        {item.title}
                     </Text>
-                    {!item.read && <View style={styles.unreadDot} />}
+                    <Text style={[localStyles.time, { color: !item.read ? '#48BB78' : (isDark ? '#6B7280' : '#9CA3AF') }]}>
+                        {time}
+                    </Text>
                 </View>
-                <Text style={styles.notificationMessage} numberOfLines={2}>
-                    {body}
+
+                <Text
+                    style={[localStyles.body, { color: isDark ? '#9CA3AF' : '#6B7280' }]}
+                    numberOfLines={2}
+                >
+                    {item.body}
                 </Text>
-                
-                {/* Status badges */}
+
+                {/* Action Buttons for Parent Link Request */}
+                {isParentLinkRequest && !hasResponded && (
+                    <View style={localStyles.actionButtons}>
+                        <TouchableOpacity
+                            style={[localStyles.acceptButton]}
+                            onPress={() => {/* Handle accept */ }}
+                        >
+                            <Text style={localStyles.acceptButtonText}>Accept</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[localStyles.declineButton, { borderColor: isDark ? '#374151' : '#E5E7EB' }]}
+                            onPress={() => {/* Handle decline */ }}
+                        >
+                            <Text style={[localStyles.declineButtonText, { color: isDark ? '#FFFFFF' : '#0D1B15' }]}>
+                                Decline
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Status Badge for responded requests */}
                 {isParentLinkRequest && hasResponded && (
                     <View style={[
-                        styles.statusBadge,
-                        isAccepted ? styles.statusAccepted : styles.statusDeclined
+                        localStyles.statusBadge,
+                        {
+                            backgroundColor: isAccepted
+                                ? (isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.1)')
+                                : (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)')
+                        }
                     ]}>
-                        <Ionicons 
-                            name={isAccepted ? 'checkmark-circle' : 'close-circle'} 
-                            size={14} 
-                            color={isAccepted ? colors.statusAcceptedText : colors.statusDeclinedText} 
+                        <Ionicons
+                            name={isAccepted ? 'checkmark-circle' : 'close-circle'}
+                            size={14}
+                            color={isAccepted ? '#22C55E' : '#EF4444'}
                         />
-                        <Text style={[
-                            styles.statusText,
-                            isAccepted ? styles.statusTextAccepted : styles.statusTextDeclined
-                        ]}>
+                        <Text style={[localStyles.statusText, { color: isAccepted ? '#22C55E' : '#EF4444' }]}>
                             {isAccepted ? t('notifications.accepted') : t('notifications.declined')}
                         </Text>
                     </View>
                 )}
-                
-                {isParentLinkRequest && !hasResponded && (
-                    <View style={[styles.statusBadge, styles.statusPending]}>
-                        <Ionicons name="time-outline" size={14} color={colors.statusPendingText} />
-                        <Text style={[styles.statusText, styles.statusTextPending]}>
-                            {t('notifications.pending')}
-                        </Text>
-                    </View>
-                )}
-
-                <View style={styles.notificationFooter}>
-                    <View style={styles.typeTag}>
-                        <Text style={styles.typeText}>
-                            {item.type.replace(/_/g, ' ')}
-                        </Text>
-                    </View>
-                    <View style={styles.footerRight}>
-                        <Text style={styles.notificationTime}>{time}</Text>
-                        {onDelete && (
-                            <TouchableOpacity
-                                onPress={() => onDelete(item.id)}
-                                style={styles.deleteButton}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                                <Ionicons name="trash-outline" size={16} color={colors.gray[400]} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </View>
             </View>
+
+            {/* Delete Button (on long press or swipe) */}
+            {onDelete && (
+                <TouchableOpacity
+                    onPress={() => onDelete(item.id)}
+                    style={localStyles.deleteButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="trash-outline" size={18} color={isDark ? '#6B7280' : '#9CA3AF'} />
+                </TouchableOpacity>
+            )}
         </Pressable>
     );
+});
+
+const localStyles = StyleSheet.create({
+    card: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        padding: 16,
+        marginHorizontal: 16,
+        marginVertical: 6,
+        borderRadius: 12,
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    unreadDot: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    avatarContainer: {
+        marginRight: 12,
+    },
+    avatarWrapper: {
+        position: 'relative',
+    },
+    avatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    iconBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    iconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    content: {
+        flex: 1,
+        paddingRight: 24,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        marginBottom: 4,
+    },
+    title: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+        flex: 1,
+        marginRight: 8,
+    },
+    time: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    body: {
+        fontSize: 14,
+        fontFamily: Fonts.regular,
+        lineHeight: 20,
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 12,
+    },
+    acceptButton: {
+        flex: 1,
+        height: 36,
+        backgroundColor: '#48BB78',
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    acceptButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontFamily: Fonts.bold,
+    },
+    declineButton: {
+        flex: 1,
+        height: 36,
+        borderRadius: 8,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    declineButtonText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        borderRadius: 12,
+        gap: 4,
+        marginTop: 8,
+    },
+    statusText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    deleteButton: {
+        position: 'absolute',
+        bottom: 16,
+        right: 16,
+        padding: 4,
+    },
 });
 
 NotificationItem.displayName = 'NotificationItem';

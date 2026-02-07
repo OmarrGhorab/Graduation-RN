@@ -6,6 +6,7 @@ import { SSENotification } from '@/services/NotificationSSEService';
 import { ApiNotification } from '@/services/NotificationService';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 
 /**
@@ -25,6 +26,7 @@ export default function NotificationListener() {
     const notificationListener = useRef<Notifications.Subscription | null>(null);
     const responseListener = useRef<Notifications.Subscription | null>(null);
     const queryClient = useQueryClient();
+    const router = useRouter();
     const processedMessageIds = useRef<Set<string>>(new Set());
 
     // Add notification to React Query cache
@@ -289,25 +291,17 @@ export default function NotificationListener() {
                     return; // Don't show this as a notification
                 }
 
-                // Create notification object for cache
+                // Create notification object for cache in Unified Format
                 const apiNotification: ApiNotification = {
                     id: `push-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     type: data.type || 'info',
-                    data: {
-                        body: notification.request.content.body || data.body || '',
-                        type: data.type || 'info',
-                        title: notification.request.content.title || data.title || 'Notification',
-                        createdAt: data.createdAt || new Date().toISOString(),
-                        requestId: data.requestId,
-                        child: data.child ? {
-                            id: data.child.id,
-                            name: data.child.name,
-                            username: data.child.username,
-                            profileImg: data.child.profileImg,
-                        } : undefined,
-                    },
+                    title: notification.request.content.title || data.title || 'Notification',
+                    body: notification.request.content.body || data.body || '',
+                    image: data.image || data.sender_image || data.user_image || null,
+                    action: data.action || null,
                     read: false,
                     createdAt: data.createdAt || new Date().toISOString(),
+                    data: data, // Keep raw data for backup
                 };
 
                 // Add to React Query cache
@@ -317,16 +311,27 @@ export default function NotificationListener() {
             }
         });
 
-        // Listen for user interaction with notifications (tap)
+        // Listen for user interaction with notifications (tap) - UNIFIED Navigation
         responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
             logger.log('[NotificationListener] Notification tapped:', response);
 
             const data = response.notification.request.content.data as Record<string, any>;
+            const action = data?.action;
 
-            // Handle notification tap - you can navigate to specific screens here
-            if (data?.type === 'parent_link_request') {
-                // Navigate to parent link requests screen
-                logger.log('[NotificationListener] Parent link request tapped, requestId:', data.requestId);
+            if (action && action.type === 'navigate') {
+                logger.log('[NotificationListener] Navigating to:', action.target, 'with params:', action.params);
+                // Handle params for expo-router if needed
+                if (action.target === 'chat-detail' && action.params?.conversationId) {
+                    router.push(`/conversation/${action.params.conversationId}`);
+                } else if (action.params) {
+                    // Generic navigation fallback
+                    router.push({ pathname: action.target as any, params: action.params });
+                } else {
+                    router.push(action.target as any);
+                }
+            } else if (data?.type === 'parent_link_request' || data?.type === 'link-requests') {
+                // Backward compatibility fallback
+                router.push('/link-requests' as any);
             }
         });
 

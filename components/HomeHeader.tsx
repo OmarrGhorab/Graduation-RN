@@ -1,20 +1,19 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { 
-    useAnimatedStyle, 
-    interpolate, 
-    Extrapolation,
-    SharedValue,
-    useSharedValue,
-    withTiming,
-    withSpring,
-} from 'react-native-reanimated';
-import { useAuthStore } from '@/libs/auth';
-import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts, grayColors } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/libs/auth';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useRef, useState } from 'react';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, {
+    Extrapolation,
+    interpolate,
+    SharedValue,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HomeHeaderProps {
     onNotificationPress?: () => void;
@@ -35,7 +34,7 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
     const profileImage = user?.profileImg;
 
     const headerHeight = insets.top + 12 + 80;
-    
+
     // Animation for search bar
     const searchAnim = useSharedValue(0);
 
@@ -62,7 +61,7 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
-        
+
         const translateY = interpolate(
             scrollY.value,
             [0, headerHeight],
@@ -138,10 +137,10 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
                             onPress={isSearchOpen ? closeSearch : openSearch}
                             activeOpacity={0.7}
                         >
-                            <Ionicons 
-                                name={isSearchOpen ? "close" : "search-outline"} 
-                                size={24} 
-                                color="#FFFFFF" 
+                            <Ionicons
+                                name={isSearchOpen ? "close" : "search-outline"}
+                                size={24}
+                                color="#FFFFFF"
                             />
                         </TouchableOpacity>
                     </View>
@@ -264,7 +263,7 @@ const styles = StyleSheet.create({
         minWidth: 18,
         height: 18,
         borderRadius: 9,
-        backgroundColor: '#FF4444',
+        backgroundColor: '#48BB78',
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 4,
