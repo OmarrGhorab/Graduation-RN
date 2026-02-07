@@ -4,6 +4,7 @@ import {
     Conversation,
     ConversationDetail,
     CreateGroupRequest,
+    MediaCollection,
     MediaPresignResponse,
     Message,
     PinnedMessage,
@@ -47,6 +48,13 @@ export const ChatService = {
     // Delete Conversation (Admin only)
     async deleteConversation(id: string): Promise<{ message: string }> {
         return apiClient.delete<{ message: string }>(`${PREFIX}/conversations/${id}`);
+    },
+
+    // Update Group Image
+    async updateGroupImage(id: string, imageUrl: string): Promise<{ message: string }> {
+        return apiClient.put<{ message: string }>(`${PREFIX}/conversations/${id}/image`, {
+            image_url: imageUrl
+        });
     },
 
     // Leave Conversation
@@ -134,6 +142,11 @@ export const ChatService = {
         });
     },
 
+    // Get Media Collection (photos, voice, links)
+    async getMediaCollection(conversationId: string): Promise<MediaCollection> {
+        return apiClient.get<MediaCollection>(`${PREFIX}/conversations/${conversationId}/media`);
+    },
+
     /**
      * 5. TYPING INDICATORS
      */
@@ -170,7 +183,54 @@ export const ChatService = {
     },
 
     /**
-     * 8. MEDIA HELPERS
+     * 8. READ RECEIPTS & NOTIFICATIONS
+     */
+
+    // Mark conversation as read
+    async markConversationAsRead(conversationId: string): Promise<{ message: string }> {
+        try {
+            return await apiClient.post<{ message: string }>(`${PREFIX}/conversations/${conversationId}/read`);
+        } catch (error) {
+            console.warn('[ChatService] Mark as read endpoint not available yet:', error);
+            // Return success to not block UI
+            return { message: 'Endpoint not implemented yet' };
+        }
+    },
+
+    // Get unread count for a conversation
+    async getUnreadCount(conversationId: string): Promise<{ unread_count: number }> {
+        try {
+            return await apiClient.get<{ unread_count: number }>(`${PREFIX}/conversations/${conversationId}/unread`);
+        } catch (error) {
+            console.warn('[ChatService] Unread count endpoint not available yet:', error);
+            return { unread_count: 0 };
+        }
+    },
+
+    // Mark specific message as read
+    async markMessageAsRead(conversationId: string, messageId: string): Promise<{ message: string }> {
+        try {
+            return await apiClient.post<{ message: string }>(`${PREFIX}/conversations/${conversationId}/messages/${messageId}/read`);
+        } catch (error) {
+            console.warn('[ChatService] Mark message as read endpoint not available yet:', error);
+            return { message: 'Endpoint not implemented yet' };
+        }
+    },
+
+    // Get total unread count across all conversations
+    async getTotalUnreadCount(): Promise<{ total_unread: number }> {
+        try {
+            const conversations = await this.getConversations();
+            const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+            return { total_unread: totalUnread };
+        } catch (error) {
+            console.error('[ChatService] Failed to get total unread count:', error);
+            return { total_unread: 0 };
+        }
+    },
+
+    /**
+     * 9. MEDIA HELPERS
      */
     async uploadMedia(fileUri: string, type: 'image' | 'voice'): Promise<string> {
         try {
@@ -181,8 +241,16 @@ export const ChatService = {
             console.log(`[ChatService] Requesting presigned URL for folder: ${folder}`);
             
             const presignData = await this.getPresignedUrl(folder);
+            
+            // Fix: Backend might return image/upload URL for voice, but Cloudinary needs video/upload for audio
+            let uploadUrl = presignData.url;
+            if (type === 'voice' && uploadUrl.includes('/image/upload')) {
+                uploadUrl = uploadUrl.replace('/image/upload', '/video/upload');
+                console.log(`[ChatService] Fixed URL for voice upload: ${uploadUrl}`);
+            }
+            
             console.log(`[ChatService] Received presign data:`, {
-                url: presignData.url,
+                url: uploadUrl,
                 folder: presignData.folder,
                 timestamp: presignData.timestamp
             });
@@ -201,11 +269,16 @@ export const ChatService = {
             formData.append('timestamp', presignData.timestamp.toString());
             formData.append('signature', presignData.signature);
             formData.append('folder', presignData.folder);
+            
+            // For voice, add resource_type parameter
+            if (type === 'voice') {
+                formData.append('resource_type', 'video');
+            }
 
             console.log(`[ChatService] Uploading to Cloudinary...`);
             
             // 4. Upload to Cloudinary (don't set Content-Type header - FormData handles it)
-            const uploadRes = await fetch(presignData.url, {
+            const uploadRes = await fetch(uploadUrl, {
                 method: 'POST',
                 body: formData,
             });

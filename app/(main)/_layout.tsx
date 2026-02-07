@@ -1,10 +1,12 @@
 import { TabBarIcon, useTabBarStyles } from '@/components/navigation';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useTotalUnreadCount } from '@/hooks/useUnreadCount';
 import { Tabs } from 'expo-router';
 
 export default function MainLayout() {
     const { tabBarStyle, tabBarLabelStyle, activeTintColor, inactiveTintColor } = useTabBarStyles();
     const { t } = useTranslation();
+    const { totalUnread } = useTotalUnreadCount();
 
     return (
         <Tabs
@@ -42,7 +44,7 @@ export default function MainLayout() {
                     lazy: true,
                     title: t('tabs.chat'),
                     tabBarIcon: ({ color, size }) => (
-                        <TabBarIcon name="chatbubbles-outline" size={size} color={color} />
+                        <TabBarIcon name="chatbubbles-outline" size={size} color={color} badge={totalUnread} />
                     ),
                 }}
             />

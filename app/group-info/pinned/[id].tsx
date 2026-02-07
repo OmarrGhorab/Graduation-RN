@@ -47,7 +47,7 @@ export default function PinnedMessagesScreen() {
     const canUnpin = () => {
         if (!currentUser || !conversation) return false;
         const member = conversation.members?.find(m => m.user_id === currentUser.id);
-        const myLocalRole = member?.member_role;
+        const myLocalRole = member?.role;
         return myLocalRole === 'OWNER' || myLocalRole === 'ADMIN';
     };
 
@@ -105,30 +105,6 @@ export default function PinnedMessagesScreen() {
                             <Text style={[styles.voiceText, { color: theme.primary }]}>Voice Message</Text>
                         </View>
                     );
-                case 'video':
-                    return (
-                        <View style={styles.mediaContainer}>
-                            <View style={styles.videoPlaceholder}>
-                                <Image
-                                    source={{ uri: mediaUri || undefined }} // Assuming thumbnail
-                                    style={styles.imagePreview}
-                                    contentFit="cover"
-                                />
-                                <View style={styles.videoOverlay}>
-                                    <Ionicons name="play" size={32} color="#FFFFFF" />
-                                </View>
-                            </View>
-                        </View>
-                    );
-                case 'file':
-                    return (
-                        <View style={[styles.filePreview, { backgroundColor: isDark ? theme.surfaceVariant : '#F3F4F6' }]}>
-                            <Ionicons name="document-text" size={24} color={theme.primary} />
-                            <Text style={[styles.fileText, { color: theme.text }]} numberOfLines={1}>
-                                {message.content || 'Document'}
-                            </Text>
-                        </View>
-                    );
                 default:
                     return (
                         <Text style={[styles.messageContent, { color: theme.text }]} numberOfLines={3}>
@@ -141,10 +117,27 @@ export default function PinnedMessagesScreen() {
         return (
             <View style={[styles.messageCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderBottomColor: theme.divider }]}>
                 <View style={styles.messageHeader}>
-                    <Text style={[styles.senderName, { color: theme.primary }]}>{message.sender_name}</Text>
-                    <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
-                        {new Date(message.created_at || new Date()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
+                    <View style={styles.senderInfo}>
+                        <Image
+                            source={{ uri: message.sender?.image || `https://ui-avatars.com/api/?name=${message.sender?.name}` }}
+                            style={styles.senderAvatar}
+                            contentFit="cover"
+                        />
+                        <View>
+                            <Text style={[styles.senderName, { color: theme.primary }]}>{message.sender?.name}</Text>
+                            <Text style={[styles.timestamp, { color: theme.textTertiary }]}>
+                                {new Date(message.created_at || new Date()).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                        </View>
+                    </View>
+                    {item.pinner && (
+                        <View style={styles.pinnerInfo}>
+                            <Ionicons name="bookmark" size={14} color={theme.textTertiary} />
+                            <Text style={[styles.pinnerText, { color: theme.textTertiary }]}>
+                                Pinned by {item.pinner.name}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {renderContent()}
@@ -193,7 +186,7 @@ export default function PinnedMessagesScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={data?.pinned_messages || []}
+                    data={data || []}
                     renderItem={renderPinnedMessage}
                     keyExtractor={item => item.id}
                     contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
@@ -245,9 +238,19 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
     },
     messageHeader: {
+        marginBottom: 12,
+    },
+    senderInfo: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    senderAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        marginRight: 8,
+        backgroundColor: '#E2E8F0',
     },
     senderName: {
         fontSize: 14,
@@ -255,6 +258,16 @@ const styles = StyleSheet.create({
     },
     timestamp: {
         fontSize: 12,
+        fontFamily: Fonts.regular,
+    },
+    pinnerInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        gap: 4,
+    },
+    pinnerText: {
+        fontSize: 11,
         fontFamily: Fonts.regular,
     },
     messageContent: {
@@ -279,31 +292,6 @@ const styles = StyleSheet.create({
     },
     voiceText: {
         marginLeft: 8,
-        fontSize: 14,
-        fontFamily: Fonts.medium,
-    },
-    videoPlaceholder: {
-        position: 'relative',
-        width: '100%',
-        height: 180,
-    },
-    videoOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: 12,
-    },
-    filePreview: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 12,
-    },
-    fileText: {
-        marginLeft: 12,
-        flex: 1,
         fontSize: 14,
         fontFamily: Fonts.medium,
     },

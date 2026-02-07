@@ -46,6 +46,8 @@ export default function GroupInfoScreen() {
     const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
     const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
     const [memberToKick, setMemberToKick] = useState<ChatMember | null>(null);
+    const [isMemberOptionsVisible, setIsMemberOptionsVisible] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<ChatMember | null>(null);
 
     // Search Effect
     useEffect(() => {
@@ -71,7 +73,7 @@ export default function GroupInfoScreen() {
     }, [searchQuery, members]);
 
     const addMemberMutation = useMutation({
-        mutationFn: (userId: string) => ChatService.addMember(id!, { user_id: userId }),
+        mutationFn: (userId: string) => ChatService.addMember(id!, userId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['members', id] });
             setIsAddMemberModalVisible(false);
@@ -122,7 +124,7 @@ export default function GroupInfoScreen() {
     });
 
     const updateMemberRoleMutation = useMutation({
-        mutationFn: ({ userId, role }: { userId: string, role: string }) =>
+        mutationFn: ({ userId, role }: { userId: string, role: 'OWNER' | 'ADMIN' | 'MEMBER' }) =>
             ChatService.updateMemberRole(id!, userId, role),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['members', id] });
@@ -167,49 +169,73 @@ export default function GroupInfoScreen() {
     };
 
     const handleMemberOptions = (member: ChatMember) => {
-        if (!currentUser) return;
+        setSelectedMember(member);
+        setIsMemberOptionsVisible(true);
+    };
 
-        const currentMember = members?.find(m => m.user_id === currentUser.id);
-        const myRole = currentMember?.member_role;
-
-        // Management is strictly restricted to local roles as per documentation
-        const isAuthorized = myRole === 'OWNER' || myRole === 'ADMIN';
-
-        if (!isAuthorized || member.user_id === currentUser.id) return;
-
-        // Admin can only manage Members, Owner can manage anyone
-        if (myRole === 'ADMIN' && member.member_role !== 'MEMBER') return;
-
-        const options = ['Cancel'];
-        const actions: (() => void)[] = [() => { }];
-
-        // Role Management
-        if (member.member_role === 'MEMBER') {
-            options.push('Promote to Assistant (Admin)');
-            actions.push(() => updateMemberRoleMutation.mutate({ userId: member.user_id, role: 'ADMIN' }));
-        } else if (member.member_role === 'ADMIN') {
-            options.push('Demote to Member');
-            actions.push(() => updateMemberRoleMutation.mutate({ userId: member.user_id, role: 'MEMBER' }));
-        }
-
-        // Kicking handled by the trash icon, but could be added here too.
-
-        if (options.length > 1) {
-            Alert.alert(
-                'Member Options',
-                `What would you like to do with ${member.user_name}?`,
-                options.map((option, index) => ({
-                    text: option,
-                    style: option === 'Cancel' ? 'cancel' : 'default',
-                    onPress: actions[index]
-                }))
-            );
+    const handlePromoteToAdmin = () => {
+        if (selectedMember) {
+            updateMemberRoleMutation.mutate({ userId: selectedMember.user_id, role: 'ADMIN' });
+            setIsMemberOptionsVisible(false);
+            setSelectedMember(null);
         }
     };
 
-    const handleKickMember = (member: ChatMember) => {
-        setMemberToKick(member);
-        setIsKickModalVisible(true);
+    const handleDemoteToMember = () => {
+        if (selectedMember) {
+            updateMemberRoleMutation.mutate({ userId: selectedMember.user_id, role: 'MEMBER' });
+            setIsMemberOptionsVisible(false);
+            setSelectedMember(null);
+        }
+    };
+
+    const handleRemoveMember = () => {
+        if (selectedMember) {
+            setMemberToKick(selectedMember);
+            setIsMemberOptionsVisible(false);
+            setIsKickModalVisible(true);
+        }
+    };
+
+    const getAvailableOptions = () => {
+        if (!selectedMember || !currentUser) {
+            console.log('[MemberOptions] No selected member or current user');
+            return [];
+        }
+
+        const currentMember = members?.find(m => m.user_id === currentUser.id);
+        const myRole = currentMember?.role;
+
+        console.log('[MemberOptions] Current User:', currentUser.id);
+        console.log('[MemberOptions] My Role:', myRole);
+        console.log('[MemberOptions] Selected Member:', selectedMember.profile.name);
+        console.log('[MemberOptions] Selected Member Role:', selectedMember.role);
+
+        const options = [];
+
+        // Role Management (OWNER only)
+        // Backend uses: OWNER, ADMIN, MEMBER
+        if (myRole === 'OWNER') {
+            console.log('[MemberOptions] I am OWNER, checking member role...');
+            if (selectedMember.role === 'MEMBER') {
+                console.log('[MemberOptions] Adding PROMOTE option');
+                options.push({ label: 'Promote to Admin', action: handlePromoteToAdmin, icon: 'arrow-up-circle-outline' as const });
+            } else if (selectedMember.role === 'ADMIN') {
+                console.log('[MemberOptions] Adding DEMOTE option');
+                options.push({ label: 'Demote to Member', action: handleDemoteToMember, icon: 'arrow-down-circle-outline' as const });
+            } else {
+                console.log('[MemberOptions] Member role is:', selectedMember.role, '(not MEMBER or ADMIN)');
+            }
+        } else {
+            console.log('[MemberOptions] I am NOT OWNER, my role is:', myRole);
+        }
+
+        // Remove option (OWNER and ADMIN)
+        console.log('[MemberOptions] Adding REMOVE option');
+        options.push({ label: 'Remove from Group', action: handleRemoveMember, icon: 'trash-outline' as const, destructive: true });
+
+        console.log('[MemberOptions] Total options:', options.length, options.map(o => o.label));
+        return options;
     };
 
     const confirmKickMember = () => {
@@ -220,25 +246,29 @@ export default function GroupInfoScreen() {
         }
     };
 
-    const canKick = (targetMember: ChatMember) => {
+    const canManageMember = (targetMember: ChatMember) => {
         if (!currentUser) return false;
-        if (currentUser.id === targetMember.user_id) return false; // Self
+        if (currentUser.id === targetMember.user_id) return false; // Can't manage self
 
         const currentMember = members?.find(m => m.user_id === currentUser.id);
         if (!currentMember) return false;
 
-        const myRole = currentMember.member_role;
-        const targetRole = targetMember.member_role;
+        const myRole = currentMember.role;
+        const targetRole = targetMember.role;
 
-        // Logic strictly based on local group roles
+        // OWNER can manage anyone except themselves
         if (myRole === 'OWNER') return true;
+        
+        // ADMIN can only manage MEMBERs
         if (myRole === 'ADMIN') return targetRole === 'MEMBER';
 
         return false;
     };
 
     const renderMember = (member: ChatMember) => {
-        const canRemove = canKick(member);
+        const canManage = canManageMember(member);
+        const isCurrentUser = member.user_id === currentUser?.id;
+        
         return (
             <TouchableOpacity
                 key={member.user_id}
@@ -248,30 +278,26 @@ export default function GroupInfoScreen() {
                 }}
             >
                 <Image
-                    source={{ uri: member.user_image || (member.user_name ? `https://ui-avatars.com/api/?name=${member.user_name}` : undefined) }}
+                    source={{ uri: member.profile.image || `https://ui-avatars.com/api/?name=${member.profile.name}` }}
                     style={styles.memberAvatar}
                     contentFit="cover"
                 />
                 <View style={styles.memberInfo}>
                     <Text style={[styles.memberName, { color: theme.text }]}>
-                        {member.user_name}
-                        {member.user_id === currentUser?.id && <Text style={{ color: theme.textSecondary }}> (You)</Text>}
+                        {member.profile.name}
+                        {isCurrentUser && <Text style={{ color: theme.textSecondary }}> (You)</Text>}
                     </Text>
                     <View style={styles.roleContainer}>
-                        <RoleTag role={member.member_role || 'STUDENT'} isDark={isDark} />
-                        {member.member_role === 'OWNER' && <Text style={{ fontSize: 10, color: theme.textSecondary, marginLeft: 4 }}>👑</Text>}
+                        <RoleTag role={member.role} isDark={isDark} />
+                        {member.role === 'OWNER' && <Text style={{ fontSize: 10, color: theme.textSecondary, marginLeft: 4 }}>👑</Text>}
                     </View>
                 </View>
-                {canRemove ? (
+                {canManage && (
                     <TouchableOpacity
-                        onPress={() => handleKickMember(member)}
+                        onPress={() => handleMemberOptions(member)}
                         style={{ padding: 8 }}
-                        disabled={kickMemberMutation.isPending}
+                        disabled={kickMemberMutation.isPending || updateMemberRoleMutation.isPending}
                     >
-                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                    </TouchableOpacity>
-                ) : (
-                    <TouchableOpacity onPress={() => handleMemberOptions(member)} style={{ padding: 8 }}>
                         <Ionicons name="ellipsis-vertical" size={20} color={theme.textTertiary} />
                     </TouchableOpacity>
                 )}
@@ -295,9 +321,9 @@ export default function GroupInfoScreen() {
     if (isDirect) {
         const otherMember = conversation.members?.find(m => m.user_id !== currentUser?.id);
         displayInfo = {
-            user_name: conversation.name || otherMember?.user_name || 'User',
-            user_image: conversation.image_url || otherMember?.user_image,
-            user_role: otherMember?.user_role || 'STUDENT'
+            user_name: conversation.name || otherMember?.profile.name || 'User',
+            user_image: conversation.image_url || otherMember?.profile.image,
+            user_role: 'STUDENT'
         };
     } else {
         displayInfo = {
@@ -381,7 +407,7 @@ export default function GroupInfoScreen() {
                             onPress={() => router.push(`/group-info/media/${id}`)}
                         >
                             <Ionicons name="images" size={24} color={theme.primary} />
-                            <Text style={[styles.resourceText, { color: theme.text }]}>Media, Links, and Docs</Text>
+                            <Text style={[styles.resourceText, { color: theme.text }]}>Media & Links</Text>
                             <Ionicons name={textAlign === 'right' ? "chevron-back" : "chevron-forward"} size={20} color={theme.textTertiary} />
                         </TouchableOpacity>
                     </View>
@@ -426,8 +452,8 @@ export default function GroupInfoScreen() {
                             )}
                         </TouchableOpacity>
 
-                        {(members?.find(m => m.user_id === currentUser?.id)?.member_role === 'OWNER' ||
-                            members?.find(m => m.user_id === currentUser?.id)?.member_role === 'ADMIN') && (
+                        {(members?.find(m => m.user_id === currentUser?.id)?.role === 'OWNER' ||
+                            members?.find(m => m.user_id === currentUser?.id)?.role === 'ADMIN') && (
                                 <TouchableOpacity
                                     style={[styles.leaveButton, {
                                         marginTop: 12,
@@ -457,7 +483,7 @@ export default function GroupInfoScreen() {
                 onClose={() => setIsKickModalVisible(false)}
                 onConfirm={confirmKickMember}
                 title="Remove Member"
-                message={`Are you sure you want to remove ${memberToKick?.user_name || 'this member'}?`}
+                message={`Are you sure you want to remove ${memberToKick?.profile.name || 'this member'}?`}
                 confirmText="Remove"
                 isDestructive
                 isDark={isDark}
@@ -487,6 +513,71 @@ export default function GroupInfoScreen() {
                 isDark={isDark}
                 theme={theme}
             />
+
+            {/* Member Options Modal */}
+            <Modal
+                visible={isMemberOptionsVisible}
+                animationType="fade"
+                transparent
+                onRequestClose={() => setIsMemberOptionsVisible(false)}
+            >
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setIsMemberOptionsVisible(false)}
+                >
+                    <View style={[styles.memberOptionsModal, { backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}>
+                        <View style={styles.memberOptionsHeader}>
+                            <Image
+                                source={{ uri: selectedMember?.profile.image || `https://ui-avatars.com/api/?name=${selectedMember?.profile.name}` }}
+                                style={styles.memberOptionsAvatar}
+                                contentFit="cover"
+                            />
+                            <View style={styles.memberOptionsInfo}>
+                                <Text style={[styles.memberOptionsName, { color: theme.text }]}>
+                                    {selectedMember?.profile.name}
+                                </Text>
+                                <View style={styles.roleContainer}>
+                                    {selectedMember && <RoleTag role={selectedMember.role} isDark={isDark} />}
+                                </View>
+                            </View>
+                        </View>
+
+                        <View style={[styles.memberOptionsDivider, { backgroundColor: theme.divider }]} />
+
+                        {getAvailableOptions().map((option, index) => (
+                            <TouchableOpacity
+                                key={index}
+                                style={[styles.memberOptionItem, { borderBottomColor: theme.divider }]}
+                                onPress={() => {
+                                    option.action();
+                                }}
+                                disabled={updateMemberRoleMutation.isPending || kickMemberMutation.isPending}
+                            >
+                                <Ionicons
+                                    name={option.icon}
+                                    size={22}
+                                    color={option.destructive ? '#EF4444' : theme.primary}
+                                />
+                                <Text style={[
+                                    styles.memberOptionText,
+                                    { color: option.destructive ? '#EF4444' : theme.text }
+                                ]}>
+                                    {option.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <TouchableOpacity
+                            style={[styles.memberOptionItem, styles.memberOptionCancel]}
+                            onPress={() => setIsMemberOptionsVisible(false)}
+                        >
+                            <Ionicons name="close-circle-outline" size={22} color={theme.textSecondary} />
+                            <Text style={[styles.memberOptionText, { color: theme.textSecondary }]}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
 
             {/* Add Member Modal */}
             <Modal
@@ -812,5 +903,64 @@ const styles = StyleSheet.create({
         padding: 12,
         borderBottomWidth: 1,
         gap: 12,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    memberOptionsModal: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 16,
+        padding: 0,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    memberOptionsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 20,
+    },
+    memberOptionsAvatar: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        marginRight: 16,
+        backgroundColor: '#E2E8F0',
+    },
+    memberOptionsInfo: {
+        flex: 1,
+    },
+    memberOptionsName: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+        marginBottom: 6,
+    },
+    memberOptionsDivider: {
+        height: 1,
+        marginHorizontal: 20,
+    },
+    memberOptionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        paddingHorizontal: 20,
+        gap: 16,
+    },
+    memberOptionText: {
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+        flex: 1,
+    },
+    memberOptionCancel: {
+        marginTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
     },
 });

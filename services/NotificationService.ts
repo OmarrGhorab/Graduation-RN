@@ -1,5 +1,5 @@
-import { apiClient } from './apiClient';
 import { logger } from '@/libs/logger';
+import { apiClient } from './apiClient';
 
 // Types
 export interface NotificationChild {
@@ -10,12 +10,20 @@ export interface NotificationChild {
 }
 
 export interface NotificationData {
-    body: string;
-    type: string;
-    child?: NotificationChild;
-    title: string;
-    createdAt: string;
+    // Legacy fields
+    title?: string;
+    createdAt?: string;
     requestId?: string;
+    child?: NotificationChild;
+
+    // Flattened Chat fields (New)
+    conversation_name?: string;
+    sender_name?: string;
+    sender_image?: string;
+    body: string;
+    unread_count?: string | number;
+    type: string;
+
     /** Status after parent responds: "ACCEPTED" or "DECLINED" */
     status?: 'ACCEPTED' | 'DECLINED' | 'PENDING';
     /** Action taken by parent: "accept" or "decline" */

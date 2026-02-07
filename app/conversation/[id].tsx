@@ -149,11 +149,21 @@ export default function ChatDetailScreen() {
 
     // Real-time updates
     useEffect(() => {
+        // Track this conversation as "active" in the cache
+        if (isFocused && id) {
+            queryClient.setQueryData(['active-conversation-id'], id);
+        }
+
         // Message Listener
         const unsubMessage = subscribe('message.created', (payload: any) => {
             const message = payload.data || payload;
 
             if (message.conversation_id === id) {
+                // If we are focused on this chat, mark it as read immediately to keep backend in sync
+                if (isFocused) {
+                    ChatService.markConversationAsRead(id).catch(console.warn);
+                }
+
                 // Skip if this is our own message (already handled optimistically)
                 if (message.sender_id === currentUser?.id) {
                     console.log('[ChatDetail] Skipping own message from WebSocket (already optimistic)');
@@ -162,6 +172,27 @@ export default function ChatDetailScreen() {
 
                 queryClient.setQueryData(['messages', id], (old: any) => {
                     if (!old) return old;
+
+                    // If message is missing reply_to but has reply_to_id, try to find it in cache
+                    if (!message.reply_to && message.reply_to_id) {
+                        const allMessages: Message[] = [];
+                        if (old.pages) {
+                            old.pages.forEach((page: any) => {
+                                const msgs = Array.isArray(page) ? page : page.messages;
+                                if (msgs) allMessages.push(...msgs);
+                            });
+                        }
+
+                        const parentMsg = allMessages.find(m => m.id === message.reply_to_id);
+                        if (parentMsg) {
+                            message.reply_to = {
+                                id: parentMsg.id,
+                                content: parentMsg.content,
+                                sender: parentMsg.sender
+                            };
+                        }
+                    }
+
                     if (old.pages) {
                         const newPages = [...old.pages];
                         if (newPages.length > 0) {
@@ -179,6 +210,13 @@ export default function ChatDetailScreen() {
                                 newPages[0] = { ...targetPage, messages: updatedMessages };
                             }
 
+                            // If message has media or links, invalidate media collection
+                            if (message.type === 'image' || message.type === 'voice' ||
+                                (message.content && (message.content.includes('http://') || message.content.includes('https://')))) {
+                                console.log('[ChatDetail] Received media message, invalidating media collection');
+                                queryClient.invalidateQueries({ queryKey: ['media-collection', id] });
+                            }
+
                             return { ...old, pages: newPages };
                         }
                     }
@@ -189,8 +227,11 @@ export default function ChatDetailScreen() {
 
         return () => {
             unsubMessage();
+            if (isFocused) {
+                queryClient.setQueryData(['active-conversation-id'], null);
+            }
         };
-    }, [id, isFocused, queryClient]);
+    }, [id, isFocused, queryClient, subscribe, currentUser?.id]);
 
 
 
@@ -206,12 +247,25 @@ export default function ChatDetailScreen() {
         queryFn: ({ pageParam = 0 }) => ChatService.getMessages(id!, { limit: 20, offset: pageParam as number }),
         initialPageParam: 0,
         getNextPageParam: (lastPage: any, allPages) => {
-            // Defensive check for potentially undefined response or pages array
             const messages = Array.isArray(lastPage) ? lastPage : lastPage?.messages;
             if (!messages || messages.length < 20) return undefined;
             return (allPages?.length || 0) * 20;
         },
         enabled: !!id,
+        initialData: () => {
+            // Try to find the conversation in the cache and use its last_message as initial data
+            const convs = queryClient.getQueryData<any[]>(['conversations', 'ALL', '']);
+            const conv = convs?.find(c => c.id === id);
+
+            if (conv?.last_message) {
+                console.log('[ChatDetail] Seeding initial data with last_message from cache');
+                return {
+                    pages: [[conv.last_message]],
+                    pageParams: [0]
+                };
+            }
+            return undefined;
+        }
     });
 
     // Flatten messages from pages
@@ -370,11 +424,11 @@ export default function ChatDetailScreen() {
 
     const confirmDelete = async () => {
         if (!messageToDelete) return;
-        
+
         // Start delete animation
         setDeletingMessageId(messageToDelete.id);
         setIsDeleteModalVisible(false);
-        
+
         // Wait for animation to complete
         setTimeout(async () => {
             try {
@@ -416,6 +470,20 @@ export default function ChatDetailScreen() {
                 queryClient.invalidateQueries({ queryKey: ['conversations'] });
                 queryClient.invalidateQueries({ queryKey: ['pinned-messages', id] });
                 queryClient.invalidateQueries({ queryKey: ['members', id] });
+
+                // Mark conversation as read when user opens it
+                ChatService.markConversationAsRead(id)
+                    .then(() => {
+                        console.log('[ChatDetail] Marked conversation as read:', id);
+                        // Update unread count in cache
+                        queryClient.setQueryData(['unread-count', id], { unread_count: 0 });
+                        // Invalidate conversations list to update unread badge
+                        queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                        queryClient.invalidateQueries({ queryKey: ['total-unread-count'] });
+                    })
+                    .catch(err => {
+                        console.error('[ChatDetail] Failed to mark as read:', err);
+                    });
             }
         }, [id, queryClient])
     );
@@ -462,7 +530,7 @@ export default function ChatDetailScreen() {
             sendTypingIndicator();
         } else {
             // Stop typing indicator when input is cleared
-            ChatService.sendTyping(id!, false).catch(err => 
+            ChatService.sendTyping(id!, false).catch(err =>
                 console.log('[ChatDetail] Failed to stop typing:', err)
             );
         }
@@ -471,15 +539,15 @@ export default function ChatDetailScreen() {
     const getTypingMessage = () => {
         // Filter out current user
         const othersTyping = currentTypingUsers.filter(u => u.user_id !== currentUser?.id);
-        
+
         console.log('[ChatDetail] getTypingMessage called:', {
             currentTypingUsers,
             othersTyping,
             currentUserId: currentUser?.id
         });
-        
+
         if (othersTyping.length === 0) return null;
-        
+
         if (othersTyping.length === 1) {
             // Try to get the actual name from conversation members if "Someone" is used
             let displayName = othersTyping[0].user_name;
@@ -491,7 +559,7 @@ export default function ChatDetailScreen() {
             }
             return `${displayName} is typing...`;
         }
-        
+
         return `${othersTyping.length} people are typing...`;
     };
 
@@ -607,10 +675,10 @@ export default function ChatDetailScreen() {
                 const newPages = old.pages.map((page: any) => {
                     const isArray = Array.isArray(page);
                     const messages = isArray ? page : page.messages;
-                    
+
                     if (!Array.isArray(messages)) return page;
 
-                    const updatedMessages = messages.map((m: any) => 
+                    const updatedMessages = messages.map((m: any) =>
                         m.id === localId ? sentMessage : m
                     );
 
@@ -641,9 +709,15 @@ export default function ChatDetailScreen() {
                 return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
             });
 
+            // Invalidate media collection if message contains media
+            if (sentMessage.type === 'image' || sentMessage.type === 'voice' ||
+                (sentMessage.type === 'text' && sentMessage.content?.includes('http'))) {
+                queryClient.invalidateQueries({ queryKey: ['media-collection', id] });
+            }
+
         } catch (error) {
             console.error('[ChatDetail] Failed to send message:', error);
-            
+
             // Remove optimistic message on error
             queryClient.setQueryData(['messages', id], (old: any) => {
                 if (!old || !old.pages) return old;
@@ -651,7 +725,7 @@ export default function ChatDetailScreen() {
                 const newPages = old.pages.map((page: any) => {
                     const isArray = Array.isArray(page);
                     const messages = isArray ? page : page.messages;
-                    
+
                     if (!Array.isArray(messages)) return page;
 
                     const filteredMessages = messages.filter((m: any) => m.id !== localId);
@@ -695,28 +769,26 @@ export default function ChatDetailScreen() {
     const handleSend = async () => {
         if ((!inputText.trim() && selectedImages.length === 0) || uploadingMedia) return;
 
-        // Stop typing indicator immediately when sending
-        try {
-            await ChatService.sendTyping(id!, false);
-        } catch (error) {
-            console.log('[ChatDetail] Failed to stop typing indicator:', error);
-        }
+        // Stop typing indicator immediately when sending (fire and forget)
+        ChatService.sendTyping(id!, false).catch(err =>
+            console.log('[ChatDetail] Failed to stop typing indicator:', err)
+        );
 
         // Upload all images first if any
         if (selectedImages.length > 0) {
             setUploadingMedia(true);
             try {
                 const uploadedUrls: string[] = [];
-                
+
                 // Upload all images
                 for (const uri of selectedImages) {
                     console.log(`[ChatDetail] Uploading image:`, uri);
                     const mediaUrl = await ChatService.uploadMedia(uri, 'image');
                     uploadedUrls.push(mediaUrl);
                 }
-                
+
                 console.log(`[ChatDetail] All images uploaded:`, uploadedUrls);
-                
+
                 // Send one message with all images and optional text
                 sendMessage({
                     content: inputText.trim() || 'Image',  // Use text or default to "Image"
@@ -724,7 +796,7 @@ export default function ChatDetailScreen() {
                     media_urls: uploadedUrls,
                     reply_to_id: replyToMessage?.id
                 });
-                
+
                 setSelectedImages([]);
                 setInputText('');
                 setReplyToMessage(null);
@@ -736,15 +808,18 @@ export default function ChatDetailScreen() {
                 setUploadingMedia(false);
             }
         } else if (inputText.trim()) {
-            // Send text-only message
-            sendMessage({
-                content: inputText.trim(),
-                type: 'text',
-                reply_to_id: replyToMessage?.id
-            });
+            const textToSend = inputText.trim();
+            // Clear input INSTANTLY for better UX
             setInputText('');
             setReplyToMessage(null);
             setIsEmojiOpen(false);
+
+            // Send text-only message
+            sendMessage({
+                content: textToSend,
+                type: 'text',
+                reply_to_id: replyToMessage?.id
+            });
         }
     };
 
@@ -1001,7 +1076,7 @@ export default function ChatDetailScreen() {
                             ({ item, index }: { item: Message, index: number }) => {
                                 // Use sender data directly from message (no member lookup needed)
                                 let senderName = item.sender?.name || '';
-                                
+
                                 // Special handling for current user
                                 if (item.sender_id === currentUser?.id) {
                                     senderName = currentUser?.name || 'Me';
@@ -1011,8 +1086,8 @@ export default function ChatDetailScreen() {
 
                                 // Grouping Logic: Check if next message (visually below, so older) is from same sender
                                 const nextMessage = messages[index + 1];
-                                const isNewGroup = !nextMessage || 
-                                    nextMessage.sender_id !== item.sender_id || 
+                                const isNewGroup = !nextMessage ||
+                                    nextMessage.sender_id !== item.sender_id ||
                                     (new Date(item.created_at).getTime() - new Date(nextMessage.created_at).getTime() > 60000); // 1 min gap
 
                                 return (
@@ -1026,6 +1101,7 @@ export default function ChatDetailScreen() {
                                         onLongPress={() => handleMessageLongPress(item)}
                                         onReplyPress={scrollToMessage}
                                         isDeleting={deletingMessageId === item.id}
+                                        isGroup={conversation?.type === 'GROUP'}
                                     />
                                 )
                             }}
@@ -1088,8 +1164,6 @@ export default function ChatDetailScreen() {
                     )
                 }
                 <View style={[styles.inputContainer, { backgroundColor: theme.background, borderTopColor: theme.divider, paddingBottom: insets.bottom || 20 }]}>
-                    <AttachmentMenu />
-
                     {isRecording ? (
                         <View style={styles.recordingContainer}>
                             <View style={styles.recordingIndicator}>
@@ -1104,13 +1178,13 @@ export default function ChatDetailScreen() {
                         <>
                             <TouchableOpacity
                                 style={styles.attachButton}
-                                onPress={() => setIsAttachmentMenuVisible(!isAttachmentMenuVisible)}
+                                onPress={handlePickImage}
                                 disabled={uploadingMedia}
                             >
                                 <Ionicons
-                                    name={isAttachmentMenuVisible ? "close-circle" : "add-circle-outline"}
+                                    name="add"
                                     size={28}
-                                    color={isAttachmentMenuVisible ? theme.primary : theme.icon}
+                                    color={theme.icon}
                                 />
                             </TouchableOpacity>
 
@@ -1127,6 +1201,12 @@ export default function ChatDetailScreen() {
                                     </View>
                                 )}
                                 <View style={[styles.inputWrapper, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
+                                    <TouchableOpacity
+                                        style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
+                                        onPress={() => setIsEmojiOpen(!isEmojiOpen)}
+                                    >
+                                        <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
+                                    </TouchableOpacity>
                                     <TextInput
                                         style={[styles.input, { color: theme.text, textAlign }]}
                                         placeholder="Type a message..."
@@ -1136,26 +1216,32 @@ export default function ChatDetailScreen() {
                                         multiline
                                         editable={!uploadingMedia}
                                     />
-                                    <TouchableOpacity
-                                        style={[styles.smileyButton, isEmojiOpen && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF', borderRadius: 20 }]}
-                                        onPress={() => setIsEmojiOpen(!isEmojiOpen)}
-                                    >
-                                        <Ionicons name={isEmojiOpen ? "happy" : "happy-outline"} size={24} color={isEmojiOpen ? theme.primary : theme.icon} />
-                                    </TouchableOpacity>
                                 </View>
                             </View>
 
-                            <TouchableOpacity
-                                style={[styles.sendButton, { backgroundColor: theme.primary, opacity: uploadingMedia ? 0.7 : 1 }]}
-                                onPress={handleSend}
-                                disabled={uploadingMedia}
-                            >
-                                {uploadingMedia ? (
-                                    <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                    <Ionicons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
-                                )}
-                            </TouchableOpacity>
+                            {inputText.trim() || selectedImages.length > 0 ? (
+                                <TouchableOpacity
+                                    style={[styles.sendButton, { backgroundColor: theme.primary, opacity: uploadingMedia ? 0.7 : 1 }]}
+                                    onPress={handleSend}
+                                    disabled={uploadingMedia}
+                                >
+                                    {uploadingMedia ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <Ionicons name="send" size={20} color="#FFFFFF" style={{ marginLeft: 2 }} />
+                                    )}
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[styles.micButton, isRecording && { backgroundColor: theme.primary, borderRadius: 20 }]}
+                                    onPressIn={startRecording}
+                                    onPressOut={stopRecording}
+                                    disabled={uploadingMedia}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="mic" size={24} color={isRecording ? "#FFFFFF" : theme.icon} />
+                                </TouchableOpacity>
+                            )}
                         </>
                     )}
                 </View>
@@ -1350,7 +1436,8 @@ const MessageBubble = ({
     showSenderInfo = true,
     onLongPress,
     onReplyPress,
-    isDeleting = false
+    isDeleting = false,
+    isGroup = false
 }: {
     message: Message,
     theme: any,
@@ -1360,17 +1447,32 @@ const MessageBubble = ({
     showSenderInfo?: boolean,
     onLongPress?: () => void,
     onReplyPress?: (messageId: string) => void,
-    isDeleting?: boolean
+    isDeleting?: boolean,
+    isGroup?: boolean
 }) => {
+    // Curated vibrant colors for group participants
+    const SENDER_COLORS = [
+        '#FF5B5B', '#4FBF8A', '#4299E1', '#F6AD55',
+        '#9F7AEA', '#ED64A6', '#48BB78', '#ECC94B'
+    ];
+
+    const getSenderColor = (id: string) => {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) {
+            hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return SENDER_COLORS[Math.abs(hash) % SENDER_COLORS.length];
+    };
+
     const isSender = message.sender_id === currentUserId;
     const [isPlaying, setIsPlaying] = useState(false);
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [progress, setProgress] = useState(0);
-    
+
     // Delete animation
     const deleteAnim = useRef(new Animated.Value(1)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
-    
+
     useEffect(() => {
         if (isDeleting) {
             Animated.parallel([
@@ -1599,12 +1701,12 @@ const MessageBubble = ({
                 </View>
             );
         } else if (message.type === 'image') {
-            const imageUrls = message.media_urls && message.media_urls.length > 0 
-                ? message.media_urls 
+            const imageUrls = message.media_urls && message.media_urls.length > 0
+                ? message.media_urls
                 : [message.content];
-            
+
             const imageCount = imageUrls.length;
-            
+
             return (
                 <View>
                     {/* Show text if it's not just "Image" */}
@@ -1616,7 +1718,7 @@ const MessageBubble = ({
                             {message.content}
                         </Text>
                     )}
-                    
+
                     {/* Image Grid */}
                     {imageCount === 1 ? (
                         // Single image
@@ -1786,10 +1888,11 @@ const MessageBubble = ({
             )}
 
             <View style={[styles.bubbleContainer, isSender ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>
-                {!isSender && senderName && showSenderInfo && (
+                {!isSender && isGroup && senderName && showSenderInfo && (
                     <Text style={{
-                        fontSize: 12,
-                        color: theme.textSecondary,
+                        fontSize: 13,
+                        fontFamily: Fonts.bold,
+                        color: getSenderColor(message.sender_id),
                         marginBottom: 4,
                         marginLeft: 4
                     }}>
@@ -2139,7 +2242,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingTop: 12,
-        gap: 12,
+        gap: 8,
         borderTopWidth: 1,
     },
     attachButton: {
@@ -2147,7 +2250,6 @@ const styles = StyleSheet.create({
     },
     inputFieldContainer: {
         flex: 1,
-        marginHorizontal: 8,
     },
     pinnedBar: {
         flexDirection: 'row',
@@ -2211,8 +2313,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         borderRadius: 24,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: 4,
+        paddingVertical: 4,
     },
     replyPreview: {
         flexDirection: 'row',
@@ -2240,7 +2342,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontFamily: Fonts.regular,
         paddingVertical: 8,
-        paddingRight: 8,
+        paddingHorizontal: 12,
     },
     smileyButton: {
         padding: 4,
@@ -2256,6 +2358,13 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 3,
+    },
+    micButton: {
+        padding: 8,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     attachmentMenu: {
         position: 'absolute',

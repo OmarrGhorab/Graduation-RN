@@ -2,7 +2,6 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ChatService } from '@/services/ChatService';
-import { Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
@@ -16,7 +15,7 @@ const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const ITEM_SIZE = width / COLUMN_COUNT;
 
-type TabType = 'media' | 'links' | 'docs';
+type TabType = 'photos' | 'voice' | 'links';
 
 export default function MediaScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,25 +23,15 @@ export default function MediaScreen() {
     const { textAlign } = useTranslation();
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const [activeTab, setActiveTab] = useState<TabType>('media');
+    const [activeTab, setActiveTab] = useState<TabType>('photos');
 
-    const { data: mediaData, isLoading } = useQuery({
-        queryKey: ['chat-media', id],
-        queryFn: () => ChatService.getChatMedia(id!),
+    const { data: mediaCollection, isLoading } = useQuery({
+        queryKey: ['media-collection', id],
+        queryFn: () => ChatService.getMediaCollection(id!),
         enabled: !!id,
     });
 
-    const filteredData = (mediaData?.messages || []).filter(msg => {
-        const type = msg.type as string;
-        if (activeTab === 'media') return type === 'image' || type === 'video' || type === 'voice';
-        if (activeTab === 'docs') return type === 'file';
-        if (activeTab === 'links') {
-            const hasLink = msg.content?.includes('http');
-            const isMediaLink = msg.content?.includes('res.cloudinary.com');
-            return hasLink && !isMediaLink;
-        }
-        return false;
-    });
+    const currentData = mediaCollection?.[activeTab] || [];
 
     const handleItemPress = (messageId: string) => {
         // Navigate back to the conversation with the scrollTo param
@@ -52,50 +41,81 @@ export default function MediaScreen() {
         } as any);
     };
 
-    const renderMediaItem = ({ item }: { item: Message }) => {
-        if (activeTab === 'media') {
-            const displayUri = item.media_urls?.[0] || (item.content?.startsWith('http') ? item.content : null);
+    const handleLinkPress = (url: string) => {
+        // Extract URL from text content
+        const urlMatch = url.match(/(https?:\/\/[^\s]+)/);
+        if (urlMatch) {
+            Linking.openURL(urlMatch[0]);
+        }
+    };
+
+    const renderMediaItem = ({ item }: { item: MediaItem }) => {
+        if (activeTab === 'photos') {
             return (
                 <TouchableOpacity
                     style={styles.mediaItem}
-                    onPress={() => handleItemPress(item.id)}
+                    onPress={() => handleItemPress(item.message_id)}
                     activeOpacity={0.7}
                 >
                     <Image
-                        source={{ uri: displayUri || undefined }}
+                        source={{ uri: item.url }}
                         style={styles.mediaThumbnail}
                         contentFit="cover"
                     />
-                    {item.type === 'voice' && (
-                        <View style={styles.voiceOverlay}>
-                            <Ionicons name="mic" size={20} color="#FFFFFF" />
-                        </View>
-                    )}
                 </TouchableOpacity>
             );
         }
 
+        if (activeTab === 'voice') {
+            return (
+                <TouchableOpacity
+                    style={[styles.listItem, { borderBottomColor: theme.divider }]}
+                    onPress={() => handleItemPress(item.message_id)}
+                    activeOpacity={0.7}
+                >
+                    <View style={[styles.iconContainer, { backgroundColor: isDark ? theme.surfaceVariant : '#F3F4F6' }]}>
+                        <Ionicons name="mic" size={24} color={theme.primary} />
+                    </View>
+                    <View style={styles.listTextContent}>
+                        <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={1}>
+                            Voice Message
+                        </Text>
+                        <Text style={[styles.itemSubtitle, { color: theme.textTertiary }]}>
+                            {item.sender.name} • {new Date(item.created_at).toLocaleDateString()}
+                        </Text>
+                    </View>
+                    <Image
+                        source={{ uri: item.sender.image || `https://ui-avatars.com/api/?name=${item.sender.name}` }}
+                        style={styles.senderAvatar}
+                        contentFit="cover"
+                    />
+                </TouchableOpacity>
+            );
+        }
+
+        // Links tab
         return (
             <TouchableOpacity
                 style={[styles.listItem, { borderBottomColor: theme.divider }]}
-                onPress={() => handleItemPress(item.id)}
+                onPress={() => handleLinkPress(item.url)}
                 activeOpacity={0.7}
             >
                 <View style={[styles.iconContainer, { backgroundColor: isDark ? theme.surfaceVariant : '#F3F4F6' }]}>
-                    <Ionicons
-                        name={activeTab === 'docs' ? "document-text" : "link"}
-                        size={24}
-                        color={theme.primary}
-                    />
+                    <Ionicons name="link" size={24} color={theme.primary} />
                 </View>
                 <View style={styles.listTextContent}>
-                    <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={1}>
-                        {activeTab === 'docs' ? (item.content || 'Document') : item.content}
+                    <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={2}>
+                        {item.url}
                     </Text>
                     <Text style={[styles.itemSubtitle, { color: theme.textTertiary }]}>
-                        {item.sender_name} • {new Date(item.created_at).toLocaleDateString()}
+                        {item.sender.name} • {new Date(item.created_at).toLocaleDateString()}
                     </Text>
                 </View>
+                <Image
+                    source={{ uri: item.sender.image || `https://ui-avatars.com/api/?name=${item.sender.name}` }}
+                    style={styles.senderAvatar}
+                    contentFit="cover"
+                />
             </TouchableOpacity>
         );
     };
@@ -110,12 +130,12 @@ export default function MediaScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name={textAlign === 'right' ? "chevron-forward" : "chevron-back"} size={28} color={theme.primary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>Media, Links, and Docs</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>Media & Links</Text>
                 <View style={{ width: 44 }} />
             </BlurView>
 
             <View style={[styles.tabBar, { borderBottomColor: theme.divider }]}>
-                {(['media', 'links', 'docs'] as TabType[]).map(tab => (
+                {(['photos', 'voice', 'links'] as TabType[]).map(tab => (
                     <TouchableOpacity
                         key={tab}
                         style={[styles.tabItem, activeTab === tab && { borderBottomColor: theme.primary, borderBottomWidth: 2 }]}
@@ -134,16 +154,16 @@ export default function MediaScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={filteredData}
+                    data={currentData}
                     renderItem={renderMediaItem}
-                    keyExtractor={item => item.id}
-                    numColumns={activeTab === 'media' ? COLUMN_COUNT : 1}
-                    key={activeTab === 'media' ? 'grid' : 'list'}
+                    keyExtractor={item => item.message_id}
+                    numColumns={activeTab === 'photos' ? COLUMN_COUNT : 1}
+                    key={activeTab === 'photos' ? 'grid' : 'list'}
                     contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons
-                                name={activeTab === 'media' ? "images-outline" : activeTab === 'links' ? "link-outline" : "document-outline"}
+                                name={activeTab === 'photos' ? "images-outline" : activeTab === 'voice' ? "mic-outline" : "link-outline"}
                                 size={64}
                                 color={theme.divider}
                             />
@@ -213,12 +233,6 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    voiceOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     listItem: {
         flexDirection: 'row',
         padding: 16,
@@ -244,6 +258,13 @@ const styles = StyleSheet.create({
     itemSubtitle: {
         fontSize: 12,
         fontFamily: Fonts.regular,
+    },
+    senderAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginLeft: 12,
+        backgroundColor: '#E2E8F0',
     },
     emptyContainer: {
         flex: 1,

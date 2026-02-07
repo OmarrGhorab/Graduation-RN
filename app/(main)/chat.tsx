@@ -18,16 +18,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const FILTERS = ['ALL', 'INSTRUCTORS', 'STUDENTS', 'GROUPS'];
 
 // Conversation Item Component with Presence
-function ConversationItem({ item, theme, router, t, textAlign }: { 
-    item: Conversation, 
-    theme: any, 
-    router: any, 
-    t: any, 
+function ConversationItem({ item, theme, router, t, textAlign }: {
+    item: Conversation,
+    theme: any,
+    router: any,
+    t: any,
     textAlign: 'left' | 'right'
 }) {
     // Add real-time presence tracking
     const conversationWithPresence = useConversationPresence(item);
-    const isOnline = conversationWithPresence?.type === 'DIRECT' 
+    const isOnline = conversationWithPresence?.type === 'DIRECT'
         ? (conversationWithPresence.peer_online ?? false)
         : false;
 
@@ -76,28 +76,36 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
     };
 
     const getSubtitle = () => {
+        if (item.is_typing_name) {
+            return { text: `${item.is_typing_name} is typing...` };
+        }
         if (item.last_message) {
             const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
             const senderName = item.last_message.sender?.name || 'Someone';
-            
+            const senderImage = item.last_message.sender?.image;
+
             let content = item.last_message.content;
             if (item.last_message.type === 'image') {
                 content = '📷 Image';
             } else if (item.last_message.type === 'voice') {
                 content = '🎤 Voice Message';
             }
-            
+
             if (item.type === 'GROUP' && !isMe) {
-                return `${senderName}: ${content}`;
+                return {
+                    text: `${senderName}: ${content}`,
+                    senderImage: senderImage
+                };
             } else if (isMe) {
-                return `You: ${content}`;
+                return { text: `You: ${content}` };
             }
-            return content;
+            return { text: content };
         }
         return null;
     };
 
     const display = getConversationDisplay(item);
+    const subtitle = getSubtitle();
 
     return (
         <TouchableOpacity
@@ -125,14 +133,31 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
                     </Text>
                     <RoleBadge role={display.role} isDark={theme.isDark} />
                 </View>
-                {/* Always show last message content */}
-                {getSubtitle() ? (
-                    <Text
-                        style={[styles.message, { color: theme.textSecondary, textAlign }]}
-                        numberOfLines={1}
-                    >
-                        {getSubtitle()}
-                    </Text>
+                {subtitle ? (
+                    <View style={styles.subtitleRow}>
+                        {item.type === 'GROUP' && subtitle.senderImage && (
+                            <Image
+                                source={{ uri: subtitle.senderImage }}
+                                style={styles.senderThumb}
+                                contentFit="cover"
+                            />
+                        )}
+                        <Text
+                            style={[
+                                styles.message,
+                                {
+                                    color: item.is_typing_name ? theme.primary : theme.textSecondary,
+                                    flex: 1,
+                                    fontStyle: item.is_typing_name ? 'italic' : 'normal',
+                                    fontWeight: item.is_typing_name ? '600' : 'normal',
+                                    textAlign
+                                }
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {subtitle.text}
+                        </Text>
+                    </View>
                 ) : null}
                 <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]}>
                     {formatTime(item.updated_at)}
@@ -140,7 +165,14 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
             </View>
 
             <View style={styles.metaContainer}>
-                {/* Unread badge removed - not provided by API */}
+                {/* Unread badge */}
+                {(item.unread_count ?? 0) > 0 && (
+                    <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadText}>
+                            {(item.unread_count ?? 0) > 99 ? '99+' : (item.unread_count ?? 0).toString()}
+                        </Text>
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -164,7 +196,7 @@ export default function ChatScreen() {
                 role: activeFilter === 'INSTRUCTORS' ? 'INSTRUCTOR' : activeFilter === 'STUDENTS' ? 'STUDENT' : undefined,
                 q: searchQuery || undefined
             });
-            
+
             // Debug: Log first conversation to see if peer_online exists
             if (conversations && conversations.length > 0) {
                 console.log('[ChatScreen] First conversation from API:', {
@@ -175,7 +207,7 @@ export default function ChatScreen() {
                     hasPresenceField: 'peer_online' in conversations[0]
                 });
             }
-            
+
             return conversations;
         },
     });
@@ -183,12 +215,10 @@ export default function ChatScreen() {
     const { subscribe } = useWebSocket();
 
     useEffect(() => {
-        const unsubscribe = subscribe('message.created', (payload: any) => {
+        // 1. Message Created Listener
+        const unsubscribeMessage = subscribe('message.created', (payload: any) => {
             try {
-                // Check if payload needs unpacking (some backends wrap in 'data')
                 const message = payload.data || payload;
-
-                // Validate message structure
                 if (!message || !message.conversation_id) {
                     console.warn('[Chat] Invalid message.created payload:', payload);
                     return;
@@ -205,28 +235,39 @@ export default function ChatScreen() {
                     if (!oldData) return oldData;
 
                     const conversationId = message.conversation_id;
+                    const activeConvId = queryClient.getQueryData<string>(['active-conversation-id']);
+                    const isChatOpen = activeConvId === conversationId;
+
                     const conversations = [...oldData];
                     const index = conversations.findIndex(c => c.id === conversationId);
 
                     if (index !== -1) {
-                        // Update existing conversation with new last_message structure
+                        const existingConv = conversations[index];
+
+                        // Update existing conversation 
+                        const senderName = message.sender?.name || message.sender_name || 'Someone';
+                        const senderImage = message.sender?.image || message.sender_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}`;
+
                         const updatedConv = {
-                            ...conversations[index],
+                            ...existingConv,
+                            // If chat is open, force unread to 0, otherwise use payload
+                            unread_count: isChatOpen ? 0 : (message.unread_count ? parseInt(message.unread_count, 10) : existingConv.unread_count),
                             last_message: {
-                                id: message.id,
+                                id: message.message_id || message.id,
                                 conversation_id: message.conversation_id,
                                 sender_id: message.sender_id,
-                                content: message.content,
-                                type: message.type,
+                                content: message.content || message.body,
+                                type: (message.type === 'chat.message' || message.type === 'text') ? 'text' : message.type,
                                 media_urls: message.media_urls || [],
                                 created_at: message.created_at,
-                                sender: message.sender || {
+                                sender: {
                                     id: message.sender_id,
-                                    name: 'Unknown',
-                                    image: `https://ui-avatars.com/api/?name=Unknown`
+                                    name: senderName,
+                                    image: senderImage
                                 }
                             },
                             updated_at: message.created_at || new Date().toISOString(),
+                            is_typing_name: null // Clear typing status when message arrives
                         };
 
                         // Remove from current position and move to top
@@ -235,8 +276,7 @@ export default function ChatScreen() {
 
                         return conversations;
                     } else {
-                        // New conversation - invalidate to fetch fresh data
-                        // This handles edge case where user receives message in new conversation
+                        // New conversation - fetch fresh data
                         queryClient.invalidateQueries({ queryKey: ['conversations'] });
                         return oldData;
                     }
@@ -248,7 +288,53 @@ export default function ChatScreen() {
             }
         });
 
-        return unsubscribe;
+        // 2. Typing Indicator Listener
+        const unsubscribeTyping = subscribe('typing', (payload: any) => {
+            const data = payload.data || payload;
+            if (!data || !data.conversation_id) return;
+
+            queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
+                if (!oldData) return oldData;
+                const conversations = [...oldData];
+                const index = conversations.findIndex(c => c.id === data.conversation_id);
+
+                if (index !== -1) {
+                    conversations[index] = {
+                        ...conversations[index],
+                        is_typing_name: data.is_typing ? (data.user_name || 'Someone') : null
+                    };
+                    return conversations;
+                }
+                return oldData;
+            });
+        });
+
+        // 3. Conversation Read Listener (Multi-device sync)
+        const unsubscribeRead = subscribe('conversation.read', (payload: any) => {
+            const data = payload.data || payload;
+            if (!data || !data.conversation_id) return;
+
+            queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
+                if (!oldData) return oldData;
+                const conversations = [...oldData];
+                const index = conversations.findIndex(c => c.id === data.conversation_id);
+
+                if (index !== -1) {
+                    conversations[index] = {
+                        ...conversations[index],
+                        unread_count: 0
+                    };
+                    return conversations;
+                }
+                return oldData;
+            });
+        });
+
+        return () => {
+            unsubscribeMessage();
+            unsubscribeTyping();
+            unsubscribeRead();
+        };
     }, [activeFilter, searchQuery, queryClient, subscribe]);
 
     const conversations = data || [];
@@ -340,9 +426,9 @@ export default function ChatScreen() {
                     contentContainerStyle={[styles.listContent, conversations.length === 0 && { flex: 1 }]}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
-                        <RefreshControl 
-                            refreshing={isRefetching} 
-                            onRefresh={refetch} 
+                        <RefreshControl
+                            refreshing={isRefetching}
+                            onRefresh={refetch}
                             tintColor={theme.primary}
                             colors={[theme.primary]}
                         />
@@ -456,7 +542,7 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
 // Loading Skeleton Component
 function LoadingSkeleton({ theme, isDark }: { theme: any, isDark: boolean }) {
     const skeletonColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)';
-    
+
     return (
         <View style={styles.loadingContainer}>
             {[1, 2, 3, 4, 5, 6].map((item) => (
@@ -613,8 +699,19 @@ const styles = StyleSheet.create({
     headerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        justifyContent: 'space-between',
         marginBottom: 4,
+    },
+    subtitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    senderThumb: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        marginRight: 4,
     },
     name: {
         fontSize: 16,
@@ -643,7 +740,7 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
     },
     unreadBadge: {
-        backgroundColor: '#EF4444',
+        backgroundColor: '#097D46', // App's primary green color
         minWidth: 20,
         height: 20,
         borderRadius: 10,
