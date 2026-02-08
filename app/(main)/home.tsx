@@ -1,6 +1,6 @@
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
-import { ScheduleCard, SubjectCard, TeacherCard } from '@/components/home';
+import { ScheduleCard, SubjectCard } from '@/components/home';
 import { Fonts, cskColors } from '@/constants/theme';
 import {
     useDeleteNotificationMutation,
@@ -12,49 +12,48 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { logger } from '@/libs/logger';
 import { ApiNotification } from '@/services/NotificationService';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
-import { FlatList, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
 } from 'react-native-reanimated';
 
-// Mock data - replace with real data from your API
+// Valid Ionicons names for SubjectCard
 const subjects = [
-    { id: '1', name: 'Mathematics', icon: 'Σ' },
-    { id: '2', name: 'Physics', icon: '⚛' },
-    { id: '3', name: 'Chemistry', icon: '🧪' },
-];
-
-const teachers = [
-    { id: '1', name: 'Ahmed Al-H...', subject: 'Mathematics', image: null },
-    { id: '2', name: 'Mohamed Ha...', subject: 'Physics', image: null },
-    { id: '3', name: 'Mohamed Ha...', subject: 'Arabic', image: null },
-    { id: '4', name: 'Mohamed Ha...', subject: 'English', image: null },
+    { id: '1', name: 'Math', icon: 'calculator' as keyof typeof Ionicons.glyphMap },
+    { id: '2', name: 'Physics', icon: 'magnet' as keyof typeof Ionicons.glyphMap },
+    { id: '3', name: 'Chemistry', icon: 'flask' as keyof typeof Ionicons.glyphMap },
+    { id: '4', name: 'Bio', icon: 'leaf' as keyof typeof Ionicons.glyphMap },
+    { id: '5', name: 'English', icon: 'book' as keyof typeof Ionicons.glyphMap },
 ];
 
 const schedule = [
     {
         id: '1',
-        title: 'Mathematics',
-        lessons: 28,
-        rating: 4.9,
-        duration: '6h 30min',
-        teacher: 'Mr. Ahmed Al-Hassan',
-        image: null,
-        color: '#E8F5E9',
+        title: 'Advanced Mathematics',
+        time: '09:00 - 10:30',
+        teacherName: 'Dr. Sarah Connor',
+        status: 'LIVE',
+        location: 'Room 302',
     },
     {
         id: '2',
-        title: 'Physics',
-        lessons: 46,
-        rating: 4.6,
-        duration: '8h 28min',
-        teacher: 'Mr. Ahmed Al-Hassan',
-        image: null,
-        color: cskColors[500],
-        isHighlighted: true,
+        title: 'Physics Lab',
+        time: '11:00 - 12:30',
+        teacherName: 'Mr. John Smith',
+        status: 'SCHEDULED',
+        location: 'Lab 1',
+    },
+    {
+        id: '3',
+        title: 'Chemistry',
+        time: '14:00 - 15:30',
+        teacherName: 'Mrs. Jane Doe',
+        status: 'SCHEDULED',
+        location: 'Room 205',
     },
 ];
 
@@ -74,6 +73,7 @@ export default function MainHomeScreen() {
             const currentScrollY = event.contentOffset.y;
             const diff = currentScrollY - lastScrollY.value;
 
+            // Simple header hide/show logic on scroll
             if (currentScrollY > 0) {
                 if (diff > 0) {
                     headerTranslateY.value = Math.min(headerTranslateY.value + diff, 150);
@@ -134,7 +134,7 @@ export default function MainHomeScreen() {
             return;
         }
 
-        // Backward compatibility for legacy notifications
+        // Backward compatibility
         if (
             notification.type === 'parent_link_request' ||
             notification.type === 'parent_link_accepted' ||
@@ -160,7 +160,7 @@ export default function MainHomeScreen() {
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     const handleSearchSubmit = useCallback((query: string) => {
-        // TODO: Implement search functionality
+        // TODO: Implement search
     }, []);
 
     const handleCloseNotifications = useCallback(() => {
@@ -171,27 +171,29 @@ export default function MainHomeScreen() {
         refetch();
     }, [refetch]);
 
-    // Memoized render functions for FlatLists
-    const renderSubjectItem = useCallback(({ item }: { item: typeof subjects[0] }) => (
-        <SubjectCard {...item} />
-    ), []);
+    const handleScanQR = useCallback(() => {
+        // Navigate to QR scanner screen
+        router.push('/(main)/course?action=scan'); // Example route
+    }, [router]);
 
-    const renderTeacherItem = useCallback(({ item }: { item: typeof teachers[0] }) => (
-        <TeacherCard {...item} />
-    ), []);
+    const renderSubjectItem = useCallback(({ item }: { item: typeof subjects[0] }) => (
+        <SubjectCard
+            {...item}
+            onPress={() => router.push('/(main)/course')} // Navigate to course details
+        />
+    ), [router]);
 
     const subjectKeyExtractor = useCallback((item: typeof subjects[0]) => item.id, []);
-    const teacherKeyExtractor = useCallback((item: typeof teachers[0]) => item.id, []);
 
-    const sectionTitleColor = theme.primary;
-    const sectionSubtitleColor = isDark ? theme.gray[700] : theme.gray[500];
+    const sectionTitleColor = isDark ? theme.text : theme.gray[900];
     const backgroundColor = isDark ? theme.background : '#FFFFFF';
 
     return (
         <View style={[styles.container, { backgroundColor }]}>
             <StatusBar
-                barStyle={isDark ? 'light-content' : 'light-content'}
-                backgroundColor={isDark ? theme.csk[700] : cskColors[500]}
+                barStyle="light-content"
+                backgroundColor={cskColors[500]}
+                translucent={true}
             />
 
             <Animated.ScrollView
@@ -203,12 +205,12 @@ export default function MainHomeScreen() {
             >
                 {/* My Subjects Section */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        {t('home.mySubjects')}
-                    </Text>
-                    <Text style={[styles.sectionSubtitle, { color: sectionSubtitleColor }]}>
-                        {t('home.recommendationsForYou')}
-                    </Text>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
+                            {t('home.mySubjects') || 'My Subjects'}
+                        </Text>
+                        {/* More button could go here */}
+                    </View>
                     <FlatList
                         data={subjects}
                         renderItem={renderSubjectItem}
@@ -219,34 +221,48 @@ export default function MainHomeScreen() {
                     />
                 </View>
 
-                {/* My Teachers Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        {t('home.myTeachers')}
+                <View style={[styles.section, { marginBottom: 24 }]}>
+                    <Text style={[styles.sectionTitle, { color: sectionTitleColor, marginBottom: 12 }]}>
+                        {t('home.yourSchedule') || 'Your Schedule'}
                     </Text>
-                    <FlatList
-                        data={teachers}
-                        renderItem={renderTeacherItem}
-                        keyExtractor={teacherKeyExtractor}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.horizontalList}
-                    />
+
+                    <View style={{ marginTop: 8 }}>
+                        {schedule.map((item, index) => (
+                            <ScheduleCard
+                                key={item.id}
+                                {...item}
+                                status={item.status as any}
+                                isLast={index === schedule.length - 1}
+                                onPress={() => router.push('/(main)/course')}
+                                onScanPress={handleScanQR}
+                            />
+                        ))}
+                    </View>
                 </View>
 
-                {/* Your Schedule Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                        {t('home.yourSchedule')}
-                    </Text>
-                    <Text style={[styles.sectionSubtitle, { color: sectionSubtitleColor }]}>
-                        {t('home.nextLessons')}
-                    </Text>
-                    {schedule.map((item) => (
-                        <ScheduleCard key={item.id} {...item} />
-                    ))}
-                </View>
+                {/* Bottom padding for tabs */}
+                <View style={{ height: 100 }} />
             </Animated.ScrollView>
+
+            {/* Floating QR Action Button */}
+            <View style={styles.fabContainer}>
+                <TouchableOpacity
+                    style={[styles.fab, { backgroundColor: theme.primary }]}
+                    activeOpacity={0.8}
+                    onPress={handleScanQR}
+                >
+                    <View style={[styles.fabRing, { borderColor: 'rgba(255,255,255,0.3)' }]} />
+                    <Ionicons name="scan-outline" size={32} color="#FFFFFF" />
+                </TouchableOpacity>
+                {/* Temporary Teacher Control Button */}
+                <TouchableOpacity
+                    style={[styles.fab, { backgroundColor: theme.surface, marginTop: 16, width: 48, height: 48, borderRadius: 24 }]}
+                    activeOpacity={0.8}
+                    onPress={() => router.push('/teacher-control')}
+                >
+                    <Ionicons name="school-outline" size={24} color={theme.primary} />
+                </TouchableOpacity>
+            </View>
 
             {/* Header positioned absolutely on top */}
             <HomeHeader
@@ -274,6 +290,7 @@ export default function MainHomeScreen() {
     );
 }
 
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -282,24 +299,51 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingTop: 140,
+        paddingTop: 120, // Space for header
         paddingBottom: 24,
     },
     section: {
         marginTop: 24,
         paddingHorizontal: 16,
     },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
     sectionTitle: {
         fontSize: 20,
         fontFamily: Fonts.bold,
-        marginBottom: 4,
-    },
-    sectionSubtitle: {
-        fontSize: 14,
-        fontFamily: Fonts.regular,
-        marginBottom: 16,
     },
     horizontalList: {
         paddingRight: 16,
     },
+    fabContainer: {
+        position: 'absolute',
+        bottom: 24,
+        right: 24,
+        zIndex: 50,
+    },
+    fab: {
+        width: 64,
+        height: 64,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+    fabRing: {
+        position: 'absolute',
+        width: 50,
+        height: 50,
+        borderRadius: 16,
+        borderWidth: 2,
+        opacity: 0.5,
+    },
 });
+

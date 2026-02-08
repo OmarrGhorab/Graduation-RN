@@ -577,6 +577,12 @@ export default {
     yourSchedule: 'Your Schedule',
     nextLessons: 'Next Lessons',
     lessons: '{{count}} lessons',
+    welcomeBack: 'Welcome back,',
+    scanQR: 'Scan QR',
+    live: 'LIVE',
+    scheduled: 'Scheduled',
+    completed: 'Completed',
+    canceled: 'Canceled',
   },
 
   // Course

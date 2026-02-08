@@ -1,17 +1,15 @@
-import { Fonts, grayColors } from '@/constants/theme';
+import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useRef, useState } from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Extrapolation,
     interpolate,
     SharedValue,
     useAnimatedStyle,
-    useSharedValue,
-    withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,102 +20,53 @@ interface HomeHeaderProps {
     scrollY?: SharedValue<number>;
 }
 
-export default function HomeHeader({ onNotificationPress, onSearchSubmit, notificationCount = 0, scrollY }: HomeHeaderProps) {
-    const { user } = useAuthStore();
+export default function HomeHeader({ onNotificationPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
+    const user = useAuthStore((state) => state.user);
     const insets = useSafeAreaInsets();
-    const { t, textAlign } = useTranslation();
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const inputRef = useRef<TextInput>(null);
+    const { t } = useTranslation();
 
-    const displayName = user?.name || user?.username || 'User';
+    const displayName = user?.name || user?.username || 'Student';
+    // Use a high-res placeholder if no image
     const profileImage = user?.profileImg;
 
-    const headerHeight = insets.top + 12 + 80;
-
-    // Animation for search bar
-    const searchAnim = useSharedValue(0);
-
-    const openSearch = () => {
-        setIsSearchOpen(true);
-        searchAnim.value = withTiming(1, { duration: 200 });
-        setTimeout(() => inputRef.current?.focus(), 50);
-    };
-
-    const closeSearch = () => {
-        searchAnim.value = withTiming(0, { duration: 200 });
-        setTimeout(() => {
-            setIsSearchOpen(false);
-            setSearchQuery('');
-        }, 200);
-        inputRef.current?.blur();
-    };
-
-    const handleSearchSubmit = () => {
-        if (searchQuery.trim()) {
-            onSearchSubmit?.(searchQuery.trim());
-        }
-    };
+    const headerHeight = insets.top + 80;
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
 
         const translateY = interpolate(
             scrollY.value,
-            [0, headerHeight],
-            [0, -headerHeight - 60],
-            Extrapolation.CLAMP
-        );
-
-        const opacity = interpolate(
-            scrollY.value,
-            [0, headerHeight * 0.5],
-            [1, 0],
+            [0, 100],
+            [0, -20],
             Extrapolation.CLAMP
         );
 
         return {
             transform: [{ translateY }],
-            opacity,
         };
     });
 
-    const searchBarAnimatedStyle = useAnimatedStyle(() => ({
-        height: interpolate(searchAnim.value, [0, 1], [0, 52]),
-        opacity: searchAnim.value,
-        marginTop: interpolate(searchAnim.value, [0, 1], [0, 12]),
-    }));
-
     return (
-        <Animated.View style={[styles.wrapper, { paddingTop: insets.top + 12 }, animatedStyle]}>
+        <Animated.View style={[styles.wrapper, { paddingTop: insets.top }, animatedStyle]}>
             <LinearGradient
                 colors={['#0A8F51', '#097D46', '#075F36']}
-                locations={[0.3908, 0.6689, 0.9122]}
+                locations={[0.1, 0.5, 0.9]}
                 style={styles.container}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
             >
-                {/* Top Row - Profile & Actions */}
-                <View style={styles.topRow}>
-                    <View style={styles.profileSection}>
-                        <View style={styles.avatarContainer}>
-                            {profileImage ? (
-                                <Image source={{ uri: profileImage }} style={styles.avatar} />
-                            ) : (
-                                <View style={styles.avatarPlaceholder}>
-                                    <Text style={styles.avatarText}>
-                                        {displayName.charAt(0).toUpperCase()}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                        <View style={styles.textContainer}>
-                            <Text style={styles.userName}>{displayName}</Text>
-                            <Text style={styles.subtitle}>{t('home.readyToLearn')}</Text>
-                        </View>
+                <View style={styles.contentRow}>
+                    {/* Greeting Section (Left) */}
+                    <View style={styles.greetingContainer}>
+                        <Text style={styles.greetingSub}>{t('home.welcomeBack') || 'Welcome back,'}</Text>
+                        <Text numberOfLines={1} style={styles.greetingMain}>
+                            {displayName}
+                        </Text>
                     </View>
 
-                    <View style={styles.actionsSection}>
+
+                    {/* Actions Section (Right) */}
+                    <View style={styles.actionsContainer}>
                         <TouchableOpacity
                             style={styles.iconButton}
                             onPress={onNotificationPress}
@@ -132,43 +81,22 @@ export default function HomeHeader({ onNotificationPress, onSearchSubmit, notifi
                                 </View>
                             )}
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.iconButton, isSearchOpen && styles.iconButtonActive]}
-                            onPress={isSearchOpen ? closeSearch : openSearch}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name={isSearchOpen ? "close" : "search-outline"}
-                                size={24}
-                                color="#FFFFFF"
-                            />
+
+                        <TouchableOpacity activeOpacity={0.9} style={styles.avatarContainer}>
+                            {profileImage ? (
+                                <Image source={{ uri: profileImage }} style={styles.avatar} />
+                            ) : (
+                                <View style={styles.avatarPlaceholder}>
+                                    <Text style={styles.avatarText}>
+                                        {displayName.charAt(0).toUpperCase()}
+                                    </Text>
+                                </View>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </View>
-
-                {/* Search Bar - Slides down below profile */}
-                <Animated.View style={[styles.searchBarWrapper, searchBarAnimatedStyle]}>
-                    <View style={styles.searchInputContainer}>
-                        <Ionicons name="search" size={20} color={grayColors[400]} />
-                        <TextInput
-                            ref={inputRef}
-                            style={[styles.searchInput, { textAlign }]}
-                            placeholder={t('home.searchPlaceholder')}
-                            placeholderTextColor={grayColors[400]}
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            onSubmitEditing={handleSearchSubmit}
-                            returnKeyType="search"
-                        />
-                        {searchQuery.length > 0 && (
-                            <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                <Ionicons name="close-circle" size={20} color={grayColors[400]} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </Animated.View>
             </LinearGradient>
-        </Animated.View>
+        </Animated.View >
     );
 }
 
@@ -179,117 +107,88 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 100,
-        paddingHorizontal: 16,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+        overflow: 'hidden',
     },
     container: {
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        shadowColor: grayColors[900],
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 4,
+        paddingHorizontal: 20,
+        paddingBottom: 24,
+        paddingTop: 12,
     },
-    topRow: {
+    contentRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    profileSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    greetingContainer: {
         flex: 1,
+        paddingRight: 16,
     },
-    avatarContainer: {
-        marginRight: 12,
-    },
-    avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-    },
-    avatarPlaceholder: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-    },
-    avatarText: {
-        fontSize: 20,
-        fontFamily: Fonts.bold,
-        color: '#FFFFFF',
-    },
-    textContainer: {
-        flex: 1,
-    },
-    userName: {
-        fontSize: 18,
-        fontFamily: Fonts.bold,
-        color: '#FFFFFF',
-        marginBottom: 2,
-    },
-    subtitle: {
-        fontSize: 13,
+    greetingSub: {
+        fontSize: 14,
         fontFamily: Fonts.regular,
         color: 'rgba(255, 255, 255, 0.85)',
+        marginBottom: 4,
     },
-    actionsSection: {
+    greetingMain: {
+        fontSize: 22,
+        fontFamily: Fonts.bold,
+        color: '#FFFFFF',
+    },
+    actionsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 12,
     },
     iconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: 'rgba(255, 255, 255, 0.15)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
     },
-    iconButtonActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    badge: {
-        position: 'absolute',
-        top: 4,
-        right: 4,
-        minWidth: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: '#48BB78',
+    avatarContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 4,
+        overflow: 'hidden',
     },
-    badgeText: {
-        fontSize: 10,
+    avatar: {
+        width: '100%',
+        height: '100%',
+    },
+    avatarPlaceholder: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#05512F',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarText: {
+        fontSize: 18,
         fontFamily: Fonts.bold,
         color: '#FFFFFF',
     },
-    searchBarWrapper: {
-        overflow: 'hidden',
+    badge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        minWidth: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#FF453A', // High contrast red for badge
+        borderWidth: 1,
+        borderColor: '#FFFFFF',
     },
-    searchInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        height: 52,
-        gap: 12,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        fontFamily: Fonts.regular,
-        color: grayColors[900],
-        paddingVertical: 0,
+    badgeText: {
+        display: 'none', // Small dot style often looks cleaner, or font 0
     },
 });
