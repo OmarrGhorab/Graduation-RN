@@ -18,6 +18,7 @@ interface SyllabusItemProps {
     onPress?: () => void;
     onMarkAttendance?: () => void;
     onAbsentRequest?: () => void;
+    canMarkAttendance?: boolean;
 }
 
 export default memo(function SyllabusItem({
@@ -32,6 +33,7 @@ export default memo(function SyllabusItem({
     onPress,
     onMarkAttendance,
     onAbsentRequest,
+    canMarkAttendance,
 }: SyllabusItemProps) {
     const { theme, isDark } = useTheme();
 
@@ -149,7 +151,7 @@ export default memo(function SyllabusItem({
                     <Text style={[styles.description, { color: theme.gray[500] }]}>{description}</Text>
                 )}
 
-                {isLive && (
+                {canMarkAttendance && (
                     <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: theme.primary }]}
                         onPress={onMarkAttendance}

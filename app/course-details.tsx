@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-export default function CourseScreen() {
+export default function CourseDetailsScreen() {
     const { t } = useTranslation();
     const router = useRouter();
     const params = useLocalSearchParams();

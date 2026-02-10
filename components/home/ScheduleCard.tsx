@@ -130,7 +130,6 @@ export default function ScheduleCard({
                 ]}
                 activeOpacity={0.8}
                 onPress={onPress}
-                disabled={isCompleted || isCanceled}
             >
                 {isLive && <View style={[styles.activeStrip, { backgroundColor: theme.primary }]} />}
 

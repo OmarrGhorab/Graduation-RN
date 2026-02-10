@@ -2,6 +2,8 @@ import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
 import { ScheduleCard, SubjectCard } from '@/components/home';
 import { Fonts, cskColors } from '@/constants/theme';
+import { useStudentCalendar } from '@/hooks/useCalendar';
+import { useMySubjects } from '@/hooks/useCourses';
 import {
     useDeleteNotificationMutation,
     useMarkAllAsReadMutation,
@@ -11,57 +13,71 @@ import {
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { logger } from '@/libs/logger';
+import { ApiSchedule } from '@/services/CalendarService';
+import { ApiSubject } from '@/services/CourseService';
 import { ApiNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
-import { FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
 } from 'react-native-reanimated';
 
-// Valid Ionicons names for SubjectCard
-const subjects = [
-    { id: '1', name: 'Math', icon: 'calculator' as keyof typeof Ionicons.glyphMap },
-    { id: '2', name: 'Physics', icon: 'magnet' as keyof typeof Ionicons.glyphMap },
-    { id: '3', name: 'Chemistry', icon: 'flask' as keyof typeof Ionicons.glyphMap },
-    { id: '4', name: 'Bio', icon: 'leaf' as keyof typeof Ionicons.glyphMap },
-    { id: '5', name: 'English', icon: 'book' as keyof typeof Ionicons.glyphMap },
-];
 
-const schedule = [
-    {
-        id: '1',
-        title: 'Advanced Mathematics',
-        time: '09:00 - 10:30',
-        teacherName: 'Dr. Sarah Connor',
-        status: 'LIVE',
-        location: 'Room 302',
-    },
-    {
-        id: '2',
-        title: 'Physics Lab',
-        time: '11:00 - 12:30',
-        teacherName: 'Mr. John Smith',
-        status: 'SCHEDULED',
-        location: 'Lab 1',
-    },
-    {
-        id: '3',
-        title: 'Chemistry',
-        time: '14:00 - 15:30',
-        teacherName: 'Mrs. Jane Doe',
-        status: 'SCHEDULED',
-        location: 'Room 205',
-    },
-];
+const getSubjectIcon = (iconName: string): keyof typeof Ionicons.glyphMap => {
+    const name = (iconName || '').toLowerCase();
+    if (name.includes('calculator')) return 'calculator';
+    if (name.includes('magnet')) return 'magnet';
+    if (name.includes('flask')) return 'flask';
+    if (name.includes('leaf')) return 'leaf';
+    if (name.includes('code') || name.includes('laptop')) return 'code-slash';
+    if (name.includes('book')) return 'book';
+    if (name.includes('megaphone')) return 'megaphone';
+    return 'school';
+};
+
+const formatTimeRange = (start: string, end: string) => {
+    try {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        return `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')} - ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+    } catch (e) {
+        return 'TBD';
+    }
+};
+
+
 
 export default function MainHomeScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const [showNotifications, setShowNotifications] = React.useState(false);
+    const [schedulePeriod, setSchedulePeriod] = React.useState<'LAST_24' | 'NEXT_48' | 'ALL'>('ALL');
+
+    // Calculate dates for calendar
+    const calendarRange = React.useMemo(() => {
+        const now = new Date();
+        const start = new Date(now);
+        const end = new Date(now);
+
+        if (schedulePeriod === 'LAST_24') {
+            start.setHours(now.getHours() - 24);
+        } else if (schedulePeriod === 'NEXT_48') {
+            end.setHours(now.getHours() + 48);
+        } else {
+            // ALL/Default: Last 24h to Next 48h
+            start.setHours(now.getHours() - 24);
+            end.setHours(now.getHours() + 48);
+        }
+
+        return {
+            start: start.toISOString(),
+            end: end.toISOString()
+        };
+    }, [schedulePeriod]);
 
     // Scroll tracking for header animation
     const scrollY = useSharedValue(0);
@@ -99,6 +115,29 @@ export default function MainHomeScreen() {
         fetchNextPage,
         refetch,
     } = useNotifications();
+
+    const { data: subjectsData, isLoading: isLoadingSubjects } = useMySubjects();
+    const { data: calendarData, isLoading: isLoadingCalendar } = useStudentCalendar(calendarRange.start, calendarRange.end);
+
+    const subjects = React.useMemo(() => {
+        return subjectsData?.data.map((subject: ApiSubject) => ({
+            id: subject.id,
+            name: subject.name,
+            icon: getSubjectIcon(subject.icon)
+        })) || [];
+    }, [subjectsData]);
+
+    const schedule = React.useMemo(() => {
+        return calendarData?.data.map((item: ApiSchedule) => ({
+            id: item.id,
+            courseId: item.courseId,
+            title: item.courseTitle,
+            time: formatTimeRange(item.startTime, item.endTime),
+            teacherName: item.title, // Lesson title as sub-info
+            status: item.status,
+            location: item.location
+        })) || [];
+    }, [calendarData]);
 
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
@@ -176,14 +215,14 @@ export default function MainHomeScreen() {
         router.push('/(main)/course?action=scan'); // Example route
     }, [router]);
 
-    const renderSubjectItem = useCallback(({ item }: { item: typeof subjects[0] }) => (
+    const renderSubjectItem = useCallback(({ item }: { item: any }) => (
         <SubjectCard
             {...item}
-            onPress={() => router.push('/(main)/course')} // Navigate to course details
+            onPress={() => router.push({ pathname: '/subject-details', params: { id: item.id } })}
         />
     ), [router]);
 
-    const subjectKeyExtractor = useCallback((item: typeof subjects[0]) => item.id, []);
+    const subjectKeyExtractor = useCallback((item: any) => item.id, []);
 
     const sectionTitleColor = isDark ? theme.text : theme.gray[900];
     const backgroundColor = isDark ? theme.background : '#FFFFFF';
@@ -222,21 +261,54 @@ export default function MainHomeScreen() {
                 </View>
 
                 <View style={[styles.section, { marginBottom: 24 }]}>
-                    <Text style={[styles.sectionTitle, { color: sectionTitleColor, marginBottom: 12 }]}>
-                        {t('home.yourSchedule') || 'Your Schedule'}
-                    </Text>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
+                            {t('home.yourSchedule') || 'Your Schedule'}
+                        </Text>
+                    </View>
+
+                    {/* Period Selector */}
+                    <View style={styles.periodSelector}>
+                        <TouchableOpacity
+                            onPress={() => setSchedulePeriod('ALL')}
+                            style={[styles.periodChip, schedulePeriod === 'ALL' && { backgroundColor: theme.primary }]}
+                        >
+                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'ALL' ? '#000' : theme.gray[500] }]}>Combined</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setSchedulePeriod('LAST_24')}
+                            style={[styles.periodChip, schedulePeriod === 'LAST_24' && { backgroundColor: theme.primary }]}
+                        >
+                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'LAST_24' ? '#000' : theme.gray[500] }]}>Past 24h</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => setSchedulePeriod('NEXT_48')}
+                            style={[styles.periodChip, schedulePeriod === 'NEXT_48' && { backgroundColor: theme.primary }]}
+                        >
+                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'NEXT_48' ? '#000' : theme.gray[500] }]}>Next 48h</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     <View style={{ marginTop: 8 }}>
-                        {schedule.map((item, index) => (
-                            <ScheduleCard
-                                key={item.id}
-                                {...item}
-                                status={item.status as any}
-                                isLast={index === schedule.length - 1}
-                                onPress={() => router.push('/(main)/course')}
-                                onScanPress={handleScanQR}
-                            />
-                        ))}
+                        {isLoadingCalendar ? (
+                            <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
+                        ) : schedule.length > 0 ? (
+                            schedule.map((item, index) => (
+                                <ScheduleCard
+                                    key={item.id}
+                                    {...item}
+                                    status={item.status as any}
+                                    isLast={index === schedule.length - 1}
+                                    onPress={() => router.push({ pathname: '/course-details', params: { id: item.courseId } })}
+                                    onScanPress={handleScanQR}
+                                />
+                            ))
+                        ) : (
+                            <View style={styles.emptySchedule}>
+                                <Ionicons name="calendar-outline" size={32} color={theme.gray[300]} />
+                                <Text style={{ color: theme.gray[400], marginTop: 8, fontFamily: Fonts.medium }}>No lessons found</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -318,6 +390,32 @@ const styles = StyleSheet.create({
     },
     horizontalList: {
         paddingRight: 16,
+    },
+    periodSelector: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 12,
+    },
+    periodChip: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    periodChipText: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
+    emptySchedule: {
+        alignItems: 'center',
+        paddingVertical: 32,
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: 'rgba(0,0,0,0.05)',
     },
     fabContainer: {
         position: 'absolute',
