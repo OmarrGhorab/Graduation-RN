@@ -282,9 +282,10 @@ export interface CreateLessonRequest {
     description: string;
     scheduledAt: string;
     durationMinutes: number;
+    deliveryType: 'ONLINE' | 'OFFLINE';
     locationName: string;
-    locationLat: number;
-    locationLng: number;
+    locationLat?: number;
+    locationLng?: number;
     geofenceRadiusM: number;
 }
 
