@@ -1,9 +1,12 @@
+// Create Lesson Screen - Updated with Location Picker
+import CalendarModal from '@/components/CalendarModal';
+import LocationPickerModal from '@/components/location/LocationPickerModal';
+import TimePickerModal from '@/components/TimePickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useMyCourses } from '@/hooks/useCourses';
 import { useLessonCreation } from '@/hooks/useLessonCreation';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -39,8 +42,9 @@ export default function CreateLessonScreen() {
     const [locationLat, setLocationLat] = useState('');
     const [locationLng, setLocationLng] = useState('');
     const [geofenceRadius, setGeofenceRadius] = useState('50');
-    const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [showCalendarModal, setShowCalendarModal] = useState(false);
+    const [showLocationPicker, setShowLocationPicker] = useState(false);
 
     // Fetch courses
     const { data: coursesData, isLoading: isLoadingCourses } = useMyCourses();
@@ -91,27 +95,6 @@ export default function CreateLessonScreen() {
             );
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to create lesson');
-        }
-    };
-
-    const onDateChange = (event: any, selectedDate?: Date) => {
-        setShowDatePicker(false);
-        if (selectedDate) {
-            const newDate = new Date(scheduledAt);
-            newDate.setFullYear(selectedDate.getFullYear());
-            newDate.setMonth(selectedDate.getMonth());
-            newDate.setDate(selectedDate.getDate());
-            setScheduledAt(newDate);
-        }
-    };
-
-    const onTimeChange = (event: any, selectedTime?: Date) => {
-        setShowTimePicker(false);
-        if (selectedTime) {
-            const newDate = new Date(scheduledAt);
-            newDate.setHours(selectedTime.getHours());
-            newDate.setMinutes(selectedTime.getMinutes());
-            setScheduledAt(newDate);
         }
     };
 
@@ -262,7 +245,7 @@ export default function CreateLessonScreen() {
                                     style={[styles.dateTimeButton, {
                                         backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                     }]}
-                                    onPress={() => setShowDatePicker(true)}
+                                    onPress={() => setShowCalendarModal(true)}
                                 >
                                     <MaterialIcons name="calendar-today" size={20} color={cskColors[500]} />
                                     <Text style={[styles.dateTimeText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
@@ -364,63 +347,71 @@ export default function CreateLessonScreen() {
                         {/* Location Input */}
                         <View style={styles.inputContainer}>
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                Location Name
+                                Location {deliveryType === 'OFFLINE' && '(Required)'}
                             </Text>
-                            <View style={styles.inputWithIcon}>
+                            <TouchableOpacity
+                                style={[styles.locationPickerButton, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    borderColor: locationName ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
+                                }]}
+                                onPress={() => setShowLocationPicker(true)}
+                            >
                                 <MaterialIcons
                                     name="location-on"
                                     size={24}
-                                    color={cskColors[500]}
-                                    style={styles.inputIcon}
+                                    color={locationName ? cskColors[500] : (isDark ? '#6b737c' : '#949da5')}
                                 />
+                                <View style={{ flex: 1 }}>
+                                    {locationName ? (
+                                        <>
+                                            <Text style={[styles.locationNameText, {
+                                                color: isDark ? '#e1e5e9' : '#0d1b15'
+                                            }]}>
+                                                {locationName}
+                                            </Text>
+                                            {locationLat && locationLng && (
+                                                <Text style={[styles.coordinatesText, {
+                                                    color: isDark ? '#a8b0b8' : '#696f77'
+                                                }]}>
+                                                    {parseFloat(locationLat).toFixed(4)}, {parseFloat(locationLng).toFixed(4)}
+                                                </Text>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Text style={[styles.locationPlaceholder, {
+                                            color: isDark ? '#6b737c' : '#949da5'
+                                        }]}>
+                                            {deliveryType === 'ONLINE' ? 'Zoom link or meeting URL' : 'Tap to select location'}
+                                        </Text>
+                                    )}
+                                </View>
+                                <MaterialIcons
+                                    name="chevron-right"
+                                    size={24}
+                                    color={isDark ? '#6b737c' : '#949da5'}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        {deliveryType === 'OFFLINE' && locationName && (
+                            <View style={styles.inputContainer}>
+                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                    Geofence Radius (meters)
+                                </Text>
                                 <TextInput
-                                    style={[styles.inputWithIconText, {
+                                    style={[styles.input, {
                                         backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                         color: isDark ? '#e1e5e9' : '#0d1b15',
                                     }]}
-                                    placeholder={deliveryType === 'ONLINE' ? 'Zoom link or meeting URL' : 'Physical location'}
+                                    placeholder="50"
                                     placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                    value={locationName}
-                                    onChangeText={setLocationName}
+                                    value={geofenceRadius}
+                                    onChangeText={setGeofenceRadius}
+                                    keyboardType="numeric"
                                 />
-                            </View>
-                        </View>
-
-                        {/* Coordinates (Optional for OFFLINE) */}
-                        {deliveryType === 'OFFLINE' && (
-                            <View style={styles.row}>
-                                <View style={[styles.inputContainer, styles.flex1]}>
-                                    <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        Latitude (Optional)
-                                    </Text>
-                                    <TextInput
-                                        style={[styles.input, {
-                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
-                                            color: isDark ? '#e1e5e9' : '#0d1b15',
-                                        }]}
-                                        placeholder="30.0444"
-                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                        value={locationLat}
-                                        onChangeText={setLocationLat}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
-                                <View style={[styles.inputContainer, styles.flex1]}>
-                                    <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        Longitude (Optional)
-                                    </Text>
-                                    <TextInput
-                                        style={[styles.input, {
-                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
-                                            color: isDark ? '#e1e5e9' : '#0d1b15',
-                                        }]}
-                                        placeholder="31.2357"
-                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                        value={locationLng}
-                                        onChangeText={setLocationLng}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
+                                <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                    Students must be within this radius to mark attendance
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -431,24 +422,41 @@ export default function CreateLessonScreen() {
             </KeyboardAvoidingView>
 
             {/* Date/Time Pickers */}
-            {showDatePicker && (
-                <DateTimePicker
-                    value={scheduledAt}
-                    mode="date"
-                    display="default"
-                    onChange={onDateChange}
-                    minimumDate={new Date()}
-                />
-            )}
+            <CalendarModal
+                visible={showCalendarModal}
+                onClose={() => setShowCalendarModal(false)}
+                selectedDate={scheduledAt}
+                onSelectDate={(date) => {
+                    const newDate = new Date(scheduledAt);
+                    newDate.setFullYear(date.getFullYear());
+                    newDate.setMonth(date.getMonth());
+                    newDate.setDate(date.getDate());
+                    setScheduledAt(newDate);
+                }}
+                mode="start"
+                minDate={new Date()}
+            />
 
-            {showTimePicker && (
-                <DateTimePicker
-                    value={scheduledAt}
-                    mode="time"
-                    display="default"
-                    onChange={onTimeChange}
-                />
-            )}
+            {/* Time Picker Modal */}
+            <TimePickerModal
+                visible={showTimePicker}
+                onClose={() => setShowTimePicker(false)}
+                selectedTime={scheduledAt}
+                onSelectTime={(time) => {
+                    setScheduledAt(time);
+                }}
+            />
+
+            {/* Location Picker Modal */}
+            <LocationPickerModal
+                visible={showLocationPicker}
+                onClose={() => setShowLocationPicker(false)}
+                onSelectLocation={(location) => {
+                    setLocationName(location.name);
+                    setLocationLat(location.latitude.toString());
+                    setLocationLng(location.longitude.toString());
+                }}
+            />
 
             {/* Fixed Footer */}
             <View style={[styles.footer, {
@@ -580,23 +588,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: Fonts.medium,
     },
-    inputWithIcon: {
-        position: 'relative',
-    },
-    inputIcon: {
-        position: 'absolute',
-        left: 16,
-        top: 16,
-        zIndex: 1,
-    },
-    inputWithIconText: {
-        height: 56,
-        borderRadius: 12,
-        paddingLeft: 52,
-        paddingRight: 16,
-        fontSize: 16,
-        fontFamily: Fonts.regular,
-    },
     row: {
         flexDirection: 'row',
         gap: 12,
@@ -615,6 +606,35 @@ const styles = StyleSheet.create({
     dateTimeText: {
         fontSize: 16,
         fontFamily: Fonts.medium,
+    },
+    locationPickerButton: {
+        minHeight: 56,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        borderWidth: 2,
+    },
+    locationNameText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+    },
+    coordinatesText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 2,
+    },
+    locationPlaceholder: {
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+    },
+    helperText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 6,
+        paddingHorizontal: 4,
     },
     footer: {
         position: 'absolute',

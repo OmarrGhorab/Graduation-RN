@@ -1,13 +1,16 @@
+import LocationPickerModal from '@/components/location/LocationPickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { getAllSubjects } from '@/services/CourseService';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -32,17 +35,21 @@ export default function CreateCourseScreen() {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [subjectId, setSubjectId] = useState('');
+    const [courseImage, setCourseImage] = useState('');
+    const [imageInputMode, setImageInputMode] = useState<'url' | 'upload'>('url');
     const [deliveryType, setDeliveryType] = useState<DeliveryType>('ONLINE');
     const [locationName, setLocationName] = useState('');
     const [locationLat, setLocationLat] = useState('');
     const [locationLng, setLocationLng] = useState('');
     const [geofenceRadius, setGeofenceRadius] = useState('50');
+    const [totalLessons, setTotalLessons] = useState('12');
     const [attendanceWindow, setAttendanceWindow] = useState('15');
     const [price, setPrice] = useState('0');
     const [currency, setCurrency] = useState('EGP');
     const [isPaid, setIsPaid] = useState(false);
     const [billingType, setBillingType] = useState<BillingType>('ONE_TIME');
     const [attendanceWeight, setAttendanceWeight] = useState('0.3');
+    const [showLocationPicker, setShowLocationPicker] = useState(false);
 
     // Fetch subjects
     const { data: subjectsResponse, isLoading: isLoadingSubjects } = useQuery({
@@ -51,6 +58,30 @@ export default function CreateCourseScreen() {
     });
 
     const subjects = subjectsResponse?.data || [];
+
+    const pickImage = async () => {
+        try {
+            const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            
+            if (!permissionResult.granted) {
+                Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [16, 9],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                setCourseImage(result.assets[0].uri);
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick image');
+        }
+    };
 
     const handleCreateCourse = async () => {
         // Validation
@@ -74,11 +105,13 @@ export default function CreateCourseScreen() {
                 title: title.trim(),
                 description: description.trim(),
                 subjectId,
+                courseImage: courseImage.trim() || undefined,
                 deliveryType,
                 locationName: locationName.trim(),
                 locationLat: locationLat ? parseFloat(locationLat) : undefined,
                 locationLng: locationLng ? parseFloat(locationLng) : undefined,
                 geofenceRadiusM: parseInt(geofenceRadius) || 50,
+                totalLessons: parseInt(totalLessons) || 12,
                 attendanceWindowMinutes: parseInt(attendanceWindow) || 15,
                 price: parseFloat(price) || 0,
                 currency,
@@ -168,6 +201,144 @@ export default function CreateCourseScreen() {
                                 multiline
                                 numberOfLines={4}
                                 textAlignVertical="top"
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Course Image (Optional)
+                            </Text>
+                            
+                            {/* Mode Toggle */}
+                            <View style={[styles.segmentedControl, {
+                                backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                marginBottom: 12,
+                            }]}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.segmentButton,
+                                        imageInputMode === 'url' && {
+                                            backgroundColor: cskColors[500],
+                                        },
+                                    ]}
+                                    onPress={() => setImageInputMode('url')}
+                                >
+                                    <MaterialIcons 
+                                        name="link" 
+                                        size={18} 
+                                        color={imageInputMode === 'url' ? '#ffffff' : (isDark ? '#a8b0b8' : '#696f77')} 
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.segmentTextSmall,
+                                            {
+                                                color: imageInputMode === 'url'
+                                                    ? '#ffffff'
+                                                    : (isDark ? '#a8b0b8' : '#696f77'),
+                                            },
+                                        ]}
+                                    >
+                                        URL
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.segmentButton,
+                                        imageInputMode === 'upload' && {
+                                            backgroundColor: cskColors[500],
+                                        },
+                                    ]}
+                                    onPress={() => setImageInputMode('upload')}
+                                >
+                                    <MaterialIcons 
+                                        name="upload" 
+                                        size={18} 
+                                        color={imageInputMode === 'upload' ? '#ffffff' : (isDark ? '#a8b0b8' : '#696f77')} 
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.segmentTextSmall,
+                                            {
+                                                color: imageInputMode === 'upload'
+                                                    ? '#ffffff'
+                                                    : (isDark ? '#a8b0b8' : '#696f77'),
+                                            },
+                                        ]}
+                                    >
+                                        Upload
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {imageInputMode === 'url' ? (
+                                <TextInput
+                                    style={[styles.input, {
+                                        backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                        color: isDark ? '#e1e5e9' : '#0d1b15',
+                                    }]}
+                                    placeholder="https://example.com/course-image.jpg"
+                                    placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                    value={courseImage}
+                                    onChangeText={setCourseImage}
+                                    keyboardType="url"
+                                    autoCapitalize="none"
+                                />
+                            ) : (
+                                <View>
+                                    <TouchableOpacity
+                                        style={[styles.imageUploadButton, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            borderColor: courseImage ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
+                                        }]}
+                                        onPress={pickImage}
+                                    >
+                                        <MaterialIcons
+                                            name="add-photo-alternate"
+                                            size={32}
+                                            color={courseImage ? cskColors[500] : (isDark ? '#6b737c' : '#949da5')}
+                                        />
+                                        <Text style={[styles.imageUploadText, {
+                                            color: isDark ? '#e1e5e9' : '#0d1b15'
+                                        }]}>
+                                            {courseImage ? 'Change Image' : 'Tap to upload image'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    
+                                    {courseImage && (
+                                        <View style={styles.imagePreviewContainer}>
+                                            <Image
+                                                source={{ uri: courseImage }}
+                                                style={styles.imagePreview}
+                                                resizeMode="cover"
+                                            />
+                                            <TouchableOpacity
+                                                style={[styles.removeImageButton, {
+                                                    backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)',
+                                                }]}
+                                                onPress={() => setCourseImage('')}
+                                            >
+                                                <MaterialIcons name="close" size={20} color={isDark ? '#ffffff' : '#0d1b15'} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Total Lessons
+                            </Text>
+                            <TextInput
+                                style={[styles.input, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    color: isDark ? '#e1e5e9' : '#0d1b15',
+                                }]}
+                                placeholder="12"
+                                placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                value={totalLessons}
+                                onChangeText={setTotalLessons}
+                                keyboardType="numeric"
                             />
                         </View>
                     </View>
@@ -279,63 +450,71 @@ export default function CreateCourseScreen() {
                         {/* Location Input */}
                         <View style={styles.inputContainer}>
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                Location Name
+                                Location {deliveryType === 'OFFLINE' && '(Required)'}
                             </Text>
-                            <View style={styles.inputWithIcon}>
+                            <TouchableOpacity
+                                style={[styles.locationPickerButton, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    borderColor: locationName ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
+                                }]}
+                                onPress={() => setShowLocationPicker(true)}
+                            >
                                 <MaterialIcons
                                     name="location-on"
                                     size={24}
-                                    color={cskColors[500]}
-                                    style={styles.inputIcon}
+                                    color={locationName ? cskColors[500] : (isDark ? '#6b737c' : '#949da5')}
                                 />
+                                <View style={{ flex: 1 }}>
+                                    {locationName ? (
+                                        <>
+                                            <Text style={[styles.locationNameText, {
+                                                color: isDark ? '#e1e5e9' : '#0d1b15'
+                                            }]}>
+                                                {locationName}
+                                            </Text>
+                                            {locationLat && locationLng && (
+                                                <Text style={[styles.coordinatesText, {
+                                                    color: isDark ? '#a8b0b8' : '#696f77'
+                                                }]}>
+                                                    {parseFloat(locationLat).toFixed(4)}, {parseFloat(locationLng).toFixed(4)}
+                                                </Text>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Text style={[styles.locationPlaceholder, {
+                                            color: isDark ? '#6b737c' : '#949da5'
+                                        }]}>
+                                            {deliveryType === 'ONLINE' ? 'Zoom link or meeting URL' : 'Tap to select location'}
+                                        </Text>
+                                    )}
+                                </View>
+                                <MaterialIcons
+                                    name="chevron-right"
+                                    size={24}
+                                    color={isDark ? '#6b737c' : '#949da5'}
+                                />
+                            </TouchableOpacity>
+                        </View>
+
+                        {deliveryType === 'OFFLINE' && locationName && (
+                            <View style={styles.inputContainer}>
+                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                    Geofence Radius (meters)
+                                </Text>
                                 <TextInput
-                                    style={[styles.inputWithIconText, {
+                                    style={[styles.input, {
                                         backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                         color: isDark ? '#e1e5e9' : '#0d1b15',
                                     }]}
-                                    placeholder={deliveryType === 'ONLINE' ? 'Zoom link or meeting URL' : 'Physical location'}
+                                    placeholder="50"
                                     placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                    value={locationName}
-                                    onChangeText={setLocationName}
+                                    value={geofenceRadius}
+                                    onChangeText={setGeofenceRadius}
+                                    keyboardType="numeric"
                                 />
-                            </View>
-                        </View>
-
-                        {/* Coordinates (Optional for OFFLINE) */}
-                        {deliveryType === 'OFFLINE' && (
-                            <View style={styles.row}>
-                                <View style={[styles.inputContainer, styles.flex1]}>
-                                    <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        Latitude (Optional)
-                                    </Text>
-                                    <TextInput
-                                        style={[styles.input, {
-                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
-                                            color: isDark ? '#e1e5e9' : '#0d1b15',
-                                        }]}
-                                        placeholder="30.0444"
-                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                        value={locationLat}
-                                        onChangeText={setLocationLat}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
-                                <View style={[styles.inputContainer, styles.flex1]}>
-                                    <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        Longitude (Optional)
-                                    </Text>
-                                    <TextInput
-                                        style={[styles.input, {
-                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
-                                            color: isDark ? '#e1e5e9' : '#0d1b15',
-                                        }]}
-                                        placeholder="31.2357"
-                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                        value={locationLng}
-                                        onChangeText={setLocationLng}
-                                        keyboardType="numeric"
-                                    />
-                                </View>
+                                <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                    Students must be within this radius to mark attendance
+                                </Text>
                             </View>
                         )}
                     </View>
@@ -454,6 +633,17 @@ export default function CreateCourseScreen() {
                     <View style={{ height: 100 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Location Picker Modal */}
+            <LocationPickerModal
+                visible={showLocationPicker}
+                onClose={() => setShowLocationPicker(false)}
+                onSelectLocation={(location) => {
+                    setLocationName(location.name);
+                    setLocationLat(location.latitude.toString());
+                    setLocationLng(location.longitude.toString());
+                }}
+            />
 
             {/* Fixed Footer */}
             <View style={[styles.footer, {
@@ -584,22 +774,73 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: Fonts.medium,
     },
-    inputWithIcon: {
+    locationPickerButton: {
+        minHeight: 56,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        borderWidth: 2,
+    },
+    locationNameText: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+    },
+    coordinatesText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 2,
+    },
+    locationPlaceholder: {
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+    },
+    helperText: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 6,
+        paddingHorizontal: 4,
+    },
+    imageUploadButton: {
+        minHeight: 120,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    imageUploadText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+    },
+    imagePreviewContainer: {
+        marginTop: 12,
+        borderRadius: 12,
+        overflow: 'hidden',
         position: 'relative',
     },
-    inputIcon: {
-        position: 'absolute',
-        left: 16,
-        top: 16,
-        zIndex: 1,
-    },
-    inputWithIconText: {
-        height: 56,
+    imagePreview: {
+        width: '100%',
+        height: 180,
         borderRadius: 12,
-        paddingLeft: 52,
-        paddingRight: 16,
-        fontSize: 16,
-        fontFamily: Fonts.regular,
+    },
+    removeImageButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 4,
     },
     inputWithSuffix: {
         position: 'relative',
