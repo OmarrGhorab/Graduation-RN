@@ -77,7 +77,7 @@ export default memo(function CourseStatsCard({
                     </Svg>
                     <View style={styles.percentageContainer}>
                         <Text style={[styles.percentageText, { color: isDark ? theme.text : theme.gray[900] }]}>
-                            {attendance}%
+                            {Math.round(attendance)}%
                         </Text>
                     </View>
                 </View>
@@ -90,7 +90,7 @@ export default memo(function CourseStatsCard({
                         <Text style={[styles.statsLabel, { color: theme.gray[500] }]}>Classes Attended</Text>
                     </View>
                     <Text style={[styles.targetText, { color: theme.gray[500] }]}>
-                        You need <Text style={{ fontFamily: Fonts.bold, color: theme.gray[700] }}>3 more classes</Text> to reach <Text style={{ fontFamily: Fonts.bold, color: theme.primary }}>{targetPercentage}%</Text> target.
+                        You need <Text style={{ fontFamily: Fonts.bold, color: theme.gray[700] }}>3 more classes</Text> to reach <Text style={{ fontFamily: Fonts.bold, color: theme.primary }}>{Math.round(targetPercentage)}%</Text> target.
                     </Text>
                 </View>
             </View>
@@ -115,11 +115,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         marginBottom: 16,
+        gap: 8,
     },
     title: {
         fontSize: 18,
         fontFamily: Fonts.bold,
         marginBottom: 2,
+        flex: 1,
     },
     subtitle: {
         fontSize: 12,
@@ -140,11 +142,12 @@ const styles = StyleSheet.create({
     content: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 24,
+        gap: 16,
+        flexWrap: 'wrap',
     },
     chartContainer: {
-        width: 80,
-        height: 80,
+        width: 70,
+        height: 70,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -154,26 +157,27 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     percentageText: {
-        fontSize: 18,
+        fontSize: 16,
         fontFamily: Fonts.bold,
     },
     statsInfo: {
         flex: 1,
+        minWidth: 140,
         justifyContent: 'center',
-        gap: 8,
+        gap: 4,
     },
     statsValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontFamily: Fonts.bold,
-        lineHeight: 28,
+        lineHeight: 26,
     },
     statsLabel: {
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: Fonts.medium,
     },
     targetText: {
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: Fonts.regular,
-        lineHeight: 18,
+        lineHeight: 16,
     },
 });

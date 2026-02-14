@@ -561,7 +561,7 @@ export default {
   // Tabs
   tabs: {
     home: 'Home',
-    course: 'Course',
+    course: 'Courses',
     chat: 'Chat',
     qr: 'QR',
     account: 'Account',
@@ -589,6 +589,11 @@ export default {
   course: {
     title: 'Courses',
     emptyState: 'Your enrolled courses will appear here',
+  },
+
+  // Courses
+  courses: {
+    title: 'Explore Courses',
   },
 
   // QR

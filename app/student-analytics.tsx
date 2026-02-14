@@ -1,11 +1,12 @@
 
 import { Fonts, cskColors } from '@/constants/theme';
+import { useStudentAnalytics } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Dimensions, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -29,10 +30,36 @@ export default function StudentAnalyticsScreen() {
     const params = useLocalSearchParams();
     const { theme, isDark } = useTheme();
 
-    // Use params if available, otherwise fallback to default
-    const studentName = params.name as string || DEFAULT_STUDENT.name;
-    const studentId = params.id as string || DEFAULT_STUDENT.id;
-    const studentImage = params.image as string || DEFAULT_STUDENT.image;
+    const studentId = params.id as string;
+    const courseId = params.courseId as string;
+
+    const { data: analyticsResponse, isLoading, error } = useStudentAnalytics(studentId, courseId);
+    const analytics = analyticsResponse?.data;
+
+    if (isLoading) {
+        return (
+            <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7', justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
+
+    if (error || !analytics) {
+        return (
+            <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <MaterialIcons name="error-outline" size={48} color={theme.gray[400]} />
+                <Text style={{ marginTop: 12, color: theme.gray[600], textAlign: 'center' }}>
+                    Failed to load analytics data
+                </Text>
+                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+                    <Text style={{ color: theme.primary }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const studentName = analytics.studentName;
+    const studentImage = analytics.studentProfileImg || DEFAULT_STUDENT.image;
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7' }]}>
@@ -68,14 +95,20 @@ export default function StudentAnalyticsScreen() {
                             <View style={[styles.iconBox, { backgroundColor: 'rgba(18, 237, 135, 0.1)' }]}>
                                 <MaterialIcons name="calendar-today" size={20} color={cskColors[500]} />
                             </View>
-                            <View style={[styles.trendBadge, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.2)' : '#ecfdf5' }]}>
-                                <MaterialIcons name="trending-up" size={14} color={isDark ? '#4ade80' : '#16a34a'} />
-                                <Text style={[styles.trendText, { color: isDark ? '#4ade80' : '#16a34a' }]}>+2%</Text>
+                            <View style={[styles.trendBadge, { backgroundColor: analytics.attendanceChange >= 0 ? (isDark ? 'rgba(22, 163, 74, 0.2)' : '#ecfdf5') : (isDark ? 'rgba(220, 38, 38, 0.2)' : '#fef2f2') }]}>
+                                <MaterialIcons
+                                    name={analytics.attendanceChange >= 0 ? "trending-up" : "trending-down"}
+                                    size={14}
+                                    color={analytics.attendanceChange >= 0 ? (isDark ? '#4ade80' : '#16a34a') : (isDark ? '#f87171' : '#dc2626')}
+                                />
+                                <Text style={[styles.trendText, { color: analytics.attendanceChange >= 0 ? (isDark ? '#4ade80' : '#16a34a') : (isDark ? '#f87171' : '#dc2626') }]}>
+                                    {analytics.attendanceChange >= 0 ? '+' : ''}{analytics.attendanceChange}%
+                                </Text>
                             </View>
                         </View>
                         <View>
                             <Text style={[styles.cardLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>Attendance Rate</Text>
-                            <Text style={[styles.cardValue, { color: isDark ? '#fff' : '#0d1b15' }]}>95%</Text>
+                            <Text style={[styles.cardValue, { color: isDark ? '#fff' : '#0d1b15' }]}>{Math.round(analytics.attendanceRate)}%</Text>
                         </View>
                         {/* Decorative Background Element */}
                         <View style={[styles.decorativeCircle, { backgroundColor: 'rgba(18, 237, 135, 0.05)' }]} />
@@ -91,12 +124,12 @@ export default function StudentAnalyticsScreen() {
                         <View>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
                                 <Text style={[styles.cardLabel, { color: isDark ? '#9ca3af' : '#6b7280' }]}>Completion</Text>
-                                <Text style={[styles.miniValue, { color: cskColors[500] }]}>78/100</Text>
+                                <Text style={[styles.miniValue, { color: cskColors[500] }]}>{analytics.completedLessons}/{analytics.totalLessons}</Text>
                             </View>
                             <View style={[styles.progressBarBg, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}>
-                                <View style={[styles.progressBarFill, { width: '78%', backgroundColor: cskColors[500] }]} />
+                                <View style={[styles.progressBarFill, { width: `${analytics.completionRate}%`, backgroundColor: cskColors[500] }]} />
                             </View>
-                            <Text style={[styles.cardValue, { color: isDark ? '#fff' : '#0d1b15', marginTop: 8 }]}>78%</Text>
+                            <Text style={[styles.cardValue, { color: isDark ? '#fff' : '#0d1b15', marginTop: 8 }]}>{Math.round(analytics.completionRate)}%</Text>
                         </View>
                         {/* Decorative Background Element */}
                         <View style={[styles.decorativeCircle, { backgroundColor: 'rgba(18, 237, 135, 0.05)' }]} />
@@ -108,34 +141,42 @@ export default function StudentAnalyticsScreen() {
                     <View style={styles.chartHeader}>
                         <View>
                             <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Weekly Attendance</Text>
-                            <Text style={[styles.sectionSubtitle, { color: isDark ? '#9ca3af' : '#6b7280' }]}>Total 32 hours this week</Text>
+                            <Text style={[styles.sectionSubtitle, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
+                                {analytics.courseName}
+                            </Text>
                         </View>
                         <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#374151' : '#f9fafb' }]}>
                             <MaterialIcons name="more-horiz" size={20} color={isDark ? '#9ca3af' : '#9ca3af'} />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.chartContainer}>
-                        {WEEKLY_DATA.map((item, index) => (
-                            <View key={index} style={styles.chartColumn}>
-                                <View style={[styles.barBg, { backgroundColor: isDark ? '#1f2937' : '#f3f4f6' }]}>
-                                    <View
-                                        style={[
-                                            styles.barFill,
-                                            {
-                                                height: `${item.height}%`,
-                                                backgroundColor: item.active ? cskColors[500] : (isDark ? 'rgba(18, 237, 135, 0.3)' : 'rgba(18, 237, 135, 0.3)'),
-                                                borderTopLeftRadius: 6,
-                                                borderTopRightRadius: 6,
-                                            },
-                                            item.active && { shadowColor: cskColors[500], shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }
-                                        ]}
-                                    />
+                        {analytics.weeklyAttendance.map((item, index) => {
+                            const maxHeight = Math.max(...analytics.weeklyAttendance.map(d => d.hours), 1);
+                            const heightPercent = (item.hours / maxHeight) * 100;
+                            const isActive = new Date().toLocaleDateString('en-US', { weekday: 'short' }) === item.day;
+
+                            return (
+                                <View key={index} style={styles.chartColumn}>
+                                    <View style={[styles.barBg, { backgroundColor: isDark ? '#1f2937' : '#f3f4f6' }]}>
+                                        <View
+                                            style={[
+                                                styles.barFill,
+                                                {
+                                                    height: `${Math.max(heightPercent, 5)}%`,
+                                                    backgroundColor: isActive ? cskColors[500] : (isDark ? 'rgba(18, 237, 135, 0.3)' : 'rgba(18, 237, 135, 0.3)'),
+                                                    borderTopLeftRadius: 6,
+                                                    borderTopRightRadius: 6,
+                                                },
+                                                isActive && { shadowColor: cskColors[500], shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 }
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={[styles.dayText, { color: isActive ? (isDark ? '#fff' : '#0d1b15') : (isDark ? '#6b7280' : '#6b7280'), fontWeight: isActive ? 'bold' : 'normal' }]}>
+                                        {item.day}
+                                    </Text>
                                 </View>
-                                <Text style={[styles.dayText, { color: item.active ? (isDark ? '#fff' : '#0d1b15') : (isDark ? '#6b7280' : '#6b7280'), fontWeight: item.active ? 'bold' : 'normal' }]}>
-                                    {item.day}
-                                </Text>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </View>
                 </View>
 
@@ -152,17 +193,19 @@ export default function StudentAnalyticsScreen() {
                                 <View style={[styles.trophyIcon, { backgroundColor: 'rgba(18, 237, 135, 0.2)' }]}>
                                     <MaterialIcons name="emoji-events" size={14} color={cskColors[500]} />
                                 </View>
-                                <Text style={[styles.topPerformerText, { color: cskColors[500] }]}>TOP PERFORMER</Text>
+                                <Text style={[styles.topPerformerText, { color: cskColors[500] }]}>
+                                    {analytics.rank <= 3 ? 'TOP PERFORMER' : 'CLASS RANK'}
+                                </Text>
                             </View>
-                            <Text style={styles.rankText}>Rank #3</Text>
-                            <Text style={styles.rankDesc}>You are in the top 5% of class performance.</Text>
+                            <Text style={styles.rankText}>Rank #{analytics.rank}</Text>
+                            <Text style={styles.rankDesc}>Out of {analytics.totalStudents} students in {analytics.courseName}.</Text>
                         </View>
                         <View style={styles.rankRight}>
                             <View style={styles.rankAvatarContainer}>
                                 <Image source={{ uri: studentImage }} style={styles.rankAvatar} />
                             </View>
                             <View style={styles.pointsBadge}>
-                                <Text style={styles.pointsText}>980 pts</Text>
+                                <Text style={styles.pointsText}>{analytics.points} pts</Text>
                             </View>
                         </View>
                     </View>
@@ -180,35 +223,34 @@ export default function StudentAnalyticsScreen() {
                     </View>
 
                     <View style={styles.activityList}>
-                        {/* Item 1 */}
-                        <View style={[styles.activityItem, { backgroundColor: isDark ? '#1c3026' : '#ffffff', borderColor: isDark ? '#1f2937' : '#f3f4f6' }]}>
-                            <View style={styles.activityLeft}>
-                                <View style={[styles.activityIcon, { backgroundColor: isDark ? 'rgba(22, 163, 74, 0.2)' : '#ecfdf5' }]}>
-                                    <MaterialIcons name="check-circle" size={20} color={isDark ? '#4ade80' : '#16a34a'} />
+                        {analytics.recentActivity.map((activity, index) => (
+                            <View key={index} style={[styles.activityItem, { backgroundColor: isDark ? '#1c3026' : '#ffffff', borderColor: isDark ? '#1f2937' : '#f3f4f6' }]}>
+                                <View style={styles.activityLeft}>
+                                    <View style={[styles.activityIcon, {
+                                        backgroundColor: activity.status === 'PRESENT'
+                                            ? (isDark ? 'rgba(22, 163, 74, 0.2)' : '#ecfdf5')
+                                            : activity.status === 'LATE'
+                                                ? (isDark ? 'rgba(251, 191, 36, 0.2)' : '#fffbeb')
+                                                : (isDark ? 'rgba(220, 38, 38, 0.2)' : '#fef2f2')
+                                    }]}>
+                                        <MaterialIcons
+                                            name={activity.status === 'PRESENT' ? 'check-circle' : activity.status === 'LATE' ? 'watch-later' : 'cancel'}
+                                            size={20}
+                                            color={activity.status === 'PRESENT' ? '#16a34a' : activity.status === 'LATE' ? '#d97706' : '#dc2626'}
+                                        />
+                                    </View>
+                                    <View>
+                                        <Text style={[styles.activityTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>{activity.lessonTitle}</Text>
+                                        <Text style={[styles.activitySubtitle, { color: isDark ? '#6b7280' : '#6b7280' }]}>
+                                            {new Date(activity.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} • {new Date(activity.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </Text>
+                                    </View>
                                 </View>
-                                <View>
-                                    <Text style={[styles.activityTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Design Systems 101</Text>
-                                    <Text style={[styles.activitySubtitle, { color: isDark ? '#6b7280' : '#6b7280' }]}>Lecture Check-in • 10:00 AM</Text>
-                                </View>
+                                <Text style={[styles.activityValue, { color: isDark ? '#fff' : '#0d1b15' }]}>
+                                    {Math.round(activity.durationMins / 60)}hrs
+                                </Text>
                             </View>
-                            <Text style={[styles.activityValue, { color: isDark ? '#fff' : '#0d1b15' }]}>+2hrs</Text>
-                        </View>
-
-                        {/* Item 2 */}
-                        <View style={[styles.activityItem, { backgroundColor: isDark ? '#1c3026' : '#ffffff', borderColor: isDark ? '#1f2937' : '#f3f4f6' }]}>
-                            <View style={styles.activityLeft}>
-                                <View style={[styles.activityIcon, { backgroundColor: isDark ? 'rgba(30, 64, 175, 0.2)' : '#eff6ff' }]}>
-                                    <MaterialIcons name="assignment" size={20} color={isDark ? '#60a5fa' : '#2563eb'} />
-                                </View>
-                                <View>
-                                    <Text style={[styles.activityTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>UX Research Project</Text>
-                                    <Text style={[styles.activitySubtitle, { color: isDark ? '#6b7280' : '#6b7280' }]}>Submission • Yesterday</Text>
-                                </View>
-                            </View>
-                            <View style={[styles.pendingBadge, { backgroundColor: isDark ? '#374151' : '#f3f4f6' }]}>
-                                <Text style={[styles.pendingText, { color: isDark ? '#d1d5db' : '#4b5563' }]}>Pending</Text>
-                            </View>
-                        </View>
+                        ))}
                     </View>
                 </View>
 

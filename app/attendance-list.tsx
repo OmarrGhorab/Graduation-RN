@@ -1,116 +1,77 @@
-
 import { Fonts, cskColors } from '@/constants/theme';
+import { useLessonAbsences } from '@/hooks/useCourses';
+import { useLessonAttendance, useLessonDetails } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-// Mock Data
-const CLASS_NAME = 'Class 3-B Attendance';
-const SUB_INFO = 'Science 101 • Mr. Anderson';
-
-type StudentStatus = 'Present' | 'Late' | 'Absent';
-
-interface Student {
-    id: string;
-    name: string;
-    studentId: string;
-    grade: string;
-    status: StudentStatus;
-    image: string;
-}
-
-const studentsData: Student[] = [
-    {
-        id: '1',
-        name: 'Alice Smith',
-        studentId: '99824',
-        grade: 'Grade 10',
-        status: 'Present',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBLhyLGX1G96a9o1XsZVfIhfe6lvZTecR7xxv2bXVTVm0G5PDOiSBFJ9aAM5n4hhK8t2GI3lKXLafKs8TD0tiWkLYmpGQnccTTZ9oqlJ_WSboSJgGxDlJ2l5A2c1xSMWeKNzhV0YICwv7cnuEEOUWEucdQe2m9jmTd4vsAZKfK2eb6YM5JLUkLIL7kR2mpPZdwsIpsaye5z7eGDb6oBq2oLkzVwo87x_Pfpfdo9jcSvI4WG4JOXE82NSyXy7pxyIT4wPDe9r1zPEfqR'
-    },
-    {
-        id: '2',
-        name: 'Bob Jones',
-        studentId: '99825',
-        grade: 'Grade 10',
-        status: 'Late',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAcFpIRAC1UusEX0FXq0516wYiEMXoVwX4GxbliVhdrSXtWwwmh-uTR6j0h9O7Yw8sf04wgBcNEQfn9Vgbj9B1oqqDvlTHn_NjaNT2OOxZOEw7a-Vft8wlvT2IzynkrshlmU1ooRN_WkFWonGN5iYz-yBQzFkyo_RbIm4By4OjVHoth7540jNv1b-4GTM11IkvE34vq6AitM3VRkqPXrg4DgO4q6CIt8bw0m6dmgOLksCwLMFUOmJwS0zwhlGv7958ILBUuDOmhA-Ns'
-    },
-    {
-        id: '3',
-        name: 'Charlie Day',
-        studentId: '99826',
-        grade: 'Grade 10',
-        status: 'Absent',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCEFoWKJZ1wCZQ0IIQgi-1eq_N8Jn1yvbcOrme4NlyXzAbba7IlZgqLeYsvuAGpED8wTC0NTLyaQNOWC4rBj6UlRcCEHDlA1UCKRP05ljn8NxNfWbl4BhjIiEjYnqdt7FFjP6h3vBjYZKq6P54qpwo_CvpYSPijzWy83C7PqAAKJU3oXI2hgAwP8FKuacPns9SUUJRYi_Sl_VfrwdR9Kky76ki4p0pbmdIpCPU44RyY0TgOF7a8o6axMiky1jxHbICRLwRfcAFCWV4G'
-    },
-    {
-        id: '4',
-        name: 'Diana Prince',
-        studentId: '99827',
-        grade: 'Grade 10',
-        status: 'Present',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC72YAsxRgwTSM9SIkudCKlruUJBNI0Xjfv4eoKWLVPuAQCljeqPt-ad60SA8g01zHSDry8Xlb_67u_y-HN8GmjAuhmwy4jQAJkfZyubwFq69X63XVZxpheD6AGEeuiLXW59XQtdHnlE_10_yldi0OYi5H_Idb_H2RnspVxExWtRrqraUMGEHppC5OhAYoTavH_Qloi9rbZtGNN6RRzhYu7LdFWXzPiwpChlR5oTpWcfZjwdurhdXjL0pl9usc7hZhwMF-MKjfGZw54'
-    },
-    {
-        id: '5',
-        name: 'Evan Wright',
-        studentId: '99828',
-        grade: 'Grade 10',
-        status: 'Present',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAK2cDEqXNxQdmjAROxFFvub2bgHcrPmUtzkyY5X6gIn7aDtvBlCUkYxhr5ZctoaOBccp2TKfifwiVFI8KmiZlSWlPTUa_B3bVYPDVecpxkKV0w94NNUByzxJTaR_20SR8IWyEoUjTRrgf5WOYeUbqxmnPF3iM06gmgxrZxeTaNkcV_QbgeRQqw02aCEqy2m1wXdsKWJG-QAj2Ms8eZv2-Q8h74EbOfJICatRr7agP4P1krQfSEgSJPPF9R7MNaPBnf3-g9BwdOuDrj'
-    },
-    {
-        id: '6',
-        name: 'Fiona Gallagher',
-        studentId: '99829',
-        grade: 'Grade 10',
-        status: 'Late',
-        image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCFUElwXbjuA-FzvVgL12pCX6pjkotIyZo3ncpf2Gcxv0y_Axg6ZanWiKyiHh1_T0OMlLBtdN-e-O_eVu5fKlevsdDr_4eIzPOgl3Wgr8TNTsg8eCNJ6WGHDVb0MBtmPY73tIkDF-ZVJER2dcBJX0tzb4-yoz82XBBiEFY0aJpbn97K8wc_wdFf4X7awXsppJft18hD5ydGwA8LrRsjyRYrd2kM-3usFt-yIFkTO4qn7pAdzBnBIYy8HH4raGoaLjdMxHg-9hDk5eqE'
-    },
-];
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const STATUS_COLORS = {
-    Present: '#12ed87',
-    Late: '#fbbf24',
-    Absent: '#ef4444',
+    PRESENT: '#12ed87',
+    LATE: '#fbbf24',
+    ABSENT: '#ef4444',
+    EXCUSED: '#3b82f6',
 };
 
 const STATUS_BG = {
-    Present: 'rgba(18, 237, 135, 0.15)',
-    Late: 'rgba(251, 191, 36, 0.15)',
-    Absent: 'rgba(239, 68, 68, 0.10)',
+    PRESENT: 'rgba(18, 237, 135, 0.15)',
+    LATE: 'rgba(251, 191, 36, 0.15)',
+    ABSENT: 'rgba(239, 68, 68, 0.10)',
+    EXCUSED: 'rgba(59, 130, 246, 0.15)',
 };
 
 const STATUS_BORDER = {
-    Present: 'rgba(18, 237, 135, 0.2)',
-    Late: 'rgba(251, 191, 36, 0.2)',
-    Absent: 'rgba(239, 68, 68, 0.2)',
+    PRESENT: 'rgba(18, 237, 135, 0.2)',
+    LATE: 'rgba(251, 191, 36, 0.2)',
+    ABSENT: 'rgba(239, 68, 68, 0.2)',
+    EXCUSED: 'rgba(59, 130, 246, 0.2)',
 };
 
 const STATUS_TEXT = {
-    Present: '#0db566', // Darker green for text
-    Late: '#b45309', // Dark yellow/brown
-    Absent: '#dc2626', // Red
+    PRESENT: '#0db566',
+    LATE: '#b45309',
+    ABSENT: '#dc2626',
+    EXCUSED: '#2563eb',
 };
 
 export default function AttendanceListScreen() {
     const router = useRouter();
+    const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
     const [searchQuery, setSearchQuery] = useState('');
-    const [refreshing, setRefreshing] = useState(false);
+
+    const { data: attendanceResponse, isLoading: isLoadingAttendance } = useLessonAttendance(lessonId!);
+    const { data: lessonResponse, isLoading: isLoadingLesson } = useLessonDetails(lessonId!);
+    const { data: absencesResponse, isLoading: isLoadingAbsences } = useLessonAbsences(lessonId!);
+
+    const isLoading = isLoadingAttendance || isLoadingLesson || isLoadingAbsences;
+
+    const lesson = lessonResponse?.data;
+    const students = attendanceResponse?.data || [];
 
     // Filter students based on search
-    const filteredStudents = studentsData.filter(student =>
-        student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.studentId.includes(searchQuery)
-    );
+    const filteredStudents = useMemo(() => {
+        return students.filter(student =>
+            (student.studentName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (student.studentId || '').includes(searchQuery)
+        );
+    }, [students, searchQuery]);
 
-    const renderStudentItem = ({ item }: { item: Student }) => {
-        const isAbsent = item.status === 'Absent';
+    const renderStudentItem = ({ item }: { item: any }) => {
+        const studentAbsence = absencesResponse?.data?.find(a => a.studentId === item.studentId);
+
+        let status = (item.status || 'ABSENT') as keyof typeof STATUS_COLORS;
+
+        // If there's an approved absence request, override status to EXCUSED
+        if (studentAbsence?.status === 'APPROVED') {
+            status = 'EXCUSED';
+        }
+
+        const isAbsent = status === 'ABSENT';
+        const isExcused = status === 'EXCUSED';
+        const hasPendingRequest = studentAbsence?.status === 'PENDING';
 
         return (
             <TouchableOpacity
@@ -118,57 +79,78 @@ export default function AttendanceListScreen() {
                     styles.studentCard,
                     {
                         backgroundColor: isDark ? '#1a2e26' : '#ffffff',
-                        borderColor: 'transparent'
+                        borderColor: hasPendingRequest ? STATUS_COLORS.EXCUSED : 'transparent',
+                        borderWidth: hasPendingRequest ? 1 : 0,
                     }
                 ]}
                 onPress={() => router.push({
                     pathname: '/student-analytics',
                     params: {
-                        name: item.name,
+                        name: item.studentName || 'Student',
                         id: item.studentId,
-                        image: item.image
+                        image: item.studentProfileImg,
+                        courseId: lesson?.courseId
                     }
                 })}
             >
                 <View style={styles.avatarContainer}>
-                    <Image
-                        source={{ uri: item.image }}
-                        style={[
-                            styles.avatar,
-                            isAbsent && { opacity: 0.8, } // Using style prop for grayscale isn't direct in RN Image without props or filters, stick to opacity
-                        ]}
-                    />
-                    {item.status === 'Present' && (
+                    {item.studentProfileImg ? (
+                        <Image
+                            source={{ uri: item.studentProfileImg }}
+                            style={[
+                                styles.avatar,
+                                (isAbsent || isExcused) && { opacity: 0.8 }
+                            ]}
+                        />
+                    ) : (
+                        <View style={[styles.avatar, { backgroundColor: isDark ? '#2a4d3d' : '#e7f3ee', alignItems: 'center', justifyContent: 'center' }]}>
+                            <MaterialIcons name="person" size={24} color={theme.primary} />
+                        </View>
+                    )}
+                    {(status === 'PRESENT' || status === 'LATE') && (
                         <View style={[styles.statusDot, { backgroundColor: cskColors[500], borderColor: isDark ? '#1a2e26' : '#ffffff' }]} />
                     )}
                 </View>
 
                 <View style={styles.studentInfo}>
-                    <Text style={[styles.studentName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
-                        {item.name}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.studentName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                            {item.studentName || (item.studentId ? `Student ${item.studentId.slice(-4)}` : 'Unknown Student')}
+                        </Text>
+                        {hasPendingRequest && (
+                            <MaterialIcons name="info-outline" size={14} color={STATUS_COLORS.EXCUSED} />
+                        )}
+                    </View>
                     <Text style={[styles.studentDetails, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
-                        ID: {item.studentId} • {item.grade}
+                        ID: {item.studentId ? item.studentId.slice(0, 8) : 'N/A'} {hasPendingRequest ? '• Pending Excuse' : ''}
                     </Text>
                 </View>
 
                 <View style={[
                     styles.statusBadge,
                     {
-                        backgroundColor: STATUS_BG[item.status],
-                        borderColor: STATUS_BORDER[item.status]
+                        backgroundColor: STATUS_BG[status] || STATUS_BG.ABSENT,
+                        borderColor: STATUS_BORDER[status] || STATUS_BORDER.ABSENT
                     }
                 ]}>
                     <Text style={[
                         styles.statusText,
-                        { color: isDark ? STATUS_COLORS[item.status] : STATUS_TEXT[item.status] }
+                        { color: isDark ? STATUS_COLORS[status] || STATUS_COLORS.ABSENT : STATUS_TEXT[status] || STATUS_TEXT.ABSENT }
                     ]}>
-                        {item.status}
+                        {status}
                     </Text>
                 </View>
             </TouchableOpacity>
         );
     };
+
+    if (isLoading) {
+        return (
+            <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f8fcfa', justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>
@@ -177,9 +159,13 @@ export default function AttendanceListScreen() {
             {/* Header */}
             <View style={[styles.header, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>
                 <View style={styles.headerTop}>
-                    <View>
-                        <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>{CLASS_NAME}</Text>
-                        <Text style={[styles.headerSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>{SUB_INFO}</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                            {lesson?.title || 'Attendance List'}
+                        </Text>
+                        <Text style={[styles.headerSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                            Lesson Status: {lesson?.status ? (lesson.status.charAt(0) + lesson.status.slice(1).toLowerCase()) : 'Loading...'}
+                        </Text>
                     </View>
                     <TouchableOpacity style={[styles.filterButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                         <MaterialIcons name="tune" size={24} color={isDark ? '#e2e8f0' : '#334155'} />
@@ -208,7 +194,7 @@ export default function AttendanceListScreen() {
             <FlatList
                 data={filteredStudents}
                 renderItem={renderStudentItem}
-                keyExtractor={item => item.id}
+                keyExtractor={item => item.id || item.studentId}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={() => (
@@ -224,10 +210,10 @@ export default function AttendanceListScreen() {
                 <TouchableOpacity
                     style={[styles.fab, { backgroundColor: cskColors[500], shadowColor: 'rgba(0,0,0,0.2)' }]}
                     activeOpacity={0.9}
-                    onPress={() => router.back()} // Mock submit action
+                    onPress={() => router.back()}
                 >
                     <MaterialIcons name="check-circle" size={24} color="#0f172a" />
-                    <Text style={styles.fabText}>Submit Report</Text>
+                    <Text style={styles.fabText}>Finalize Attendance</Text>
                 </TouchableOpacity>
             </View>
 
@@ -331,7 +317,7 @@ const styles = StyleSheet.create({
         height: 48,
         borderRadius: 24,
         borderWidth: 2,
-        borderColor: '#ffffff', // Default light mode border
+        borderColor: '#ffffff',
     },
     statusDot: {
         position: 'absolute',

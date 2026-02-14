@@ -57,7 +57,7 @@ export default function AttendanceSuccessScreen() {
         if (router.canGoBack()) {
             router.back();
         } else {
-            router.replace('/(main)/course');
+            router.replace('/(main)/courses');
         }
     };
 

@@ -1,5 +1,6 @@
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
+import QRScannerModal from '@/components/course/QRScannerModal';
 import { ScheduleCard, SubjectCard } from '@/components/home';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useStudentCalendar } from '@/hooks/useCalendar';
@@ -12,14 +13,16 @@ import {
 } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/libs/auth';
 import { logger } from '@/libs/logger';
 import { ApiSchedule } from '@/services/CalendarService';
-import { ApiSubject } from '@/services/CourseService';
+import { ApiSubject, scanAttendance } from '@/services/CourseService';
 import { ApiNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
-import { ActivityIndicator, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { ActivityIndicator, Alert, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
@@ -52,9 +55,12 @@ const formatTimeRange = (start: string, end: string) => {
 
 export default function MainHomeScreen() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const user = useAuthStore((state) => state.user);
     const [showNotifications, setShowNotifications] = React.useState(false);
+    const [isScannerVisible, setIsScannerVisible] = React.useState(false);
     const [schedulePeriod, setSchedulePeriod] = React.useState<'LAST_24' | 'NEXT_48' | 'ALL'>('ALL');
 
     // Calculate dates for calendar
@@ -120,7 +126,7 @@ export default function MainHomeScreen() {
     const { data: calendarData, isLoading: isLoadingCalendar } = useStudentCalendar(calendarRange.start, calendarRange.end);
 
     const subjects = React.useMemo(() => {
-        return subjectsData?.data.map((subject: ApiSubject) => ({
+        return subjectsData?.data?.map((subject: ApiSubject) => ({
             id: subject.id,
             name: subject.name,
             icon: getSubjectIcon(subject.icon)
@@ -128,16 +134,26 @@ export default function MainHomeScreen() {
     }, [subjectsData]);
 
     const schedule = React.useMemo(() => {
-        return calendarData?.data.map((item: ApiSchedule) => ({
+        return calendarData?.data?.map((item: ApiSchedule) => ({
             id: item.id,
             courseId: item.courseId,
             title: item.courseTitle,
             time: formatTimeRange(item.startTime, item.endTime),
             teacherName: item.title, // Lesson title as sub-info
             status: item.status,
-            location: item.location
+            location: item.location,
+            attendanceStatus: item.attendanceStatus,
+            canMarkAttendance: item.canMarkAttendance
         })) || [];
     }, [calendarData]);
+
+    const activeLessonId = useMemo(() => {
+        const live = schedule.find(s => s.status === 'LIVE');
+        if (live) return live.id;
+        const upcoming = schedule.find(s => s.status === 'SCHEDULED');
+        if (upcoming) return upcoming.id;
+        return schedule[0]?.id;
+    }, [schedule]);
 
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
@@ -210,10 +226,9 @@ export default function MainHomeScreen() {
         refetch();
     }, [refetch]);
 
-    const handleScanQR = useCallback(() => {
-        // Navigate to QR scanner screen
-        router.push('/(main)/course?action=scan'); // Example route
-    }, [router]);
+    const handleScanQR = React.useCallback(() => {
+        setIsScannerVisible(true);
+    }, []);
 
     const renderSubjectItem = useCallback(({ item }: { item: any }) => (
         <SubjectCard
@@ -227,8 +242,38 @@ export default function MainHomeScreen() {
     const sectionTitleColor = isDark ? theme.text : theme.gray[900];
     const backgroundColor = isDark ? theme.background : '#FFFFFF';
 
+    const handleScan = async (data: string) => {
+        setIsScannerVisible(false);
+        try {
+            const result = await scanAttendance(data);
+
+            if (result.success) {
+                // Refresh calendar to reflect attendance
+                queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                Alert.alert('Success', result.message || 'Attendance marked successfully');
+                router.push({
+                    pathname: '/attendance-success',
+                    params: {
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        location: 'Classroom'
+                    }
+                });
+            } else {
+                Alert.alert('Attendance Failed', result.message || 'Could not verify attendance.');
+            }
+        } catch (error: any) {
+            logger.log('Error marking attendance:', error);
+            Alert.alert('Error', error.message || 'Failed to scan QR code.');
+        }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor }]}>
+            <QRScannerModal
+                visible={isScannerVisible}
+                onClose={() => setIsScannerVisible(false)}
+                onScan={handleScan}
+            />
             <StatusBar
                 barStyle="light-content"
                 backgroundColor={cskColors[500]}
@@ -243,22 +288,24 @@ export default function MainHomeScreen() {
                 scrollEventThrottle={16}
             >
                 {/* My Subjects Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                            {t('home.mySubjects') || 'My Subjects'}
-                        </Text>
-                        {/* More button could go here */}
+                {subjects.length > 0 && (
+                    <View style={[styles.section, { marginTop: 12 }]}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
+                                {t('home.mySubjects') || 'My Subjects'}
+                            </Text>
+                            {/* More button could go here */}
+                        </View>
+                        <FlatList
+                            data={subjects}
+                            renderItem={renderSubjectItem}
+                            keyExtractor={subjectKeyExtractor}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.horizontalList}
+                        />
                     </View>
-                    <FlatList
-                        data={subjects}
-                        renderItem={renderSubjectItem}
-                        keyExtractor={subjectKeyExtractor}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.horizontalList}
-                    />
-                </View>
+                )}
 
                 <View style={[styles.section, { marginBottom: 24 }]}>
                     <View style={styles.sectionHeader}>
@@ -299,7 +346,14 @@ export default function MainHomeScreen() {
                                     {...item}
                                     status={item.status as any}
                                     isLast={index === schedule.length - 1}
-                                    onPress={() => router.push({ pathname: '/course-details', params: { id: item.courseId } })}
+                                    isTeacher={user?.role === 'TEACHER'}
+                                    onPress={() => {
+                                        if (user?.role === 'TEACHER' && item.status === 'LIVE') {
+                                            router.push({ pathname: '/teacher-control', params: { lessonId: item.id } });
+                                        } else {
+                                            router.push({ pathname: '/course-details', params: { id: item.courseId } });
+                                        }
+                                    }}
                                     onScanPress={handleScanQR}
                                 />
                             ))
@@ -327,13 +381,18 @@ export default function MainHomeScreen() {
                     <Ionicons name="scan-outline" size={32} color="#FFFFFF" />
                 </TouchableOpacity>
                 {/* Temporary Teacher Control Button */}
-                <TouchableOpacity
-                    style={[styles.fab, { backgroundColor: theme.surface, marginTop: 16, width: 48, height: 48, borderRadius: 24 }]}
-                    activeOpacity={0.8}
-                    onPress={() => router.push('/teacher-control')}
-                >
-                    <Ionicons name="school-outline" size={24} color={theme.primary} />
-                </TouchableOpacity>
+                {user?.role === 'TEACHER' && (
+                    <TouchableOpacity
+                        style={[styles.fab, { backgroundColor: theme.surface, marginTop: 16, width: 48, height: 48, borderRadius: 24 }]}
+                        activeOpacity={0.8}
+                        onPress={() => router.push({
+                            pathname: '/teacher-control',
+                            params: { lessonId: activeLessonId }
+                        })}
+                    >
+                        <Ionicons name="school-outline" size={24} color={theme.primary} />
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Header positioned absolutely on top */}
@@ -371,7 +430,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingTop: 120, // Space for header
+        paddingTop: 140, // Space for header
         paddingBottom: 24,
     },
     section: {

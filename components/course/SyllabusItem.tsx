@@ -19,6 +19,10 @@ interface SyllabusItemProps {
     onMarkAttendance?: () => void;
     onAbsentRequest?: () => void;
     canMarkAttendance?: boolean;
+    attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
+    isTeacher?: boolean;
+    onStartLesson?: () => void;
+    onManageLesson?: () => void;
 }
 
 export default memo(function SyllabusItem({
@@ -34,13 +38,18 @@ export default memo(function SyllabusItem({
     onMarkAttendance,
     onAbsentRequest,
     canMarkAttendance,
+    attendanceStatus,
+    isTeacher,
+    onStartLesson,
+    onManageLesson,
 }: SyllabusItemProps) {
     const { theme, isDark } = useTheme();
 
     const isLive = status === 'LIVE';
     const isCompleted = status === 'COMPLETED';
     const isScheduled = status === 'SCHEDULED';
-    const isAbsent = status === 'ABSENT';
+    const hasAttended = attendanceStatus === 'PRESENT' || attendanceStatus === 'LATE';
+    const isAbsent = status === 'ABSENT' || attendanceStatus === 'ABSENT';
 
     return (
         <Animated.View
@@ -53,32 +62,36 @@ export default memo(function SyllabusItem({
                         backgroundColor: isDark ? theme.border : theme.gray[200]
                     }]} />
                 )}
-                {isLive && (
+                {isLive ? (
                     <View style={[styles.timelineIconLive, { borderColor: theme.primary, backgroundColor: theme.primary }]}>
                         <View style={[styles.timelineIconInner, { backgroundColor: '#FFFFFF' }]} />
                     </View>
-                )}
-                {isCompleted && (
-                    <View style={[styles.timelineIconCompleted, {
-                        borderColor: isDark ? theme.border : theme.gray[300],
-                        backgroundColor: isDark ? theme.surface : '#FFFFFF'
-                    }]}>
-                        <Ionicons name="checkmark" size={10} color={isDark ? theme.gray[400] : theme.gray[600]} />
-                    </View>
-                )}
-                {isScheduled && (
-                    <View style={[styles.timelineIconScheduled, {
-                        borderColor: isDark ? theme.border : theme.gray[300],
-                        backgroundColor: isDark ? theme.surface : '#FFFFFF'
-                    }]} />
-                )}
-                {isAbsent && (
+                ) : isAbsent ? (
                     <View style={[styles.timelineIconCompleted, {
                         borderColor: '#ef4444',
                         backgroundColor: isDark ? theme.surface : '#FFFFFF'
                     }]}>
                         <Ionicons name="close" size={10} color="#ef4444" />
                     </View>
+                ) : hasAttended ? (
+                    <View style={[styles.timelineIconCompleted, {
+                        borderColor: theme.primary,
+                        backgroundColor: isDark ? theme.surface : '#FFFFFF'
+                    }]}>
+                        <Ionicons name="checkmark" size={10} color={theme.primary} />
+                    </View>
+                ) : isCompleted ? (
+                    <View style={[styles.timelineIconCompleted, {
+                        borderColor: isDark ? theme.border : theme.gray[300],
+                        backgroundColor: isDark ? theme.surface : '#FFFFFF'
+                    }]}>
+                        <Ionicons name="checkmark" size={10} color={isDark ? theme.gray[400] : theme.gray[600]} />
+                    </View>
+                ) : (
+                    <View style={[styles.timelineIconScheduled, {
+                        borderColor: isDark ? theme.border : theme.gray[300],
+                        backgroundColor: isDark ? theme.surface : '#FFFFFF'
+                    }]} />
                 )}
             </View>
 
@@ -110,29 +123,45 @@ export default memo(function SyllabusItem({
                 )}
 
                 <View style={styles.contentHeader}>
-                    <Text
-                        style={[
-                            styles.title,
-                            {
-                                color: isDark ? theme.text : theme.gray[900],
-                                textDecorationLine: isCompleted ? 'line-through' : 'none',
-                                opacity: isCompleted ? 0.6 : 1,
-                            }
-                        ]}
-                    >
-                        {title}
-                    </Text>
-                    {isCompleted && (
-                        <Text style={[styles.statusText, { color: theme.primary }]}>Completed</Text>
-                    )}
-                    {isAbsent && (
-                        <Text style={[styles.statusText, { color: '#ef4444' }]}>Absent</Text>
-                    )}
-                    {isScheduled && (
-                        <View style={[styles.statusBadge, { backgroundColor: isDark ? theme.gray[800] : theme.gray[100] }]}>
-                            <Text style={[styles.statusBadgeText, { color: theme.gray[500] }]}>UPCOMING</Text>
-                        </View>
-                    )}
+                    <View style={{ flex: 1 }}>
+                        <Text
+                            style={[
+                                styles.title,
+                                {
+                                    color: isDark ? theme.text : theme.gray[900],
+                                    textDecorationLine: isCompleted ? 'line-through' : 'none',
+                                    opacity: isCompleted ? 0.6 : 1,
+                                }
+                            ]}
+                        >
+                            {title}
+                        </Text>
+                        {attendanceStatus && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                <Ionicons
+                                    name={hasAttended ? "checkmark-circle" : "close-circle"}
+                                    size={14}
+                                    color={hasAttended ? theme.primary : "#ef4444"}
+                                />
+                                <Text style={[styles.attendanceStatusText, { color: hasAttended ? theme.primary : "#ef4444" }]}>
+                                    {attendanceStatus === 'PRESENT' ? 'Present' : attendanceStatus === 'LATE' ? 'Late' : 'Absent'}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                        {isCompleted && !isAbsent && (
+                            <Text style={[styles.statusText, { color: theme.primary }]}>Completed</Text>
+                        )}
+                        {isAbsent && (
+                            <Text style={[styles.statusText, { color: '#ef4444' }]}>Absent</Text>
+                        )}
+                        {isScheduled && !attendanceStatus && (
+                            <View style={[styles.statusBadge, { backgroundColor: isDark ? theme.gray[800] : theme.gray[100] }]}>
+                                <Text style={[styles.statusBadgeText, { color: theme.gray[500] }]}>UPCOMING</Text>
+                            </View>
+                        )}
+                    </View>
                 </View>
 
                 <View style={[styles.metaRow, { marginTop: 4 }]}>
@@ -150,10 +179,9 @@ export default memo(function SyllabusItem({
                 {description && (
                     <Text style={[styles.description, { color: theme.gray[500] }]}>{description}</Text>
                 )}
-
-                {canMarkAttendance && (
+                {(canMarkAttendance && !hasAttended && !isTeacher) && (
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                        style={[styles.actionButton, { backgroundColor: theme.primary, marginTop: 16 }]}
                         onPress={onMarkAttendance}
                     >
                         <Ionicons name="qr-code-outline" size={18} color="#000000" />
@@ -161,9 +189,29 @@ export default memo(function SyllabusItem({
                     </TouchableOpacity>
                 )}
 
-                {isAbsent && (
+                {(isTeacher && isScheduled) && (
                     <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ef4444' }]}
+                        style={[styles.actionButton, { backgroundColor: theme.primary, marginTop: 12 }]}
+                        onPress={onStartLesson}
+                    >
+                        <Ionicons name="play-circle-outline" size={18} color="#000000" />
+                        <Text style={styles.actionButtonText}>Start Lesson Now</Text>
+                    </TouchableOpacity>
+                )}
+
+                {(isTeacher && isLive) && (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: '#12ed87', marginTop: 12 }]}
+                        onPress={onManageLesson}
+                    >
+                        <Ionicons name="pulse" size={18} color="#000000" />
+                        <Text style={styles.actionButtonText}>Manage Live Session</Text>
+                    </TouchableOpacity>
+                )}
+
+                {isAbsent && !hasAttended && (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ef4444', marginTop: 12 }]}
                         onPress={onAbsentRequest}
                     >
                         <Ionicons name="document-text-outline" size={18} color="#ef4444" />
@@ -171,7 +219,7 @@ export default memo(function SyllabusItem({
                     </TouchableOpacity>
                 )}
             </TouchableOpacity>
-        </Animated.View>
+        </Animated.View >
     );
 });
 
@@ -272,6 +320,11 @@ const styles = StyleSheet.create({
     statusText: {
         fontSize: 12,
         fontFamily: Fonts.bold,
+    },
+    attendanceStatusText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+        marginLeft: 4,
     },
     statusBadge: {
         paddingHorizontal: 6,

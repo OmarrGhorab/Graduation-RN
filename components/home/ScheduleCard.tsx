@@ -22,6 +22,8 @@ interface ScheduleCardProps {
     status: LessonStatus;
     location?: string;
     isLast?: boolean; // New prop to handle timeline connecting line
+    attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
+    isTeacher?: boolean;
     onPress?: () => void;
     onScanPress?: () => void;
 }
@@ -33,6 +35,8 @@ export default function ScheduleCard({
     status,
     location,
     isLast = false,
+    attendanceStatus,
+    isTeacher,
     onPress,
     onScanPress,
 }: ScheduleCardProps) {
@@ -66,6 +70,7 @@ export default function ScheduleCard({
     const isCompleted = status === 'COMPLETED';
     const isCanceled = status === 'CANCELED';
     const isFuture = status === 'SCHEDULED';
+    const hasAttended = attendanceStatus === 'PRESENT' || attendanceStatus === 'LATE';
 
     // Timeline Icon Logic
     const renderTimelineIcon = () => {
@@ -76,10 +81,10 @@ export default function ScheduleCard({
                     <Ionicons name="play" size={18} color={theme.primary} style={{ marginLeft: 2 }} />
                 </View>
             );
-        } else if (isCompleted) {
+        } else if (isCompleted || hasAttended) {
             return (
                 <View style={[styles.timelineIconContainer, { backgroundColor: isDark ? theme.gray[800] : theme.gray[100], borderColor: isDark ? theme.gray[700] : theme.gray[200] }]}>
-                    <Ionicons name="checkmark" size={16} color={theme.gray[500]} />
+                    <Ionicons name="checkmark" size={16} color={theme.primary} />
                 </View>
             );
         } else {
@@ -138,11 +143,23 @@ export default function ScheduleCard({
                     <Text style={[styles.timeText, { color: isLive ? theme.primary : (isDark ? theme.gray[400] : theme.gray[500]) }]}>
                         {time}
                     </Text>
-                    {isLive && (
+                    {isLive && !hasAttended && !isTeacher && (
                         <TouchableOpacity onPress={onScanPress} style={[styles.liveBadge, { backgroundColor: 'rgba(9, 125, 70, 0.1)', borderColor: 'rgba(9, 125, 70, 0.2)' }]}>
                             <View style={[styles.liveDot, { backgroundColor: theme.primary }]} />
                             <Text style={[styles.liveText, { color: theme.primary }]}>LIVE - SCAN</Text>
                         </TouchableOpacity>
+                    )}
+                    {(isLive && isTeacher) && (
+                        <View style={[styles.liveBadge, { backgroundColor: 'rgba(18, 237, 135, 0.1)', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
+                            <View style={[styles.liveDot, { backgroundColor: '#12ed87' }]} />
+                            <Text style={[styles.liveText, { color: '#12ed87' }]}>LIVE - MANAGE</Text>
+                        </View>
+                    )}
+                    {hasAttended && !isTeacher && (
+                        <View style={[styles.liveBadge, { backgroundColor: 'rgba(9, 125, 70, 0.1)', borderColor: 'rgba(9, 125, 70, 0.2)' }]}>
+                            <Ionicons name="checkmark-circle" size={12} color={theme.primary} />
+                            <Text style={[styles.liveText, { color: theme.primary, marginLeft: 4 }]}>ATTENDED</Text>
+                        </View>
                     )}
                 </View>
 

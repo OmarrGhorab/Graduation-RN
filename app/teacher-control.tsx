@@ -1,10 +1,10 @@
-
 import { Fonts, cskColors, errorColors } from '@/constants/theme';
+import { useLessonAttendance, useLessonControl, useLessonDetails, useLessonQR } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
-import { Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -17,17 +17,21 @@ import { Circle, Svg } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
-// Mock data
-const LESSON_TITLE = 'Advanced Physics 101';
-const TIMER = '00:15:30';
-const STUDENTS_PRESENT = 42;
-const TOTAL_STUDENTS = 50;
-const ATTENDANCE_PERCENTAGE = (STUDENTS_PRESENT / TOTAL_STUDENTS) * 100;
-const REFRESH_SECONDS = 12;
-
 export default function TeacherControlPanel() {
     const router = useRouter();
+    const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
+
+    const { data: lessonResponse, isLoading: isLoadingDetails } = useLessonDetails(lessonId!);
+    const lesson = lessonResponse?.data;
+
+    const isLive = lesson?.status === 'LIVE';
+
+    const { data: qrResponse, refetch: refetchQR } = useLessonQR(lessonId!, isLive);
+    const { data: attendanceResponse } = useLessonAttendance(lessonId!, isLive);
+    const { startLesson, endLesson } = useLessonControl(lessonId!);
+
+    const [timer, setTimer] = useState('00:00:00');
 
     // Scan line animation
     const translateY = useSharedValue(0);
@@ -43,14 +47,76 @@ export default function TeacherControlPanel() {
         );
     }, []);
 
+    // Timer logic
+    useEffect(() => {
+        if (!isLive || !lesson?.startsAt) return;
+
+        const interval = setInterval(() => {
+            const start = new Date(lesson.startsAt).getTime();
+            const now = new Date().getTime();
+            const diff = Math.max(0, now - start);
+
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+
+            setTimer(
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+            );
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isLive, lesson?.startsAt]);
+
     const animatedScanStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
     }));
 
-    const handleEndLesson = () => {
-        // Navigate to attendance list summary
-        router.push('/attendance-list');
+    const handleStartLesson = async () => {
+        try {
+            await startLesson.mutateAsync();
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to start lesson');
+        }
     };
+
+    const handleEndLesson = () => {
+        Alert.alert(
+            'End Lesson',
+            'Are you sure you want to end this lesson and finalize attendance?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'End Lesson',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await endLesson.mutateAsync();
+                            router.push({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+                        } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to end lesson');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const qrData = qrResponse?.data;
+    const qrString = qrData ? JSON.stringify({ data: { payload: qrData.payload, signature: qrData.signature } }) : '';
+    const qrImageUrl = qrString ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}` : null;
+
+    const studentsPresent = attendanceResponse?.data?.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
+    const totalStudents = lesson?.enrolledStudents || 50; // Use enrolled students if available
+    const attendancePercentage = (studentsPresent / totalStudents) * 100;
+
+    if (isLoadingDetails) {
+        return (
+            <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7', justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color={cskColors[500]} />
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7' }]}>
@@ -67,21 +133,21 @@ export default function TeacherControlPanel() {
                         <MaterialIcons name="arrow-back" size={24} color={isDark ? '#12ed87' : '#0d1b15'} />
                     </TouchableOpacity>
                     <Text style={[styles.headerLabel, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>Lesson Control</Text>
-                    <View style={[styles.liveBadge, { backgroundColor: isDark ? 'rgba(18, 237, 135, 0.2)' : 'rgba(18, 237, 135, 0.1)' }]}>
+                    <View style={[styles.liveBadge, { backgroundColor: isLive ? 'rgba(18, 237, 135, 0.2)' : 'rgba(100, 116, 139, 0.1)' }]}>
                         <View style={styles.pingContainer}>
-                            <View style={[styles.pingDot, { backgroundColor: cskColors[500] }]} />
-                            <View style={[styles.pingAnimate, { backgroundColor: cskColors[500] }]} />
+                            <View style={[styles.pingDot, { backgroundColor: isLive ? cskColors[500] : '#64748b' }]} />
+                            {isLive && <View style={[styles.pingAnimate, { backgroundColor: cskColors[500] }]} />}
                         </View>
-                        <Text style={[styles.liveText, { color: isDark ? cskColors[500] : '#0d1b15' }]}>LIVE</Text>
+                        <Text style={[styles.liveText, { color: isLive ? cskColors[500] : '#64748b' }]}>{isLive ? 'LIVE' : lesson?.status || 'SCHEDULED'}</Text>
                     </View>
                 </View>
 
                 {/* Lesson Title & Timer */}
                 <View style={styles.titleContainer}>
-                    <Text style={[styles.lessonTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>{LESSON_TITLE}</Text>
+                    <Text style={[styles.lessonTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>{lesson?.title || 'Unknown Lesson'}</Text>
                     <View style={styles.timerContainer}>
-                        <MaterialIcons name="timer" size={24} color={isDark ? '#12ed87' : '#0d1b15'} style={{ opacity: 0.75 }} />
-                        <Text style={[styles.timerText, { color: isDark ? '#12ed87' : '#0d1b15' }]}>{TIMER}</Text>
+                        <MaterialIcons name="timer" size={24} color={isLive ? '#12ed87' : '#64748b'} style={{ opacity: 0.75 }} />
+                        <Text style={[styles.timerText, { color: isLive ? '#12ed87' : '#64748b' }]}>{isLive ? timer : '--:--:--'}</Text>
                     </View>
                 </View>
             </View>
@@ -89,90 +155,120 @@ export default function TeacherControlPanel() {
             {/* Content Area */}
             <View style={styles.content}>
 
-                {/* QR Code Card */}
-                <View style={styles.qrSection}>
-                    <View style={[styles.qrCard, {
-                        backgroundColor: '#ffffff', // QR needs white background usually
-                        borderColor: isDark ? 'rgba(18, 237, 135, 0.1)' : 'rgba(18, 237, 135, 0.2)',
-                        shadowColor: isDark ? '#000' : '#000',
-                    }]}>
-                        {/* Progress Border (Simplified as static for now or can use SVG) */}
-                        <View style={styles.qrImageContainer}>
-                            <Image
-                                source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAqefroSAdSHZp6jiB2oqCesxlqdh4GjKHsdW-ShFOvEA7gHIuOoQYY0fTcxnLW0OEJAdxRPaZZDsWkCOZRBI64v5dQtC_3PZ5H3rv1bXzYJJGBxYYjOnK7QU_3mDOVWpQLaIMNi6KEyDSJB0nnL8MdHAkl8fRF7MbEl9T1U7Ya4C8GBEL1rx7t7PGJHQ2wpnjG96JnTETqvVPNHgZ6sUi_Szxv4NHi_a-2Ik5wR0sb-xsypoMW4VaLD0Tz6vP5RNoWJT8NYPO5VheV' }}
-                                style={styles.qrImage}
-                                resizeMode="contain"
-                            />
-                            <Animated.View style={[styles.scanLine, { backgroundColor: cskColors[500] }, animatedScanStyle]} />
-                        </View>
-
-                        <View style={[styles.securityBadge, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
-                            <MaterialIcons name="security" size={14} color={cskColors[500]} />
-                            <Text style={[styles.securityText, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>CSK Secure</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.refreshContainer}>
-                        <Text style={[styles.refreshText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                            Code refreshes in <Text style={{ color: cskColors[500], fontFamily: Fonts.bold }}>{REFRESH_SECONDS}s</Text>
-                        </Text>
-                        <TouchableOpacity style={styles.refreshButton}>
-                            <MaterialIcons name="refresh" size={16} color={cskColors[500]} />
-                            <Text style={[styles.refreshButtonText, { color: cskColors[500] }]}>Refresh Now</Text>
+                {!isLive ? (
+                    <View style={styles.startSection}>
+                        <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Ready to start the lesson?</Text>
+                        <TouchableOpacity
+                            style={[styles.startButton, { backgroundColor: theme.primary }]}
+                            onPress={handleStartLesson}
+                            disabled={startLesson.isPending}
+                        >
+                            {startLesson.isPending ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <>
+                                    <MaterialIcons name="play-arrow" size={32} color="#fff" />
+                                    <Text style={styles.startButtonText}>Start Now</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
                     </View>
-                </View>
+                ) : (
+                    <>
+                        {/* QR Code Card */}
+                        <View style={styles.qrSection}>
+                            <View style={[styles.qrCard, {
+                                backgroundColor: '#ffffff',
+                                borderColor: isDark ? 'rgba(18, 237, 135, 0.1)' : 'rgba(18, 237, 135, 0.2)',
+                                shadowColor: '#000',
+                            }]}>
+                                <View style={styles.qrImageContainer}>
+                                    {qrImageUrl ? (
+                                        <Image
+                                            source={{ uri: qrImageUrl }}
+                                            style={styles.qrImage}
+                                            resizeMode="contain"
+                                        />
+                                    ) : (
+                                        <ActivityIndicator size="large" color={theme.primary} />
+                                    )}
+                                    <Animated.View style={[styles.scanLine, { backgroundColor: cskColors[500] }, animatedScanStyle]} />
+                                </View>
 
-                {/* Attendance Stats */}
-                <View style={[styles.statsCard, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
-                    <View>
-                        <Text style={[styles.statsLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Students Present</Text>
-                        <View style={styles.statsValueContainer}>
-                            <Text style={[styles.statsValue, { color: isDark ? '#ffffff' : '#0d1b15' }]}>{STUDENTS_PRESENT}</Text>
-                            <Text style={[styles.statsTotal, { color: '#94a3b8' }]}>/ {TOTAL_STUDENTS}</Text>
+                                <View style={[styles.securityBadge, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
+                                    <MaterialIcons name="security" size={14} color={cskColors[500]} />
+                                    <Text style={[styles.securityText, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>CSK Secure</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.refreshContainer}>
+                                <Text style={[styles.refreshText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                                    Rolling QR tokens active
+                                </Text>
+                                <TouchableOpacity style={styles.refreshButton} onPress={() => refetchQR()}>
+                                    <MaterialIcons name="refresh" size={16} color={cskColors[500]} />
+                                    <Text style={[styles.refreshButtonText, { color: cskColors[500] }]}>Rotate Token</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
-                    <View style={[styles.progressCircleContainer, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}>
-                        <Svg width="48" height="48" viewBox="0 0 36 36" style={styles.svg}>
-                            <Circle cx="18" cy="18" r="15.9155" fill="none" stroke={cskColors[500]} strokeWidth="3" strokeOpacity="0.2" />
-                            <Circle
-                                cx="18"
-                                cy="18"
-                                r="15.9155"
-                                fill="none"
-                                stroke={cskColors[500]}
-                                strokeWidth="3"
-                                strokeDasharray={`${ATTENDANCE_PERCENTAGE}, 100`}
-                                strokeLinecap="round"
-                                rotation="-90"
-                                origin="18, 18"
-                            />
-                        </Svg>
-                        <View style={styles.progressIcon}>
-                            <MaterialIcons name="groups" size={24} color={cskColors[500]} />
+
+                        {/* Attendance Stats */}
+                        <View style={[styles.statsCard, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                            <View>
+                                <Text style={[styles.statsLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Students Present</Text>
+                                <View style={styles.statsValueContainer}>
+                                    <Text style={[styles.statsValue, { color: isDark ? '#ffffff' : '#0d1b15' }]}>{studentsPresent}</Text>
+                                    <Text style={[styles.statsTotal, { color: '#94a3b8' }]}>/ {totalStudents}</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.progressCircleContainer, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}>
+                                <Svg width="48" height="48" viewBox="0 0 36 36" style={styles.svg}>
+                                    <Circle cx="18" cy="18" r="15.9155" fill="none" stroke={cskColors[500]} strokeWidth="3" strokeOpacity="0.2" />
+                                    <Circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.9155"
+                                        fill="none"
+                                        stroke={cskColors[500]}
+                                        strokeWidth="3"
+                                        strokeDasharray={`${attendancePercentage}, 100`}
+                                        strokeLinecap="round"
+                                        rotation="-90"
+                                        origin="18, 18"
+                                    />
+                                </Svg>
+                                <View style={styles.progressIcon}>
+                                    <MaterialIcons name="groups" size={24} color={cskColors[500]} />
+                                </View>
+                            </View>
                         </View>
-                    </View>
-                </View>
+                    </>
+                )}
 
                 {/* Manual Entry */}
-                <TouchableOpacity style={[styles.manualButton, { borderColor: isDark ? '#475569' : '#cbd5e1', backgroundColor: 'transparent' }]}>
-                    <MaterialIcons name="edit-note" size={24} color={isDark ? '#94a3b8' : '#64748b'} />
-                    <Text style={[styles.manualButtonText, { color: isDark ? '#94a3b8' : '#64748b' }]}>Manual Entry</Text>
+                <TouchableOpacity
+                    style={[styles.manualButton, { borderColor: isDark ? '#475569' : '#cbd5e1', backgroundColor: 'transparent' }]}
+                    onPress={() => router.push({ pathname: '/attendance-list', params: { lessonId } })}
+                >
+                    <MaterialIcons name="list" size={24} color={isDark ? '#94a3b8' : '#64748b'} />
+                    <Text style={[styles.manualButtonText, { color: isDark ? '#94a3b8' : '#64748b' }]}>View Attendance List</Text>
                 </TouchableOpacity>
 
             </View>
 
             {/* Footer */}
-            <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
-                <TouchableOpacity
-                    style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
-                    onPress={handleEndLesson}
-                    activeOpacity={0.9}
-                >
-                    <MaterialIcons name="logout" size={24} color="#ffffff" style={{ transform: [{ rotate: '180deg' }] }} />
-                    <Text style={styles.endButtonText}>End Lesson</Text>
-                </TouchableOpacity>
-            </View>
+            {isLive && (
+                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                    <TouchableOpacity
+                        style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
+                        onPress={handleEndLesson}
+                        activeOpacity={0.9}
+                    >
+                        <MaterialIcons name="stop" size={24} color="#ffffff" />
+                        <Text style={styles.endButtonText}>End Lesson</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </View>
     );
 }
@@ -270,6 +366,35 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 24,
         gap: 32,
+    },
+    startSection: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 24,
+    },
+    startPrompt: {
+        fontSize: 18,
+        fontFamily: Fonts.medium,
+        textAlign: 'center',
+    },
+    startButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: 16,
+        gap: 12,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    startButtonText: {
+        color: '#ffffff',
+        fontSize: 20,
+        fontFamily: Fonts.bold,
     },
     qrSection: {
         width: '100%',
