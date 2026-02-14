@@ -19,7 +19,8 @@ interface SyllabusItemProps {
     onMarkAttendance?: () => void;
     onAbsentRequest?: () => void;
     canMarkAttendance?: boolean;
-    attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
+    attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' | null;
+    absenceRequestStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
     isTeacher?: boolean;
     onStartLesson?: () => void;
     onManageLesson?: () => void;
@@ -39,6 +40,7 @@ export default memo(function SyllabusItem({
     onAbsentRequest,
     canMarkAttendance,
     attendanceStatus,
+    absenceRequestStatus,
     isTeacher,
     onStartLesson,
     onManageLesson,
@@ -209,7 +211,7 @@ export default memo(function SyllabusItem({
                     </TouchableOpacity>
                 )}
 
-                {isAbsent && !hasAttended && (
+                {isAbsent && !hasAttended && !absenceRequestStatus && (
                     <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ef4444', marginTop: 12 }]}
                         onPress={onAbsentRequest}
@@ -217,6 +219,51 @@ export default memo(function SyllabusItem({
                         <Ionicons name="document-text-outline" size={18} color="#ef4444" />
                         <Text style={[styles.actionButtonText, { color: '#ef4444' }]}>Submit Absence Reason</Text>
                     </TouchableOpacity>
+                )}
+
+                {isAbsent && absenceRequestStatus && (
+                    <View style={[
+                        styles.statusCard,
+                        {
+                            backgroundColor: absenceRequestStatus === 'PENDING' ? 'rgba(234, 179, 8, 0.1)' :
+                                absenceRequestStatus === 'APPROVED' ? 'rgba(34, 197, 94, 0.1)' :
+                                'rgba(239, 68, 68, 0.1)',
+                            borderColor: absenceRequestStatus === 'PENDING' ? '#eab308' :
+                                absenceRequestStatus === 'APPROVED' ? '#22c55e' :
+                                '#ef4444',
+                            marginTop: 12
+                        }
+                    ]}>
+                        <Ionicons
+                            name={absenceRequestStatus === 'PENDING' ? 'time-outline' :
+                                absenceRequestStatus === 'APPROVED' ? 'checkmark-circle' :
+                                'close-circle'}
+                            size={18}
+                            color={absenceRequestStatus === 'PENDING' ? '#eab308' :
+                                absenceRequestStatus === 'APPROVED' ? '#22c55e' :
+                                '#ef4444'}
+                        />
+                        <Text style={[
+                            styles.statusCardText,
+                            {
+                                color: absenceRequestStatus === 'PENDING' ? '#eab308' :
+                                    absenceRequestStatus === 'APPROVED' ? '#22c55e' :
+                                    '#ef4444'
+                            }
+                        ]}>
+                            {absenceRequestStatus === 'PENDING' ? 'Excuse Pending Review' :
+                                absenceRequestStatus === 'APPROVED' ? 'Excuse Approved' :
+                                'Excuse Rejected - You can resubmit'}
+                        </Text>
+                        {absenceRequestStatus === 'REJECTED' && (
+                            <TouchableOpacity
+                                style={[styles.resubmitButton, { borderColor: '#ef4444', marginTop: 8 }]}
+                                onPress={onAbsentRequest}
+                            >
+                                <Text style={[styles.resubmitButtonText, { color: '#ef4444' }]}>Resubmit</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 )}
             </TouchableOpacity>
         </Animated.View >
@@ -375,5 +422,32 @@ const styles = StyleSheet.create({
     timeText: {
         fontSize: 12,
         fontFamily: Fonts.medium,
+    },
+    statusCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    statusCardText: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+        flex: 1,
+    },
+    resubmitButton: {
+        width: '100%',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    resubmitButtonText: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
     },
 });

@@ -265,6 +265,7 @@ export default function CourseDetailsScreen() {
                             onAbsentRequest={() => router.push({ pathname: '/absence-request', params: { lessonId: item.id } })}
                             canMarkAttendance={item.canMarkAttendance}
                             attendanceStatus={item.attendanceStatus}
+                            absenceRequestStatus={item.absenceRequestStatus}
                             isTeacher={isTeacher}
                             onStartLesson={async () => {
                                 try {

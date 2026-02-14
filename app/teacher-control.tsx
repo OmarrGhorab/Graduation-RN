@@ -32,6 +32,7 @@ export default function TeacherControlPanel() {
     const { startLesson, endLesson } = useLessonControl(lessonId!);
 
     const [timer, setTimer] = useState('00:00:00');
+    const [qrCountdown, setQrCountdown] = useState(30);
 
     // Scan line animation
     const translateY = useSharedValue(0);
@@ -68,6 +69,27 @@ export default function TeacherControlPanel() {
         return () => clearInterval(interval);
     }, [isLive, lesson?.startsAt]);
 
+    // QR Countdown Timer (30s validity with ±30s tolerance = 60s total)
+    useEffect(() => {
+        if (!isLive || !qrData?.expiresAt) return;
+
+        const interval = setInterval(() => {
+            const expiresAt = new Date(qrData.expiresAt).getTime();
+            const now = new Date().getTime();
+            const diff = Math.max(0, expiresAt - now);
+            const secondsLeft = Math.ceil(diff / 1000);
+            
+            setQrCountdown(secondsLeft);
+
+            // Auto-refresh when expired (backend will generate new one)
+            if (secondsLeft <= 0) {
+                refetchQR();
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isLive, qrData?.expiresAt, refetchQR]);
+
     const animatedScanStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
     }));
@@ -92,7 +114,7 @@ export default function TeacherControlPanel() {
                     onPress: async () => {
                         try {
                             await endLesson.mutateAsync();
-                            router.push({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+                            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
                         } catch (error: any) {
                             Alert.alert('Error', error.message || 'Failed to end lesson');
                         }
@@ -193,6 +215,23 @@ export default function TeacherControlPanel() {
                                         <ActivityIndicator size="large" color={theme.primary} />
                                     )}
                                     <Animated.View style={[styles.scanLine, { backgroundColor: cskColors[500] }, animatedScanStyle]} />
+                                </View>
+
+                                {/* QR Countdown Timer */}
+                                <View style={[styles.qrCountdownContainer, { 
+                                    backgroundColor: qrCountdown <= 10 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(18, 237, 135, 0.1)',
+                                    borderColor: qrCountdown <= 10 ? '#ef4444' : cskColors[500]
+                                }]}>
+                                    <MaterialIcons 
+                                        name="timer" 
+                                        size={16} 
+                                        color={qrCountdown <= 10 ? '#ef4444' : cskColors[500]} 
+                                    />
+                                    <Text style={[styles.qrCountdownText, { 
+                                        color: qrCountdown <= 10 ? '#ef4444' : cskColors[500] 
+                                    }]}>
+                                        {qrCountdown}s {qrCountdown <= 10 ? '(Rotating soon...)' : 'valid'}
+                                    </Text>
                                 </View>
 
                                 <View style={[styles.securityBadge, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
@@ -460,6 +499,20 @@ const styles = StyleSheet.create({
     securityText: {
         fontSize: 12,
         fontFamily: Fonts.bold,
+    },
+    qrCountdownContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginTop: 12,
+    },
+    qrCountdownText: {
+        fontSize: 14,
+        fontFamily: Fonts.semiBold,
     },
     refreshContainer: {
         alignItems: 'center',

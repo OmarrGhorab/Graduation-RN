@@ -34,7 +34,7 @@ export function useLessonQR(lessonId: string, enabled: boolean = true) {
         queryKey: LESSON_QR_QUERY_KEY(lessonId),
         queryFn: () => getLessonQR(lessonId),
         enabled: !!lessonId && enabled,
-        refetchInterval: 25000, // Refresh every 25s as per documentation
+        refetchInterval: 15000, // Refresh every 15s (recommended: 15-20s for 30s QR validity with ±30s tolerance)
         staleTime: 0,
     });
 }

@@ -1,9 +1,10 @@
+import CalendarModal from '@/components/CalendarModal';
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
 import QRScannerModal from '@/components/course/QRScannerModal';
 import { ScheduleCard, SubjectCard } from '@/components/home';
 import { Fonts, cskColors } from '@/constants/theme';
-import { useStudentCalendar } from '@/hooks/useCalendar';
+import { useStudentCalendar, useTeacherCalendar } from '@/hooks/useCalendar';
 import { useMySubjects } from '@/hooks/useCourses';
 import {
     useDeleteNotificationMutation,
@@ -61,29 +62,30 @@ export default function MainHomeScreen() {
     const user = useAuthStore((state) => state.user);
     const [showNotifications, setShowNotifications] = React.useState(false);
     const [isScannerVisible, setIsScannerVisible] = React.useState(false);
-    const [schedulePeriod, setSchedulePeriod] = React.useState<'LAST_24' | 'NEXT_48' | 'ALL'>('ALL');
+    const [showDatePicker, setShowDatePicker] = React.useState(false);
+    const [datePickerMode, setDatePickerMode] = React.useState<'start' | 'end'>('start');
+    const [startDate, setStartDate] = React.useState(new Date());
+    const [endDate, setEndDate] = React.useState(() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 7); // Default to 7 days from now
+        return date;
+    });
 
-    // Calculate dates for calendar
+    const isTeacher = user?.role === 'TEACHER';
+
+    // Calculate dates for calendar based on selected date range
     const calendarRange = React.useMemo(() => {
-        const now = new Date();
-        const start = new Date(now);
-        const end = new Date(now);
-
-        if (schedulePeriod === 'LAST_24') {
-            start.setHours(now.getHours() - 24);
-        } else if (schedulePeriod === 'NEXT_48') {
-            end.setHours(now.getHours() + 48);
-        } else {
-            // ALL/Default: Last 24h to Next 48h
-            start.setHours(now.getHours() - 24);
-            end.setHours(now.getHours() + 48);
-        }
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
 
         return {
             start: start.toISOString(),
             end: end.toISOString()
         };
-    }, [schedulePeriod]);
+    }, [startDate, endDate]);
 
     // Scroll tracking for header animation
     const scrollY = useSharedValue(0);
@@ -123,7 +125,11 @@ export default function MainHomeScreen() {
     } = useNotifications();
 
     const { data: subjectsData, isLoading: isLoadingSubjects } = useMySubjects();
-    const { data: calendarData, isLoading: isLoadingCalendar } = useStudentCalendar(calendarRange.start, calendarRange.end);
+    
+    // Use appropriate calendar based on user role
+    const { data: calendarData, isLoading: isLoadingCalendar } = isTeacher 
+        ? useTeacherCalendar(calendarRange.start, calendarRange.end)
+        : useStudentCalendar(calendarRange.start, calendarRange.end);
 
     const subjects = React.useMemo(() => {
         return subjectsData?.data?.map((subject: ApiSubject) => ({
@@ -274,6 +280,36 @@ export default function MainHomeScreen() {
                 onClose={() => setIsScannerVisible(false)}
                 onScan={handleScan}
             />
+
+            {/* Custom Calendar Modal */}
+            <CalendarModal
+                visible={showDatePicker}
+                onClose={() => setShowDatePicker(false)}
+                selectedDate={datePickerMode === 'start' ? startDate : endDate}
+                onSelectDate={(date) => {
+                    if (datePickerMode === 'start') {
+                        setStartDate(date);
+                        // Ensure end date is after start date
+                        if (date > endDate) {
+                            const newEnd = new Date(date);
+                            newEnd.setDate(newEnd.getDate() + 7);
+                            setEndDate(newEnd);
+                        }
+                    } else {
+                        setEndDate(date);
+                        // Ensure start date is before end date
+                        if (date < startDate) {
+                            const newStart = new Date(date);
+                            newStart.setDate(newStart.getDate() - 7);
+                            setStartDate(newStart);
+                        }
+                    }
+                }}
+                mode={datePickerMode}
+                minDate={datePickerMode === 'end' ? startDate : undefined}
+                maxDate={datePickerMode === 'start' ? endDate : undefined}
+            />
+
             <StatusBar
                 barStyle="light-content"
                 backgroundColor={cskColors[500]}
@@ -314,26 +350,139 @@ export default function MainHomeScreen() {
                         </Text>
                     </View>
 
-                    {/* Period Selector */}
-                    <View style={styles.periodSelector}>
-                        <TouchableOpacity
-                            onPress={() => setSchedulePeriod('ALL')}
-                            style={[styles.periodChip, schedulePeriod === 'ALL' && { backgroundColor: theme.primary }]}
-                        >
-                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'ALL' ? '#000' : theme.gray[500] }]}>Combined</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setSchedulePeriod('LAST_24')}
-                            style={[styles.periodChip, schedulePeriod === 'LAST_24' && { backgroundColor: theme.primary }]}
-                        >
-                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'LAST_24' ? '#000' : theme.gray[500] }]}>Past 24h</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => setSchedulePeriod('NEXT_48')}
-                            style={[styles.periodChip, schedulePeriod === 'NEXT_48' && { backgroundColor: theme.primary }]}
-                        >
-                            <Text style={[styles.periodChipText, { color: schedulePeriod === 'NEXT_48' ? '#000' : theme.gray[500] }]}>Next 48h</Text>
-                        </TouchableOpacity>
+                    {/* Date Range Selector */}
+                    <View style={styles.dateRangeContainer}>
+                        <View style={styles.dateRangeHeader}>
+                            <View style={styles.dateRangeInfo}>
+                                <Ionicons name="calendar" size={20} color={theme.primary} />
+                                <Text style={[styles.dateRangeTitle, { color: isDark ? theme.text : theme.gray[900] }]}>
+                                    Date Range
+                                </Text>
+                            </View>
+                            <Text style={[styles.dateRangeDays, { color: theme.gray[500] }]}>
+                                {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days
+                            </Text>
+                        </View>
+
+                        <View style={styles.dateRangeSelector}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setDatePickerMode('start');
+                                    setShowDatePicker(true);
+                                }}
+                                style={[styles.dateButton, { 
+                                    backgroundColor: isDark ? theme.surface : '#ffffff', 
+                                    borderColor: theme.primary,
+                                    borderWidth: 2
+                                }]}
+                            >
+                                <View style={[styles.dateIconContainer, { backgroundColor: `${theme.primary}15` }]}>
+                                    <Ionicons name="calendar-outline" size={20} color={theme.primary} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>Start Date</Text>
+                                    <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
+                                        {startDate.toLocaleDateString('en-US', { 
+                                            weekday: 'short',
+                                            month: 'short', 
+                                            day: 'numeric'
+                                        })}
+                                    </Text>
+                                </View>
+                                <Ionicons name="chevron-down" size={20} color={theme.gray[400]} />
+                            </TouchableOpacity>
+
+                            <View style={styles.dateRangeDivider}>
+                                <View style={[styles.dateRangeLine, { backgroundColor: isDark ? theme.border : theme.gray[200] }]} />
+                                <View style={[styles.dateRangeArrowContainer, { backgroundColor: theme.primary }]}>
+                                    <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+                                </View>
+                                <View style={[styles.dateRangeLine, { backgroundColor: isDark ? theme.border : theme.gray[200] }]} />
+                            </View>
+
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setDatePickerMode('end');
+                                    setShowDatePicker(true);
+                                }}
+                                style={[styles.dateButton, { 
+                                    backgroundColor: isDark ? theme.surface : '#ffffff', 
+                                    borderColor: theme.primary,
+                                    borderWidth: 2
+                                }]}
+                            >
+                                <View style={[styles.dateIconContainer, { backgroundColor: `${theme.primary}15` }]}>
+                                    <Ionicons name="calendar-outline" size={20} color={theme.primary} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>End Date</Text>
+                                    <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
+                                        {endDate.toLocaleDateString('en-US', { 
+                                            weekday: 'short',
+                                            month: 'short', 
+                                            day: 'numeric'
+                                        })}
+                                    </Text>
+                                </View>
+                                <Ionicons name="chevron-down" size={20} color={theme.gray[400]} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Quick Date Presets */}
+                        <View style={styles.quickPresets}>
+                            <Text style={[styles.presetsLabel, { color: theme.gray[500] }]}>Quick select:</Text>
+                            <View style={styles.presetsRow}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const today = new Date();
+                                        setStartDate(today);
+                                        const nextWeek = new Date(today);
+                                        nextWeek.setDate(today.getDate() + 7);
+                                        setEndDate(nextWeek);
+                                    }}
+                                    style={[styles.presetChip, { 
+                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
+                                        borderColor: isDark ? theme.border : theme.gray[200] 
+                                    }]}
+                                >
+                                    <Ionicons name="time-outline" size={14} color={theme.primary} />
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>7 days</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const today = new Date();
+                                        const start = new Date(today);
+                                        start.setDate(1);
+                                        setStartDate(start);
+                                        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                        setEndDate(end);
+                                    }}
+                                    style={[styles.presetChip, { 
+                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
+                                        borderColor: isDark ? theme.border : theme.gray[200] 
+                                    }]}
+                                >
+                                    <Ionicons name="calendar-clear-outline" size={14} color={theme.primary} />
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>This month</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const today = new Date();
+                                        setStartDate(today);
+                                        const nextMonth = new Date(today);
+                                        nextMonth.setDate(today.getDate() + 30);
+                                        setEndDate(nextMonth);
+                                    }}
+                                    style={[styles.presetChip, { 
+                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
+                                        borderColor: isDark ? theme.border : theme.gray[200] 
+                                    }]}
+                                >
+                                    <Ionicons name="trending-up-outline" size={14} color={theme.primary} />
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>30 days</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     </View>
 
                     <View style={{ marginTop: 8 }}>
@@ -450,22 +599,112 @@ const styles = StyleSheet.create({
     horizontalList: {
         paddingRight: 16,
     },
-    periodSelector: {
+    dateRangeContainer: {
+        backgroundColor: 'transparent',
+        borderRadius: 16,
+        marginBottom: 16,
+    },
+    dateRangeHeader: {
         flexDirection: 'row',
-        gap: 8,
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 12,
     },
-    periodChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+    dateRangeInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
-    periodChipText: {
-        fontSize: 12,
+    dateRangeTitle: {
+        fontSize: 16,
         fontFamily: Fonts.bold,
+    },
+    dateRangeDays: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+    },
+    dateRangeSelector: {
+        gap: 12,
+        marginBottom: 16,
+    },
+    dateButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        borderRadius: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    dateIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dateLabel: {
+        fontSize: 11,
+        fontFamily: Fonts.medium,
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        marginBottom: 2,
+    },
+    dateText: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+    },
+    dateRangeDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        gap: 8,
+    },
+    dateRangeLine: {
+        flex: 1,
+        height: 2,
+    },
+    dateRangeArrowContainer: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    quickPresets: {
+        gap: 8,
+    },
+    presetsLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        marginBottom: 4,
+    },
+    presetsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    presetChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    presetText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
     },
     emptySchedule: {
         alignItems: 'center',
