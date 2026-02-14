@@ -98,7 +98,16 @@ export default function AbsenceRequestScreen() {
             Alert.alert('Success', 'Your absence request has been submitted successfully.');
             router.back();
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to submit absence request');
+            // Handle 409 Conflict - duplicate request
+            if (error.response?.status === 409 || error.message?.includes('already submitted')) {
+                Alert.alert(
+                    'Request Already Exists',
+                    'You have already submitted an excuse for this lesson. Please wait for the teacher to review it.',
+                    [{ text: 'OK', onPress: () => router.back() }]
+                );
+            } else {
+                Alert.alert('Error', error.message || 'Failed to submit absence request');
+            }
         } finally {
             setIsSubmitting(false);
         }

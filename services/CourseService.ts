@@ -102,7 +102,8 @@ export interface ApiCourseDetails {
         locationLat?: number;
         locationLng?: number;
         canMarkAttendance: boolean;
-        attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
+        attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' | null;
+        absenceRequestStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
         attendeeCount?: number;
     }[];
     enrollment?: {
