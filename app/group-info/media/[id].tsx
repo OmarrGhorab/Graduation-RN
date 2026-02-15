@@ -82,7 +82,7 @@ export default function MediaScreen() {
                             Voice Message
                         </Text>
                         <Text style={[styles.itemSubtitle, { color: theme.textTertiary }]}>
-                            {item.sender.name} • {new Date(item.created_at).toLocaleDateString()}
+                            {item.sender.name} | {new Date(item.created_at).toLocaleDateString()}
                         </Text>
                     </View>
                     <Image
@@ -109,7 +109,7 @@ export default function MediaScreen() {
                         {item.url}
                     </Text>
                     <Text style={[styles.itemSubtitle, { color: theme.textTertiary }]}>
-                        {item.sender.name} • {new Date(item.created_at).toLocaleDateString()}
+                        {item.sender.name} · {new Date(item.created_at).toLocaleDateString()}
                     </Text>
                 </View>
                 <Image

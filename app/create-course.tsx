@@ -1,3 +1,4 @@
+import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
@@ -95,8 +96,13 @@ export default function CreateCourseScreen() {
             return;
         }
 
-        if (deliveryType === 'OFFLINE' && !locationName.trim()) {
-            Alert.alert('Validation Error', 'Please enter a location name for offline courses');
+        if (deliveryType === 'ONLINE' && !locationName.trim()) {
+            Alert.alert('Validation Error', 'Please enter a meeting link for online courses');
+            return;
+        }
+
+        if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
+            Alert.alert('Validation Error', 'Please select a location for offline courses');
             return;
         }
 
@@ -447,70 +453,82 @@ export default function CreateCourseScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Location Input */}
+                        {/* Location Input - Conditional based on delivery type */}
                         <View style={styles.inputContainer}>
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                Location {deliveryType === 'OFFLINE' && '(Required)'}
+                                {deliveryType === 'ONLINE' ? 'Meeting Link' : 'Location'} {deliveryType === 'OFFLINE' && '(Required)'}
                             </Text>
-                            <TouchableOpacity
-                                style={[styles.locationPickerButton, {
-                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
-                                    borderColor: locationName ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
-                                }]}
-                                onPress={() => setShowLocationPicker(true)}
-                            >
-                                <MaterialIcons
-                                    name="location-on"
-                                    size={24}
-                                    color={locationName ? cskColors[500] : (isDark ? '#6b737c' : '#949da5')}
-                                />
-                                <View style={{ flex: 1 }}>
-                                    {locationName ? (
-                                        <>
-                                            <Text style={[styles.locationNameText, {
-                                                color: isDark ? '#e1e5e9' : '#0d1b15'
-                                            }]}>
-                                                {locationName}
-                                            </Text>
-                                            {locationLat && locationLng && (
-                                                <Text style={[styles.coordinatesText, {
-                                                    color: isDark ? '#a8b0b8' : '#696f77'
-                                                }]}>
-                                                    {parseFloat(locationLat).toFixed(4)}, {parseFloat(locationLng).toFixed(4)}
-                                                </Text>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <Text style={[styles.locationPlaceholder, {
-                                            color: isDark ? '#6b737c' : '#949da5'
-                                        }]}>
-                                            {deliveryType === 'ONLINE' ? 'Zoom link or meeting URL' : 'Tap to select location'}
-                                        </Text>
-                                    )}
-                                </View>
-                                <MaterialIcons
-                                    name="chevron-right"
-                                    size={24}
-                                    color={isDark ? '#6b737c' : '#949da5'}
-                                />
-                            </TouchableOpacity>
-                        </View>
-
-                        {deliveryType === 'OFFLINE' && locationName && (
-                            <View style={styles.inputContainer}>
-                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                    Geofence Radius (meters)
-                                </Text>
+                            
+                            {deliveryType === 'ONLINE' ? (
                                 <TextInput
                                     style={[styles.input, {
                                         backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                         color: isDark ? '#e1e5e9' : '#0d1b15',
                                     }]}
-                                    placeholder="50"
+                                    placeholder="https://zoom.us/j/... or Google Meet link"
                                     placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
-                                    value={geofenceRadius}
-                                    onChangeText={setGeofenceRadius}
-                                    keyboardType="numeric"
+                                    value={locationName}
+                                    onChangeText={setLocationName}
+                                    keyboardType="url"
+                                    autoCapitalize="none"
+                                />
+                            ) : (
+                                <TouchableOpacity
+                                    style={[styles.locationPickerButton, {
+                                        backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                        borderColor: locationName ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
+                                    }]}
+                                    onPress={() => setShowLocationPicker(true)}
+                                >
+                                    <MaterialIcons
+                                        name="location-on"
+                                        size={24}
+                                        color={locationName ? cskColors[500] : (isDark ? '#6b737c' : '#949da5')}
+                                    />
+                                    <View style={{ flex: 1 }}>
+                                        {locationName ? (
+                                            <>
+                                                <Text style={[styles.locationNameText, {
+                                                    color: isDark ? '#e1e5e9' : '#0d1b15'
+                                                }]}>
+                                                    {locationName}
+                                                </Text>
+                                                {locationLat && locationLng && (
+                                                    <Text style={[styles.coordinatesText, {
+                                                        color: isDark ? '#a8b0b8' : '#696f77'
+                                                    }]}>
+                                                        {parseFloat(locationLat).toFixed(4)}, {parseFloat(locationLng).toFixed(4)}
+                                                    </Text>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <Text style={[styles.locationPlaceholder, {
+                                                color: isDark ? '#6b737c' : '#949da5'
+                                            }]}>
+                                                Tap to select location
+                                            </Text>
+                                        )}
+                                    </View>
+                                    <MaterialIcons
+                                        name="chevron-right"
+                                        size={24}
+                                        color={isDark ? '#6b737c' : '#949da5'}
+                                    />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {deliveryType === 'OFFLINE' && locationName && (
+                            <View style={styles.inputContainer}>
+                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                    Geofence Radius
+                                </Text>
+                                <GeofenceSlider
+                                    value={parseInt(geofenceRadius) || 50}
+                                    onValueChange={(value) => setGeofenceRadius(value.toString())}
+                                    minValue={10}
+                                    maxValue={200}
+                                    step={10}
                                 />
                                 <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
                                     Students must be within this radius to mark attendance
@@ -643,6 +661,8 @@ export default function CreateCourseScreen() {
                     setLocationLat(location.latitude.toString());
                     setLocationLng(location.longitude.toString());
                 }}
+                initialGeofenceRadius={parseInt(geofenceRadius) || 50}
+                onGeofenceRadiusChange={(radius) => setGeofenceRadius(radius.toString())}
             />
 
             {/* Fixed Footer */}

@@ -179,7 +179,7 @@ export default function TeacherDashboardScreen() {
                                                 {course.title}
                                             </Text>
                                             <Text style={[styles.courseSubtitle, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
-                                                {course.subjectName} • {course.enrolledStudents || 0} students
+                                                {course.subjectName} | {course.enrolledStudents || 0} students
                                             </Text>
                                         </View>
                                         <Ionicons name="chevron-forward" size={20} color={isDark ? '#6b737c' : '#949da5'} />

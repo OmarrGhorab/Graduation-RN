@@ -122,7 +122,7 @@ export default function AttendanceListScreen() {
                         )}
                     </View>
                     <Text style={[styles.studentDetails, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
-                        ID: {item.studentId ? item.studentId.slice(0, 8) : 'N/A'} {hasPendingRequest ? '• Pending Excuse' : ''}
+                        ID: {item.studentId ? item.studentId.slice(0, 8) : 'N/A'} {hasPendingRequest ? '| Pending Excuse' : ''}
                     </Text>
                 </View>
 

@@ -242,7 +242,7 @@ export default function StudentAnalyticsScreen() {
                                     <View>
                                         <Text style={[styles.activityTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>{activity.lessonTitle}</Text>
                                         <Text style={[styles.activitySubtitle, { color: isDark ? '#6b7280' : '#6b7280' }]}>
-                                            {new Date(activity.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} • {new Date(activity.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(activity.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(activity.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </Text>
                                     </View>
                                 </View>
