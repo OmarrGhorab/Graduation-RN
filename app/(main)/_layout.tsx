@@ -29,7 +29,7 @@ export default function MainLayout() {
                 }}
             />
             <Tabs.Screen
-                name="course"
+                name="courses"
                 options={{
                     lazy: true,
                     title: t('tabs.course'),

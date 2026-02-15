@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, StatusBar, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { useAuthStore } from '@/libs/auth';
-import { uploadProfileImage } from '@/services/ProfileService';
-import { logout } from '@/services/AuthService';
+import {
+    ImageOptionsModal,
+    LogoutButton,
+    MenuItem,
+    ProfileHeader
+} from '@/components/account';
 import { useToast } from '@/components/toast';
 import { usePrefetchPreferences } from '@/hooks/usePreferences';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { 
-    ProfileHeader, 
-    MenuItem, 
-    LogoutButton, 
-    ImageOptionsModal 
-} from '@/components/account';
+import { useAuthStore } from '@/libs/auth';
+import { logout } from '@/services/AuthService';
+import { uploadProfileImage } from '@/services/ProfileService';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
     const { user, updateUser } = useAuthStore();
@@ -150,7 +150,12 @@ export default function AccountScreen() {
                 <View style={styles.menuContainer}>
                     <MenuItem icon="person-outline" label={t('account.profile')} />
                     <MenuItem icon="create-outline" label={t('account.editProfile')} onPress={handleEditProfile} />
-                    <MenuItem icon="grid-outline" label={t('account.dashboard')} />
+                    <MenuItem 
+                        icon="grid-outline" 
+                        label={t('account.dashboard')} 
+                        onPress={() => router.push('/teacher-dashboard')}
+                    />
+                    
                     <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
                     <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />
                     <MenuItem icon="help-circle-outline" label={t('account.helpSupport')} />

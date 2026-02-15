@@ -1,5 +1,13 @@
+import { Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
+import { useAuthStore } from '@/libs/auth';
+import { t } from '@/libs/i18n';
+import { logger } from '@/libs/logger';
+import { syncUserPreferences } from '@/libs/preferences-sync';
+import { getUserProfile } from '@/services/AuthService';
+import { getCurrentOnboardingStep, isOnboardingCompleted } from '@/services/OnboardingService';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, Href } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
     Animated,
@@ -11,14 +19,6 @@ import {
     Text,
     View
 } from 'react-native';
-import { Fonts, primaryGradient, primaryGradientDark } from '@/constants/theme';
-import { isOnboardingCompleted, getCurrentOnboardingStep } from '@/services/OnboardingService';
-import { useAuthStore } from '@/libs/auth';
-import { getUserProfile } from '@/services/AuthService';
-import { syncUserPreferences } from '@/libs/preferences-sync';
-import { useTheme } from '@/hooks/useTheme';
-import { t } from '@/libs/i18n';
-import { logger } from '@/libs/logger';
 
 const { width, height } = Dimensions.get('window');
 
@@ -104,7 +104,7 @@ export default function WelcomeScreen() {
                 try {
                     const profileResponse = await getUserProfile();
                     const user = profileResponse.user;
-                    
+
                     logger.log('[Splash] Profile refreshed:', {
                         username: user.username,
                         onboardingCompleted: user.onboardingCompleted
@@ -115,7 +115,7 @@ export default function WelcomeScreen() {
                         // Fetch and apply preferences BEFORE navigating to home
                         // This prevents the flash from system defaults to user preferences
                         await syncUserPreferences();
-                        
+
                         logger.log('[Splash] Profile onboarding completed - Navigating to Home');
                         router.replace('/home' as Href);
                     } else {
@@ -155,8 +155,8 @@ export default function WelcomeScreen() {
 
             {/* Gradient Background */}
             <LinearGradient
-                colors={gradient.colors as [string, string, ...string[]]}
-                locations={gradient.locations as [number, number, ...number[]]}
+                colors={gradient.colors as any}
+                locations={gradient.locations as any}
                 style={styles.gradient}
                 start={gradient.start}
                 end={gradient.end}

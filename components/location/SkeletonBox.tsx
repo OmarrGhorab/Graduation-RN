@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { Animated, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import React, { useEffect, useRef } from 'react';
+import { Animated, ViewStyle } from 'react-native';
 
 interface SkeletonBoxProps {
     width: number | string;
@@ -11,7 +11,7 @@ interface SkeletonBoxProps {
 export const SkeletonBox = ({ width, height, style }: SkeletonBoxProps) => {
     const animatedValue = useRef(new Animated.Value(0)).current;
     const { theme } = useTheme();
-    
+
     useEffect(() => {
         const animation = Animated.loop(
             Animated.sequence([
@@ -22,24 +22,24 @@ export const SkeletonBox = ({ width, height, style }: SkeletonBoxProps) => {
         animation.start();
         return () => animation.stop();
     }, [animatedValue]);
-    
+
     const opacity = animatedValue.interpolate({
         inputRange: [0, 1],
         outputRange: [0.3, 0.7],
     });
-    
+
     return (
-        <Animated.View 
+        <Animated.View
             style={[
-                { 
-                    width, 
-                    height, 
-                    backgroundColor: theme.gray[200], 
-                    borderRadius: 8, 
-                    opacity 
-                },
+                {
+                    width,
+                    height,
+                    backgroundColor: theme.gray[200],
+                    borderRadius: 8,
+                    opacity
+                } as any,
                 style
-            ]} 
+            ]}
         />
     );
 };

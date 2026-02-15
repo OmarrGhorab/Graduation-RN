@@ -561,7 +561,7 @@ export default {
   // Tabs
   tabs: {
     home: 'Home',
-    course: 'Course',
+    course: 'Courses',
     chat: 'Chat',
     qr: 'QR',
     account: 'Account',
@@ -577,12 +577,23 @@ export default {
     yourSchedule: 'Your Schedule',
     nextLessons: 'Next Lessons',
     lessons: '{{count}} lessons',
+    welcomeBack: 'Welcome back,',
+    scanQR: 'Scan QR',
+    live: 'LIVE',
+    scheduled: 'Scheduled',
+    completed: 'Completed',
+    canceled: 'Canceled',
   },
 
   // Course
   course: {
     title: 'Courses',
     emptyState: 'Your enrolled courses will appear here',
+  },
+
+  // Courses
+  courses: {
+    title: 'Explore Courses',
   },
 
   // QR

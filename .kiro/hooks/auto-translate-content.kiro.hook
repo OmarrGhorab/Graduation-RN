@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "name": "Auto-Translate Content",
+  "description": "Automatically detects changes to localization files and generates translations for all configured target languages while maintaining context and locale conventions",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.json",
+      "*.yaml",
+      "*.yml",
+      "i18n/**/*",
+      "locales/**/*",
+      "translations/**/*",
+      "lang/**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the changes in this localization file. Identify any new or modified text content in the primary language. Generate accurate translations for all configured target languages, ensuring translations maintain proper context, meaning, and adhere to locale-specific conventions (date formats, currency, cultural nuances). Update the corresponding translation files accordingly."
+  }
+}

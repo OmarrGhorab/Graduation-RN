@@ -13,7 +13,7 @@ interface PresenceIndicatorProps {
  * Shows a green dot when user is online, gray when offline
  */
 export function PresenceIndicator({ isOnline, size = 12, style }: PresenceIndicatorProps) {
-    const { colors } = useTheme();
+    const { theme } = useTheme();
 
     return (
         <View
@@ -23,8 +23,8 @@ export function PresenceIndicator({ isOnline, size = 12, style }: PresenceIndica
                     width: size,
                     height: size,
                     borderRadius: size / 2,
-                    backgroundColor: isOnline ? colors.success : colors.border,
-                    borderColor: colors.background,
+                    backgroundColor: isOnline ? theme.primary : theme.border,
+                    borderColor: theme.background,
                 },
                 style
             ]}
