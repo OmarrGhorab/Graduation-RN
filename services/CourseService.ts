@@ -71,6 +71,9 @@ export interface ApiCourseDetails {
         geofenceRadiusM?: number;
         enrollmentCount?: number;
         assistants?: CourseAssistant[];
+        freeTrialLessons?: number;
+        courseRating?: number;
+        totalReviews?: number;
     };
     progress?: {
         attendancePercentage: number;
@@ -107,6 +110,12 @@ export interface ApiCourseDetails {
         attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' | null;
         absenceRequestStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
         attendeeCount?: number;
+        deliveryType?: 'ONLINE' | 'OFFLINE';
+        isFree?: boolean;
+        videoUrl?: string;
+        videoPublicId?: string;
+        materialsUrl?: string;
+        duration?: number;
     }[];
     enrollment?: {
         id: string;
@@ -808,5 +817,215 @@ export async function removeCourseAssistant(
     logger.log('[Courses] Removing assistant from course:', courseId, assistantId);
     return apiClient.delete<{ success: boolean; message: string }>(
         `/api/v1/courses/${courseId}/assistants/${assistantId}`
+    );
+}
+
+
+/**
+ * REVIEWS & RATINGS ENDPOINTS
+ */
+
+export interface CourseReview {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentProfileImg: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    updatedAt?: string;
+}
+
+export interface CourseReviewsResponse {
+    success: boolean;
+    data: {
+        reviews: CourseReview[];
+        summary: {
+            averageRating: number;
+            totalReviews: number;
+            ratingBreakdown: {
+                5: number;
+                4: number;
+                3: number;
+                2: number;
+                1: number;
+            };
+        };
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+    };
+}
+
+export interface CreateReviewRequest {
+    rating: number;
+    comment: string;
+}
+
+export interface ReviewResponse {
+    success: boolean;
+    data: CourseReview;
+}
+
+/**
+ * Get course reviews
+ */
+export async function getCourseReviews(
+    courseId: string,
+    page: number = 1,
+    limit: number = 20
+): Promise<CourseReviewsResponse> {
+    logger.log('[Reviews] Fetching course reviews:', courseId);
+    return apiClient.get<CourseReviewsResponse>(`/api/v1/courses/${courseId}/reviews`, {
+        params: { page, limit }
+    });
+}
+
+/**
+ * Create a course review
+ */
+export async function createCourseReview(
+    courseId: string,
+    data: CreateReviewRequest
+): Promise<ReviewResponse> {
+    logger.log('[Reviews] Creating review for course:', courseId);
+    return apiClient.post<ReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
+}
+
+/**
+ * Update a course review
+ */
+export async function updateCourseReview(
+    courseId: string,
+    reviewId: string,
+    data: CreateReviewRequest
+): Promise<ReviewResponse> {
+    logger.log('[Reviews] Updating review:', reviewId);
+    return apiClient.put<ReviewResponse>(`/api/v1/courses/${courseId}/reviews/${reviewId}`, data);
+}
+
+/**
+ * Delete a course review
+ */
+export async function deleteCourseReview(
+    courseId: string,
+    reviewId: string
+): Promise<{ success: boolean; message: string }> {
+    logger.log('[Reviews] Deleting review:', reviewId);
+    return apiClient.delete<{ success: boolean; message: string }>(
+        `/api/v1/courses/${courseId}/reviews/${reviewId}`
+    );
+}
+
+/**
+ * LESSON MATERIALS ENDPOINTS
+ */
+
+export interface UploadVideoResponse {
+    success: boolean;
+    data: {
+        id: string;
+        videoUrl: string;
+        videoPublicId: string;
+    };
+    message: string;
+    upload_info?: {
+        size_mb: number;
+        format: string;
+    };
+}
+
+export interface UploadDocumentResponse {
+    success: boolean;
+    data: {
+        id: string;
+        materialsUrl: string;
+    };
+    message: string;
+}
+
+export interface UpdateMaterialsRequest {
+    videoUrl?: string;
+    videoPublicId?: string;
+    materialsUrl?: string;
+    duration?: number;
+}
+
+/**
+ * Upload video for lesson (backend upload to Cloudinary)
+ */
+export async function uploadLessonVideo(
+    lessonId: string,
+    videoFile: {
+        uri: string;
+        type: string;
+        name: string;
+    }
+): Promise<UploadVideoResponse> {
+    logger.log('[Lessons] Uploading video for lesson:', lessonId);
+    
+    const formData = new FormData();
+    formData.append('video', videoFile as any);
+
+    return apiClient.post<UploadVideoResponse>(
+        `/api/v1/lessons/${lessonId}/upload-video`,
+        formData,
+        {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        }
+    );
+}
+
+/**
+ * Upload document for lesson (backend upload to Cloudinary)
+ */
+export async function uploadLessonDocument(
+    lessonId: string,
+    documentFile: {
+        uri: string;
+        type: string;
+        name: string;
+    }
+): Promise<UploadDocumentResponse> {
+    logger.log('[Lessons] Uploading document for lesson:', lessonId);
+    
+    const formData = new FormData();
+    formData.append('document', documentFile as any);
+
+    return apiClient.post<UploadDocumentResponse>(
+        `/api/v1/lessons/${lessonId}/upload-document`,
+        formData,
+        {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        }
+    );
+}
+
+/**
+ * Delete lesson video
+ */
+export async function deleteLessonVideo(lessonId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Lessons] Deleting video for lesson:', lessonId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/lessons/${lessonId}/video`);
+}
+
+/**
+ * Update lesson materials (manual URLs)
+ */
+export async function updateLessonMaterials(
+    lessonId: string,
+    data: UpdateMaterialsRequest
+): Promise<{ success: boolean; message: string; data: ApiLesson }> {
+    logger.log('[Lessons] Updating materials for lesson:', lessonId);
+    return apiClient.put<{ success: boolean; message: string; data: ApiLesson }>(
+        `/api/v1/lessons/${lessonId}/materials`,
+        data
     );
 }

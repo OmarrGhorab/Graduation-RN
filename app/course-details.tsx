@@ -1,12 +1,13 @@
-import { AssistantsSection, EnrollmentBadge, QRScannerModal } from '@/components/course';
+import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, QRScannerModal, ReviewModal, ReviewsSection } from '@/components/course';
 import { Fonts } from '@/constants/theme';
+import { useCourseReviews } from '@/hooks/useCourseReviews';
 import { useCourseDetails, useEnrollCourse } from '@/hooks/useCourses';
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
-import { scanAttendance } from '@/services/CourseService';
+import { CourseReview, removeCourseAssistant, scanAttendance } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -38,6 +39,20 @@ export default function CourseDetailsScreen() {
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newLessonTitle, setNewLessonTitle] = useState('');
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
+
+    // Reviews hook
+    const {
+        reviews,
+        summary,
+        createReview,
+        updateReview,
+        deleteReview,
+        isCreating,
+        isUpdating,
+        isDeleting,
+    } = useCourseReviews(courseId as string);
 
     useEffect(() => {
         if (params.action === 'scan') {
@@ -198,16 +213,29 @@ export default function CourseDetailsScreen() {
 
                 {/* Main Content Card */}
                 <View style={[styles.mainCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}>
-                    <View style={styles.badgeRow}>
+                    <View style={[styles.badgeRow, { marginBottom: 8 }]}>
                         <View style={[styles.badge, { backgroundColor: `${theme.primary}15` }]}>
                             <Text style={[styles.badgeText, { color: theme.primary }]}>{course.subjectName?.toUpperCase()}</Text>
                         </View>
                         <View style={styles.ratingContainer}>
                             <Ionicons name="star" size={14} color="#FFC107" />
-                            <Text style={[styles.ratingText, { color: theme.gray[600] }]}>4.7</Text>
-                            <Text style={[styles.ratingCount, { color: theme.gray[400] }]}>(1.2k)</Text>
+                            <Text style={[styles.ratingText, { color: theme.gray[600] }]}>
+                                {course.courseRating ? course.courseRating.toFixed(1) : 'New'}
+                            </Text>
+                            <Text style={[styles.ratingCount, { color: theme.gray[400] }]}>
+                                ({course.totalReviews || 0})
+                            </Text>
                         </View>
                     </View>
+
+                    {course.freeTrialLessons && course.freeTrialLessons > 0 && (
+                        <View style={{ marginBottom: 8 }}>
+                            <FreeTrialBadge />
+                            <Text style={[styles.freeTrialText, { color: theme.gray[500] }]}>
+                                First {course.freeTrialLessons} {course.freeTrialLessons === 1 ? 'lesson' : 'lessons'} free
+                            </Text>
+                        </View>
+                    )}
 
                     <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#0d1b15' }]}>{course.title}</Text>
 
@@ -259,13 +287,53 @@ export default function CourseDetailsScreen() {
                         }}
                         onRemoveAssistant={async (assistantId) => {
                             try {
-                                const { removeCourseAssistant } = await import('@/services/CourseService');
                                 await removeCourseAssistant(courseId as string, assistantId);
                                 queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
                                 Alert.alert('Success', 'Assistant removed successfully');
                             } catch (error: any) {
                                 Alert.alert('Error', error.message || 'Failed to remove assistant');
                             }
+                        }}
+                    />
+                )}
+
+                {/* Reviews Section */}
+                {summary && (
+                    <ReviewsSection
+                        reviews={reviews}
+                        averageRating={summary.averageRating}
+                        totalReviews={summary.totalReviews}
+                        ratingBreakdown={summary.ratingBreakdown}
+                        canReview={isEnrolled && !isTeacher}
+                        userReview={reviews.find(r => r.studentId === profile?.id)}
+                        onAddReview={() => {
+                            setEditingReview(null);
+                            setShowReviewModal(true);
+                        }}
+                        onEditReview={(review) => {
+                            setEditingReview(review);
+                            setShowReviewModal(true);
+                        }}
+                        onDeleteReview={async (reviewId) => {
+                            Alert.alert(
+                                'Delete Review',
+                                'Are you sure you want to delete your review?',
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    {
+                                        text: 'Delete',
+                                        style: 'destructive',
+                                        onPress: async () => {
+                                            try {
+                                                await deleteReview(reviewId);
+                                                Alert.alert('Success', 'Review deleted successfully');
+                                            } catch (error: any) {
+                                                Alert.alert('Error', error.message || 'Failed to delete review');
+                                            }
+                                        },
+                                    },
+                                ]
+                            );
                         }}
                     />
                 )}
@@ -321,9 +389,12 @@ export default function CourseDetailsScreen() {
                                                     <Ionicons name={lessonIcon as any} size={16} color="#FFF" />
                                                 </View>
                                                 <View style={styles.lessonInfo}>
-                                                    <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000' }]}>
-                                                        {lesson.title}
-                                                    </Text>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000' }]}>
+                                                            {lesson.title}
+                                                        </Text>
+                                                        {lesson.isFree && <FreeTrialBadge variant="compact" />}
+                                                    </View>
                                                     <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
                                                         {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </Text>
@@ -469,6 +540,34 @@ export default function CourseDetailsScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Review Modal */}
+            <ReviewModal
+                visible={showReviewModal}
+                onClose={() => {
+                    setShowReviewModal(false);
+                    setEditingReview(null);
+                }}
+                onSubmit={async (rating, comment) => {
+                    try {
+                        if (editingReview) {
+                            await updateReview({ reviewId: editingReview.id, data: { rating, comment } });
+                            Alert.alert('Success', 'Review updated successfully');
+                        } else {
+                            await createReview({ rating, comment });
+                            Alert.alert('Success', 'Review submitted successfully');
+                        }
+                        setShowReviewModal(false);
+                        setEditingReview(null);
+                    } catch (error: any) {
+                        Alert.alert('Error', error.message || 'Failed to submit review');
+                        throw error;
+                    }
+                }}
+                initialRating={editingReview?.rating}
+                initialComment={editingReview?.comment}
+                isEdit={!!editingReview}
+            />
         </View>
     );
 }
@@ -552,6 +651,11 @@ const styles = StyleSheet.create({
     },
     ratingCount: {
         fontSize: 11,
+    },
+    freeTrialText: {
+        fontSize: 11,
+        fontFamily: Fonts.regular,
+        marginTop: 4,
     },
     courseTitle: {
         fontSize: 24,
