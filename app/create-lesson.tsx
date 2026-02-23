@@ -1,4 +1,4 @@
-// Create Lesson Screen - Updated with Location Picker
+// Create Lesson Screen - Updated with Location Picker and Materials Upload
 import CalendarModal from '@/components/CalendarModal';
 import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
@@ -8,6 +8,7 @@ import { useMyCourses } from '@/hooks/useCourses';
 import { useLessonCreation } from '@/hooks/useLessonCreation';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -46,10 +47,59 @@ export default function CreateLessonScreen() {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [showLocationPicker, setShowLocationPicker] = useState(false);
+    
+    // Materials state
+    const [videoFile, setVideoFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+    const [documentFile, setDocumentFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+    const [videoUrl, setVideoUrl] = useState('');
+    const [materialsUrl, setMaterialsUrl] = useState('');
+    const [isFree, setIsFree] = useState(false);
 
     // Fetch courses
     const { data: coursesData, isLoading: isLoadingCourses } = useMyCourses();
     const courses = coursesData?.data || [];
+
+    const handlePickVideo = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'video/*',
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                const asset = result.assets[0];
+                setVideoFile({
+                    uri: asset.uri,
+                    name: asset.name,
+                    type: asset.mimeType || 'video/mp4',
+                });
+                setVideoUrl(''); // Clear URL if file is selected
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick video file');
+        }
+    };
+
+    const handlePickDocument = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                const asset = result.assets[0];
+                setDocumentFile({
+                    uri: asset.uri,
+                    name: asset.name,
+                    type: asset.mimeType || 'application/pdf',
+                });
+                setMaterialsUrl(''); // Clear URL if file is selected
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick document file');
+        }
+    };
 
     const handleCreateLesson = async () => {
         // Validation
@@ -74,6 +124,7 @@ export default function CreateLessonScreen() {
         }
 
         try {
+            // Step 1: Create the lesson
             const lessonData = {
                 courseId,
                 title: title.trim(),
@@ -85,21 +136,81 @@ export default function CreateLessonScreen() {
                 locationLat: locationLat ? parseFloat(locationLat) : undefined,
                 locationLng: locationLng ? parseFloat(locationLng) : undefined,
                 geofenceRadiusM: parseInt(geofenceRadius) || 50,
+                isFree: deliveryType === 'ONLINE' ? isFree : false,
             };
 
-            await createLessonMutation.mutateAsync(lessonData);
+            const result = await createLessonMutation.mutateAsync(lessonData);
+            const lessonId = result.data?.id;
 
-            Alert.alert(
-                'Success',
-                'Lesson created successfully!',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => router.back(),
-                    },
-                ]
-            );
+            if (!lessonId) {
+                throw new Error('Lesson created but ID not returned');
+            }
+
+            // Step 2: Upload materials if provided
+            const hasMaterials = videoFile || videoUrl || documentFile || materialsUrl;
+            
+            if (hasMaterials) {
+                Alert.alert('Uploading Materials', 'Please wait while we upload your files...');
+                
+                try {
+                    // Import the upload functions
+                    const { uploadLessonVideo, uploadLessonDocument, updateLessonMaterials } = await import('@/services/CourseService');
+
+                    // Upload video file if selected
+                    if (videoFile) {
+                        await uploadLessonVideo(lessonId, videoFile);
+                    }
+                    // Or update with video URL
+                    else if (videoUrl) {
+                        await updateLessonMaterials(lessonId, { videoUrl });
+                    }
+
+                    // Upload document file if selected
+                    if (documentFile) {
+                        await uploadLessonDocument(lessonId, documentFile);
+                    }
+                    // Or update with materials URL
+                    else if (materialsUrl) {
+                        await updateLessonMaterials(lessonId, { materialsUrl });
+                    }
+
+                    Alert.alert(
+                        'Success',
+                        'Lesson and materials uploaded successfully!',
+                        [
+                            {
+                                text: 'OK',
+                                onPress: () => router.back(),
+                            },
+                        ]
+                    );
+                } catch (uploadError: any) {
+                    console.error('Materials upload failed:', uploadError);
+                    Alert.alert(
+                        'Partial Success',
+                        'Lesson created but materials upload failed. You can add materials later from the lesson details.',
+                        [
+                            {
+                                text: 'OK',
+                                onPress: () => router.back(),
+                            },
+                        ]
+                    );
+                }
+            } else {
+                Alert.alert(
+                    'Success',
+                    'Lesson created successfully!',
+                    [
+                        {
+                            text: 'OK',
+                            onPress: () => router.back(),
+                        },
+                    ]
+                );
+            }
         } catch (error: any) {
+            console.error('Lesson creation failed:', error);
             Alert.alert('Error', error.message || 'Failed to create lesson');
         }
     };
@@ -434,6 +545,159 @@ export default function CreateLessonScreen() {
                         )}
                     </View>
 
+                    {/* Materials Section */}
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                            Lesson Materials (Optional)
+                        </Text>
+
+                        {/* Free Lesson Toggle - Only for ONLINE */}
+                        {deliveryType === 'ONLINE' && (
+                            <TouchableOpacity
+                                style={[styles.freeToggle, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    borderColor: isFree ? cskColors[500] : (isDark ? '#3a4048' : '#d1d5d9'),
+                                }]}
+                                onPress={() => setIsFree(!isFree)}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.freeToggleTitle, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                        Free Trial Lesson
+                                    </Text>
+                                    <Text style={[styles.freeToggleSubtext, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                        Allow non-enrolled students to access this lesson
+                                    </Text>
+                                </View>
+                                <View style={[styles.checkbox, {
+                                    backgroundColor: isFree ? cskColors[500] : 'transparent',
+                                    borderColor: isFree ? cskColors[500] : (isDark ? '#6b737c' : '#949da5'),
+                                }]}>
+                                    {isFree && <MaterialIcons name="check" size={18} color="#ffffff" />}
+                                </View>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Video Upload */}
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Lesson Video
+                            </Text>
+                            {videoFile ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="videocam" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                        {videoFile.name}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setVideoFile(null)}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : videoUrl ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="link" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]} numberOfLines={1}>
+                                        {videoUrl}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setVideoUrl('')}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.uploadButton, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            borderColor: isDark ? '#3a4048' : '#d1d5d9',
+                                        }]}
+                                        onPress={handlePickVideo}
+                                    >
+                                        <MaterialIcons name="cloud-upload" size={24} color={cskColors[500]} />
+                                        <Text style={[styles.uploadButtonText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                            Upload Video File
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <Text style={[styles.orText, { color: isDark ? '#6b737c' : '#949da5' }]}>or</Text>
+                                    <TextInput
+                                        style={[styles.input, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            color: isDark ? '#e1e5e9' : '#0d1b15',
+                                        }]}
+                                        placeholder="Paste video URL (YouTube, Vimeo, etc.)"
+                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                        value={videoUrl}
+                                        onChangeText={setVideoUrl}
+                                        keyboardType="url"
+                                        autoCapitalize="none"
+                                    />
+                                </>
+                            )}
+                        </View>
+
+                        {/* Document Upload */}
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Course Materials (PDF, Slides)
+                            </Text>
+                            {documentFile ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="description" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                        {documentFile.name}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setDocumentFile(null)}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : materialsUrl ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="link" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]} numberOfLines={1}>
+                                        {materialsUrl}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setMaterialsUrl('')}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.uploadButton, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            borderColor: isDark ? '#3a4048' : '#d1d5d9',
+                                        }]}
+                                        onPress={handlePickDocument}
+                                    >
+                                        <MaterialIcons name="cloud-upload" size={24} color={cskColors[500]} />
+                                        <Text style={[styles.uploadButtonText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                            Upload Document
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <Text style={[styles.orText, { color: isDark ? '#6b737c' : '#949da5' }]}>or</Text>
+                                    <TextInput
+                                        style={[styles.input, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            color: isDark ? '#e1e5e9' : '#0d1b15',
+                                        }]}
+                                        placeholder="Paste document URL"
+                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                        value={materialsUrl}
+                                        onChangeText={setMaterialsUrl}
+                                        keyboardType="url"
+                                        autoCapitalize="none"
+                                    />
+                                </>
+                            )}
+                        </View>
+                    </View>
+
                     {/* Bottom padding for fixed button */}
                     <View style={{ height: 100 }} />
                 </ScrollView>
@@ -681,5 +945,63 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 18,
         fontFamily: Fonts.bold,
+    },
+    freeToggle: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 2,
+        marginBottom: 16,
+    },
+    freeToggleTitle: {
+        fontSize: 15,
+        fontFamily: Fonts.semiBold,
+    },
+    freeToggleSubtext: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 2,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    uploadButton: {
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    uploadButtonText: {
+        fontSize: 15,
+        fontFamily: Fonts.medium,
+    },
+    orText: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        textAlign: 'center',
+        marginVertical: 8,
+    },
+    filePreview: {
+        height: 56,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    fileName: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
     },
 });

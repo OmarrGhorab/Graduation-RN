@@ -369,8 +369,31 @@ export async function getStudentAnalytics(studentId: string, courseId: string): 
  * Create a new lesson (Teacher)
  */
 export async function createLesson(data: CreateLessonRequest): Promise<CreateLessonResponse> {
+    console.log('[CourseService] Creating lesson with FULL data:');
+    console.log('  courseId:', data.courseId);
+    console.log('  title:', data.title);
+    console.log('  description:', data.description);
+    console.log('  scheduledAt:', data.scheduledAt);
+    console.log('  durationMinutes:', data.durationMinutes);
+    console.log('  deliveryType:', data.deliveryType);
+    console.log('  locationName:', data.locationName);
+    console.log('  locationLat:', data.locationLat);
+    console.log('  locationLng:', data.locationLng);
+    console.log('  geofenceRadiusM:', data.geofenceRadiusM);
+    console.log('[CourseService] Full object:', data);
+    
     logger.log('[Lessons] Creating new lesson:', data.title);
-    return apiClient.post<CreateLessonResponse>('/api/v1/lessons', data);
+    
+    try {
+        const response = await apiClient.post<CreateLessonResponse>('/api/v1/lessons', data);
+        console.log('[CourseService] Lesson created successfully:', response);
+        return response;
+    } catch (error: any) {
+        console.error('[CourseService] Create lesson failed:', error);
+        console.error('[CourseService] Error response:', error.response?.data);
+        console.error('[CourseService] Error status:', error.response?.status);
+        throw error;
+    }
 }
 
 /**

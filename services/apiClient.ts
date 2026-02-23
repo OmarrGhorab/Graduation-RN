@@ -1,7 +1,7 @@
 import { BASE_URL } from '@/constants/config';
+import { ApiError, AuthError, NetworkError, TimeoutError } from '@/types/errors';
 import { getValidAccessToken } from './AuthService';
 import { DeviceService } from './DeviceService';
-import { ApiError, NetworkError, AuthError, TimeoutError } from '@/types/errors';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -122,12 +122,27 @@ async function request<T = unknown>(
                 config.body = JSON.stringify(body);
             }
 
+            console.log('[apiClient] Making request:', {
+                method,
+                url,
+                headers: requestHeaders,
+                body: config.body,
+            });
+
             // Make request
             const response = await fetch(url, config);
+
+            console.log('[apiClient] Response received:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                headers: Object.fromEntries(response.headers.entries()),
+            });
 
             // Check content type for JSON
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
+                console.log('[apiClient] Non-JSON response, content-type:', contentType);
                 if (!response.ok) {
                     throw new ApiError(
                         `Server error (${response.status}): Invalid response format`,
@@ -140,16 +155,20 @@ async function request<T = unknown>(
 
             // Parse response
             const data: unknown = await response.json();
+            console.log('[apiClient] Response data:', data);
 
             // Handle error responses
             if (!response.ok) {
                 const responseObj = data as Record<string, unknown>;
                 const message = (responseObj.message || responseObj.error || `Request failed with status ${response.status}`) as string;
+                console.error('[apiClient] Error response:', { status: response.status, message, data });
                 throw new ApiError(message, response.status, data);
             }
 
             return data as T;
         } catch (error: unknown) {
+            console.error('[apiClient] Request failed with error:', error);
+            
             // Handle abort/timeout errors
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new TimeoutError(`Request timed out after ${timeout}ms`, timeout);
@@ -162,6 +181,12 @@ async function request<T = unknown>(
 
             // Handle network errors
             if (error instanceof Error) {
+                console.error('[apiClient] Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                });
+                
                 if (error.message === 'Network request failed') {
                     throw new NetworkError(
                         `Cannot connect to server at ${BASE_URL}. Please check your connection.`,

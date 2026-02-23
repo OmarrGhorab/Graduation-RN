@@ -83,6 +83,8 @@ export default function CourseDetailsScreen() {
     }
 
     const { course, progress, teacher, lessons } = detailsData.data;
+    const safeLessons = lessons || [];
+    
     if (!course) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
@@ -164,24 +166,36 @@ export default function CourseDetailsScreen() {
             return;
         }
 
+        const lessonData = {
+            courseId: courseId as string,
+            title: newLessonTitle,
+            description: 'New lesson created from mobile app',
+            scheduledAt: new Date().toISOString(),
+            durationMinutes: 90,
+            deliveryType: course.deliveryType || 'OFFLINE',
+            locationName: course.locationName || 'Classroom',
+            locationLat: course.locationLat || 30.0444,
+            locationLng: course.locationLng || 31.2357,
+            geofenceRadiusM: course.geofenceRadiusM || 100
+        };
+
+        console.log('[CourseDetails] Creating lesson with data:', JSON.stringify(lessonData, null, 2));
+
         try {
-            await createLessonMutation.mutateAsync({
-                courseId: courseId as string,
-                title: newLessonTitle,
-                description: 'New lesson created from mobile app',
-                scheduledAt: new Date().toISOString(),
-                durationMinutes: 90,
-                deliveryType: course.deliveryType || 'OFFLINE',
-                locationName: course.locationName || 'Classroom',
-                locationLat: course.locationLat || 30.0444,
-                locationLng: course.locationLng || 31.2357,
-                geofenceRadiusM: course.geofenceRadiusM || 100
-            });
+            const result = await createLessonMutation.mutateAsync(lessonData);
+            console.log('[CourseDetails] Lesson created successfully:', result);
 
             Alert.alert('Success', 'Lesson created successfully');
             setShowCreateModal(false);
             setNewLessonTitle('');
         } catch (err: any) {
+            console.error('[CourseDetails] Failed to create lesson:', err);
+            console.error('[CourseDetails] Error details:', {
+                message: err.message,
+                response: err.response,
+                data: err.response?.data,
+                status: err.response?.status,
+            });
             Alert.alert('Error', err.message || 'Failed to create lesson');
         }
     };
@@ -349,13 +363,13 @@ export default function CourseDetailsScreen() {
                                 </TouchableOpacity>
                             )}
                             <Text style={[styles.curriculumMeta, { color: theme.gray[500] }]}>
-                                {lessons.length} Lessons
+                                {safeLessons.length} Lessons
                             </Text>
                         </View>
                     </View>
 
                     <View style={styles.curriculumList}>
-                        {lessons.map((lesson, index) => {
+                        {safeLessons.map((lesson, index) => {
                             const moduleKey = index.toString();
                             const isExpanded = expandedModules[moduleKey];
                             const lessonIcon = getLessonIcon(lesson.status, lesson.attendanceStatus);
