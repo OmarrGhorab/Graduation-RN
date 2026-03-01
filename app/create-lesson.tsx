@@ -53,6 +53,17 @@ export default function CreateLessonScreen() {
     const [documentFile, setDocumentFile] = useState<{ uri: string; name: string; type: string } | null>(null);
     const [videoUrl, setVideoUrl] = useState('');
     const [materialsUrl, setMaterialsUrl] = useState('');
+    
+    // Upload progress state
+    const [uploadProgress, setUploadProgress] = useState<{
+        video: number;
+        document: number;
+        isUploading: boolean;
+    }>({
+        video: 0,
+        document: 0,
+        isUploading: false,
+    });
     const [isFree, setIsFree] = useState(false);
 
     // Fetch courses
@@ -68,6 +79,22 @@ export default function CreateLessonScreen() {
 
             if (!result.canceled && result.assets && result.assets[0]) {
                 const asset = result.assets[0];
+                
+                // Check file size (500MB = 524,288,000 bytes)
+                const maxSizeBytes = 500 * 1024 * 1024; // 500MB
+                if (asset.size && asset.size > maxSizeBytes) {
+                    const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
+                    Alert.alert(
+                        'File Too Large',
+                        `The selected video is ${sizeMB}MB. Maximum allowed size is 500MB. Please select a smaller video or compress it.`
+                    );
+                    return;
+                }
+                
+                // Show file size for debugging
+                const sizeMB = asset.size ? (asset.size / (1024 * 1024)).toFixed(2) : 'unknown';
+                console.log(`[Video] Selected file: ${asset.name}, Size: ${sizeMB}MB`);
+                
                 setVideoFile({
                     uri: asset.uri,
                     name: asset.name,
@@ -89,6 +116,18 @@ export default function CreateLessonScreen() {
 
             if (!result.canceled && result.assets && result.assets[0]) {
                 const asset = result.assets[0];
+                
+                // Check file size (50MB = 52,428,800 bytes)
+                const maxSizeBytes = 50 * 1024 * 1024; // 50MB
+                if (asset.size && asset.size > maxSizeBytes) {
+                    const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
+                    Alert.alert(
+                        'File Too Large',
+                        `The selected document is ${sizeMB}MB. Maximum allowed size is 50MB. Please select a smaller file.`
+                    );
+                    return;
+                }
+                
                 setDocumentFile({
                     uri: asset.uri,
                     name: asset.name,
@@ -156,9 +195,13 @@ export default function CreateLessonScreen() {
                     // Import the upload functions
                     const { uploadLessonVideo, uploadLessonDocument, updateLessonMaterials } = await import('@/services/CourseService');
 
+                    setUploadProgress({ video: 0, document: 0, isUploading: true });
+
                     // Upload video file if selected
                     if (videoFile) {
-                        await uploadLessonVideo(lessonId, videoFile);
+                        await uploadLessonVideo(lessonId, videoFile, (progress) => {
+                            setUploadProgress(prev => ({ ...prev, video: progress }));
+                        });
                     }
                     // Or update with video URL
                     else if (videoUrl) {
@@ -167,12 +210,16 @@ export default function CreateLessonScreen() {
 
                     // Upload document file if selected
                     if (documentFile) {
-                        await uploadLessonDocument(lessonId, documentFile);
+                        await uploadLessonDocument(lessonId, documentFile, (progress) => {
+                            setUploadProgress(prev => ({ ...prev, document: progress }));
+                        });
                     }
                     // Or update with materials URL
                     else if (materialsUrl) {
                         await updateLessonMaterials(lessonId, { materialsUrl });
                     }
+
+                    setUploadProgress({ video: 0, document: 0, isUploading: false });
 
                     Alert.alert(
                         'Success',
@@ -186,13 +233,34 @@ export default function CreateLessonScreen() {
                     );
                 } catch (uploadError: any) {
                     console.error('Materials upload failed:', uploadError);
+                    setUploadProgress({ video: 0, document: 0, isUploading: false });
+                    
+                    let errorMessage = uploadError.message || 'Failed to upload materials. Please try again.';
+                    let errorTitle = 'Upload Failed';
+                    
+                    // Provide specific guidance for common errors
+                    if (errorMessage.includes('too large') || errorMessage.includes('413')) {
+                        errorTitle = 'Server Upload Limit Exceeded';
+                        errorMessage = 'The server has a lower upload limit than expected (likely 1-2MB instead of 500MB).\n\n' +
+                            'This is a server configuration issue. Temporary solutions:\n\n' +
+                            '• Use the "Video URL" field instead (YouTube, Vimeo, etc.)\n' +
+                            '• Compress your video to under 2MB\n' +
+                            '• Contact your administrator to increase server upload limits\n\n' +
+                            'See SERVER_UPLOAD_LIMIT_ISSUE.md for technical details.';
+                    } else if (errorMessage.includes('Network error')) {
+                        errorTitle = 'Network Error';
+                        errorMessage = 'Connection lost during upload. Please check your internet connection and try again.';
+                    } else if (errorMessage.includes('No authentication')) {
+                        errorTitle = 'Authentication Error';
+                        errorMessage = 'Your session has expired. Please log in again.';
+                    }
+                    
                     Alert.alert(
-                        'Partial Success',
-                        'Lesson created but materials upload failed. You can add materials later from the lesson details.',
+                        errorTitle,
+                        errorMessage,
                         [
                             {
                                 text: 'OK',
-                                onPress: () => router.back(),
                             },
                         ]
                     );
@@ -750,10 +818,10 @@ export default function CreateLessonScreen() {
                 <TouchableOpacity
                     style={[styles.createButton, { backgroundColor: cskColors[500] }]}
                     onPress={handleCreateLesson}
-                    disabled={createLessonMutation.isPending}
+                    disabled={createLessonMutation.isPending || uploadProgress.isUploading}
                     activeOpacity={0.9}
                 >
-                    {createLessonMutation.isPending ? (
+                    {(createLessonMutation.isPending || uploadProgress.isUploading) ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
                         <>
@@ -763,6 +831,67 @@ export default function CreateLessonScreen() {
                     )}
                 </TouchableOpacity>
             </View>
+
+            {/* Upload Progress Modal */}
+            {uploadProgress.isUploading && (
+                <View style={[styles.progressOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+                    <View style={[styles.progressModal, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+                        <Text style={[styles.progressTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
+                            Uploading Materials
+                        </Text>
+                        
+                        {videoFile && (
+                            <View style={styles.progressItem}>
+                                <View style={styles.progressHeader}>
+                                    <MaterialIcons name="videocam" size={20} color={cskColors[500]} />
+                                    <Text style={[styles.progressLabel, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>
+                                        Video
+                                    </Text>
+                                    <Text style={[styles.progressPercent, { color: cskColors[500] }]}>
+                                        {Math.round(uploadProgress.video)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
+                                    <View 
+                                        style={[
+                                            styles.progressBarFill, 
+                                            { 
+                                                backgroundColor: cskColors[500],
+                                                width: `${uploadProgress.video}%`
+                                            }
+                                        ]} 
+                                    />
+                                </View>
+                            </View>
+                        )}
+                        
+                        {documentFile && (
+                            <View style={styles.progressItem}>
+                                <View style={styles.progressHeader}>
+                                    <MaterialIcons name="description" size={20} color={cskColors[500]} />
+                                    <Text style={[styles.progressLabel, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>
+                                        Document
+                                    </Text>
+                                    <Text style={[styles.progressPercent, { color: cskColors[500] }]}>
+                                        {Math.round(uploadProgress.document)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
+                                    <View 
+                                        style={[
+                                            styles.progressBarFill, 
+                                            { 
+                                                backgroundColor: cskColors[500],
+                                                width: `${uploadProgress.document}%`
+                                            }
+                                        ]} 
+                                    />
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -1003,5 +1132,59 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 14,
         fontFamily: Fonts.medium,
+    },
+    progressOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    progressModal: {
+        width: '85%',
+        maxWidth: 400,
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    progressTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    progressItem: {
+        marginBottom: 20,
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+        gap: 8,
+    },
+    progressLabel: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+    },
+    progressPercent: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+    },
+    progressBarContainer: {
+        height: 8,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        borderRadius: 4,
     },
 });

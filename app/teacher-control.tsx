@@ -26,6 +26,7 @@ export default function TeacherControlPanel() {
     const lesson = lessonResponse?.data;
 
     const isLive = lesson?.status === 'LIVE';
+    const isCompleted = lesson?.status === 'COMPLETED';
 
     const { data: qrResponse, refetch: refetchQR } = useLessonQR(lessonId!, isLive);
     const { data: attendanceResponse } = useLessonAttendance(lessonId!, isLive);
@@ -296,16 +297,33 @@ export default function TeacherControlPanel() {
             </View>
 
             {/* Footer */}
-            {isLive && (
+            {isLive && !isCompleted && (
                 <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
                     <TouchableOpacity
                         style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
                         onPress={handleEndLesson}
+                        disabled={endLesson.isPending}
                         activeOpacity={0.9}
                     >
-                        <MaterialIcons name="stop" size={24} color="#ffffff" />
-                        <Text style={styles.endButtonText}>End Lesson</Text>
+                        {endLesson.isPending ? (
+                            <ActivityIndicator color="#ffffff" />
+                        ) : (
+                            <>
+                                <MaterialIcons name="stop" size={24} color="#ffffff" />
+                                <Text style={styles.endButtonText}>End Lesson</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Show completed message */}
+            {isCompleted && (
+                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                    <View style={[styles.completedBanner, { backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: '#22c55e' }]}>
+                        <MaterialIcons name="check-circle" size={24} color="#22c55e" />
+                        <Text style={[styles.completedText, { color: '#22c55e' }]}>Lesson Completed</Text>
+                    </View>
                 </View>
             )}
         </View>
@@ -610,6 +628,20 @@ const styles = StyleSheet.create({
     },
     endButtonText: {
         color: '#ffffff',
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+    },
+    completedBanner: {
+        width: '100%',
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    completedText: {
         fontSize: 18,
         fontFamily: Fonts.bold,
     },

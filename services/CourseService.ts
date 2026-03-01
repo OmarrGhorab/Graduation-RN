@@ -1,4 +1,6 @@
+import { BASE_URL } from '@/constants/config';
 import { logger } from '@/libs/logger';
+import { getValidAccessToken } from './AuthService';
 import { apiClient } from './apiClient';
 
 export interface ApiCourse {
@@ -986,22 +988,72 @@ export async function uploadLessonVideo(
         uri: string;
         type: string;
         name: string;
-    }
+    },
+    onProgress?: (progress: number) => void
 ): Promise<UploadVideoResponse> {
     logger.log('[Lessons] Uploading video for lesson:', lessonId);
     
     const formData = new FormData();
-    formData.append('video', videoFile as any);
+    
+    // Format file object correctly for React Native FormData
+    formData.append('video', {
+        uri: videoFile.uri,
+        type: videoFile.type,
+        name: videoFile.name,
+    } as any);
 
-    return apiClient.post<UploadVideoResponse>(
-        `/api/v1/lessons/${lessonId}/upload-video`,
-        formData,
-        {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+    // Use XMLHttpRequest for progress tracking
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track upload progress
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
         }
-    );
+        
+        xhr.addEventListener('load', async () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    resolve(response);
+                } catch (error) {
+                    reject(new Error('Failed to parse response'));
+                }
+            } else {
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+        });
+        
+        // Get auth token and setup request
+        getValidAccessToken().then(token => {
+            if (!token) {
+                reject(new Error('No authentication token found'));
+                return;
+            }
+            
+            xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-video`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
 }
 
 /**
@@ -1013,22 +1065,72 @@ export async function uploadLessonDocument(
         uri: string;
         type: string;
         name: string;
-    }
+    },
+    onProgress?: (progress: number) => void
 ): Promise<UploadDocumentResponse> {
     logger.log('[Lessons] Uploading document for lesson:', lessonId);
     
     const formData = new FormData();
-    formData.append('document', documentFile as any);
+    
+    // Format file object correctly for React Native FormData
+    formData.append('document', {
+        uri: documentFile.uri,
+        type: documentFile.type,
+        name: documentFile.name,
+    } as any);
 
-    return apiClient.post<UploadDocumentResponse>(
-        `/api/v1/lessons/${lessonId}/upload-document`,
-        formData,
-        {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+    // Use XMLHttpRequest for progress tracking
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track upload progress
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
         }
-    );
+        
+        xhr.addEventListener('load', async () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    resolve(response);
+                } catch (error) {
+                    reject(new Error('Failed to parse response'));
+                }
+            } else {
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+            }
+        });
+        
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+        });
+        
+        // Get auth token and setup request
+        getValidAccessToken().then(token => {
+            if (!token) {
+                reject(new Error('No authentication token found'));
+                return;
+            }
+            
+            xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-document`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
 }
 
 /**

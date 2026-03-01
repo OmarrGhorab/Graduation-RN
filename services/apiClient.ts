@@ -89,9 +89,13 @@ async function request<T = unknown>(
         const timeoutId = setTimeout(() => abortController.abort(), timeout);
 
         try {
+            // Detect if body is FormData
+            const isFormData = body instanceof FormData;
+            
             // Build headers
             const requestHeaders: Record<string, string> = {
-                'Content-Type': 'application/json',
+                // Don't set Content-Type for FormData - let browser set it with boundary
+                ...(!isFormData && { 'Content-Type': 'application/json' }),
                 ...headers,
             };
 
@@ -119,14 +123,15 @@ async function request<T = unknown>(
 
             // Add body for non-GET requests
             if (body && method !== 'GET') {
-                config.body = JSON.stringify(body);
+                // Don't stringify FormData - send it as-is
+                config.body = isFormData ? (body as any) : JSON.stringify(body);
             }
 
             console.log('[apiClient] Making request:', {
                 method,
                 url,
                 headers: requestHeaders,
-                body: config.body,
+                body: isFormData ? '[FormData]' : config.body,
             });
 
             // Make request
