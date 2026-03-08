@@ -163,7 +163,7 @@ export default function AbsenceRequestScreen() {
                             {isLoadingLesson ? 'Loading lesson...' : (lesson?.title || 'Unknown Lesson')}
                         </Text>
                         <Text style={[styles.lessonMeta, { color: isDark ? '#88cba8' : '#4c9a75' }]}>
-                            {formattedDate} • {formattedTime}
+                            {formattedDate} | {formattedTime}
                         </Text>
                     </View>
                 </View>

@@ -1,10 +1,10 @@
-import React, { memo } from 'react';
-import { ScrollView, View, ActivityIndicator, RefreshControl, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SettingsSection, SessionCard } from '@/components/settings';
-import { useTheme } from '@/hooks/useTheme';
+import { SessionCard, SettingsSection } from '@/components/settings';
 import { Fonts } from '@/constants/theme';
+import { useTheme } from '@/hooks/useTheme';
 import { Session } from '@/services/SecurityService';
+import { Ionicons } from '@expo/vector-icons';
+import React, { memo } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface SessionsSectionProps {
     t: (key: string) => string;
@@ -102,9 +102,9 @@ export const SessionsSection = memo(function SessionsSection({
                             </Text>
                         </View>
                         <Text style={[styles.tipsText, { color: theme.gray[600] }]}>
-                            • {t('settings.securityTip1')}{'\n'}
-                            • {t('settings.securityTip2')}{'\n'}
-                            • {t('settings.securityTip3')}
+                            - {t('settings.securityTip1')}{'\n'}
+                            - {t('settings.securityTip2')}{'\n'}
+                            - {t('settings.securityTip3')}
                         </Text>
                     </View>
                 </>

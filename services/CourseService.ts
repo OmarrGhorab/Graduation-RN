@@ -69,6 +69,8 @@ export interface ApiCourseDetails {
         locationLat?: number;
         locationLng?: number;
         geofenceRadiusM?: number;
+        enrollmentCount?: number;
+        assistants?: CourseAssistant[];
     };
     progress?: {
         attendancePercentage: number;
@@ -736,4 +738,75 @@ export async function respondToAbsenceRequest(
 ): Promise<AbsenceResponse> {
     logger.log('[Absences] Responding to absence request:', requestId, data.approve ? 'APPROVE' : 'REJECT');
     return apiClient.post<AbsenceResponse>(`/api/v1/absences/${requestId}/respond`, data);
+}
+
+/**
+ * COURSE ASSISTANTS ENDPOINTS
+ */
+
+export interface CourseAssistant {
+    id: string;
+    assistantId: string;
+    assistantName: string;
+    assistantProfileImg: string;
+    canStartLesson: boolean;
+    canEndLesson: boolean;
+    canViewAttendance: boolean;
+    canEditAttendance: boolean;
+    addedAt: string;
+}
+
+export interface AddAssistantRequest {
+    assistantId: string;
+}
+
+export interface AssistantResponse {
+    success: boolean;
+    data: {
+        id: string;
+        courseId: string;
+        assistantId: string;
+        canStartLesson: boolean;
+        canEndLesson: boolean;
+        canViewAttendance: boolean;
+        canEditAttendance: boolean;
+        createdAt: string;
+    };
+}
+
+export interface AssistantsListResponse {
+    success: boolean;
+    data: CourseAssistant[];
+}
+
+/**
+ * Add an assistant to a course (Teacher only)
+ */
+export async function addCourseAssistant(
+    courseId: string,
+    data: AddAssistantRequest
+): Promise<AssistantResponse> {
+    logger.log('[Courses] Adding assistant to course:', courseId, data.assistantId);
+    return apiClient.post<AssistantResponse>(`/api/v1/courses/${courseId}/assistants`, data);
+}
+
+/**
+ * Get all assistants for a course (Teacher only)
+ */
+export async function getCourseAssistants(courseId: string): Promise<AssistantsListResponse> {
+    logger.log('[Courses] Fetching assistants for course:', courseId);
+    return apiClient.get<AssistantsListResponse>(`/api/v1/courses/${courseId}/assistants`);
+}
+
+/**
+ * Remove an assistant from a course (Teacher only)
+ */
+export async function removeCourseAssistant(
+    courseId: string,
+    assistantId: string
+): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Removing assistant from course:', courseId, assistantId);
+    return apiClient.delete<{ success: boolean; message: string }>(
+        `/api/v1/courses/${courseId}/assistants/${assistantId}`
+    );
 }
