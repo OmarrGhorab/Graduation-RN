@@ -15,12 +15,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HomeHeaderProps {
     onNotificationPress?: () => void;
+    onCalendarPress?: () => void;
     onSearchSubmit?: (query: string) => void;
     notificationCount?: number;
     scrollY?: SharedValue<number>;
 }
 
-export default function HomeHeader({ onNotificationPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onCalendarPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
@@ -67,6 +68,14 @@ export default function HomeHeader({ onNotificationPress, notificationCount = 0,
 
                     {/* Actions Section (Right) */}
                     <View style={styles.actionsContainer}>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={onCalendarPress}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={styles.iconButton}
                             onPress={onNotificationPress}

@@ -1154,3 +1154,219 @@ export async function updateLessonMaterials(
         data
     );
 }
+
+// ============================================================================
+// COURSE ENROLLMENTS
+// ============================================================================
+
+export interface CourseEnrollment {
+    id: string;
+    studentId: string;
+    courseId: string;
+    enrolledAt: string;
+    status: string;
+    student: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        profilePicture?: string;
+    };
+}
+
+export interface CourseEnrollmentsResponse {
+    success: boolean;
+    data: CourseEnrollment[];
+}
+
+/**
+ * Get all enrollments for a course (Teacher only)
+ */
+export async function getCourseEnrollments(courseId: string): Promise<CourseEnrollmentsResponse> {
+    logger.log('[Courses] Fetching enrollments for course:', courseId);
+    return apiClient.get<CourseEnrollmentsResponse>(`/api/v1/courses/${courseId}/enrollments`);
+}
+
+// ============================================================================
+// PROGRESS TRACKING
+// ============================================================================
+
+export interface StudentProgress {
+    studentId: string;
+    courseId: string;
+    attendanceRate: number;
+    completionRate: number;
+    status: 'GOOD_STANDING' | 'NEEDS_IMPROVEMENT' | 'AT_RISK';
+    totalLessons: number;
+    attendedLessons: number;
+    lastUpdated: string;
+}
+
+export interface StudentProgressResponse {
+    success: boolean;
+    data: StudentProgress;
+}
+
+export interface CourseProgressResponse {
+    success: boolean;
+    data: StudentProgress[];
+}
+
+/**
+ * Get student progress for a course
+ */
+export async function getStudentProgress(
+    courseId: string,
+    studentId: string
+): Promise<StudentProgressResponse> {
+    logger.log('[Progress] Fetching student progress:', { courseId, studentId });
+    return apiClient.get<StudentProgressResponse>(`/api/v1/progress/student/${courseId}/${studentId}`);
+}
+
+/**
+ * Get progress for all students in a course (Teacher only)
+ */
+export async function getCourseProgress(courseId: string): Promise<CourseProgressResponse> {
+    logger.log('[Progress] Fetching course progress:', courseId);
+    return apiClient.get<CourseProgressResponse>(`/api/v1/progress/course/${courseId}`);
+}
+
+/**
+ * Recompute progress for a student in a course (Teacher only)
+ */
+export async function recomputeProgress(
+    courseId: string,
+    studentId: string
+): Promise<StudentProgressResponse> {
+    logger.log('[Progress] Recomputing progress:', { courseId, studentId });
+    return apiClient.post<StudentProgressResponse>(`/api/v1/progress/recompute/${courseId}/${studentId}`, {});
+}
+
+// ============================================================================
+// CALENDAR
+// ============================================================================
+
+export interface CalendarLesson {
+    id: string;
+    courseId: string;
+    title: string;
+    description: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+    deliveryType: 'ONLINE' | 'OFFLINE';
+    course: {
+        id: string;
+        title: string;
+        courseImage?: string;
+    };
+}
+
+export interface CalendarResponse {
+    success: boolean;
+    data: CalendarLesson[];
+}
+
+/**
+ * Get student calendar (upcoming lessons)
+ */
+export async function getStudentCalendar(
+    start?: string,
+    end?: string
+): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching student calendar:', { start, end });
+    const params: any = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+    
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/student', { params });
+}
+
+/**
+ * Get teacher calendar (scheduled lessons)
+ */
+export async function getTeacherCalendar(
+    start?: string,
+    end?: string
+): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching teacher calendar:', { start, end });
+    const params: any = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+    
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', { params });
+}
+
+// ============================================================================
+// TEACHERS
+// ============================================================================
+
+export interface TopRatedTeacher {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+    averageRating: number;
+    totalRatings: number;
+    totalCourses: number;
+}
+
+export interface TopRatedTeachersResponse {
+    success: boolean;
+    data: TopRatedTeacher[];
+}
+
+export interface TeacherRatingResponse {
+    success: boolean;
+    data: {
+        teacherId: string;
+        averageRating: number;
+        totalRatings: number;
+    };
+}
+
+/**
+ * Get top rated teachers (Public)
+ */
+export async function getTopRatedTeachers(
+    limit: number = 10,
+    minRating: number = 4.0
+): Promise<TopRatedTeachersResponse> {
+    logger.log('[Teachers] Fetching top rated teachers:', { limit, minRating });
+    return apiClient.get<TopRatedTeachersResponse>('/api/v1/teachers/top-rated', {
+        params: { limit, minRating }
+    });
+}
+
+/**
+ * Get teacher rating (Public)
+ */
+export async function getTeacherRating(teacherId: string): Promise<TeacherRatingResponse> {
+    logger.log('[Teachers] Fetching teacher rating:', teacherId);
+    return apiClient.get<TeacherRatingResponse>(`/api/v1/teachers/${teacherId}/rating`);
+}
+
+// ============================================================================
+// HEALTH CHECKS
+// ============================================================================
+
+export interface HealthResponse {
+    success: boolean;
+    status: string;
+    timestamp: string;
+}
+
+/**
+ * Health check endpoint
+ */
+export async function healthCheck(): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/api/v1/health');
+}
+
+/**
+ * Readiness check endpoint
+ */
+export async function readinessCheck(): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/api/v1/ready');
+}

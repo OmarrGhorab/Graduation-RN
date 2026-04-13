@@ -49,9 +49,6 @@ export default function CourseDetailsScreen() {
         createReview,
         updateReview,
         deleteReview,
-        isCreating,
-        isUpdating,
-        isDeleting,
     } = useCourseReviews(courseId as string);
 
     useEffect(() => {
@@ -276,6 +273,40 @@ export default function CourseDetailsScreen() {
                         </View>
                     )}
                 </View>
+
+                {/* Quick Actions Section - Temporarily Disabled
+                <View style={styles.section}>
+                    <View style={styles.quickActions}>
+                        {isEnrolled && !isTeacher && (
+                            <TouchableOpacity
+                                style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
+                                onPress={() => router.push({ pathname: '/my-progress', params: { courseId } })}
+                            >
+                                <Ionicons name="stats-chart" size={24} color={theme.primary} />
+                                <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>My Progress</Text>
+                            </TouchableOpacity>
+                        )}
+                        {isTeacher && (
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
+                                    onPress={() => router.push({ pathname: '/course-enrollments', params: { id: courseId } })}
+                                >
+                                    <Ionicons name="people" size={24} color={theme.primary} />
+                                    <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>Enrollments</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
+                                    onPress={() => router.push({ pathname: '/course-progress', params: { id: courseId } })}
+                                >
+                                    <Ionicons name="analytics" size={24} color={theme.primary} />
+                                    <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>Progress</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
+                </View>
+                */}
 
                 {/* Description Section */}
                 <View style={styles.section}>
@@ -861,6 +892,27 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: Fonts.bold,
         color: '#FFF',
+    },
+    quickActions: {
+        flexDirection: 'row',
+        gap: 12,
+        flexWrap: 'wrap',
+    },
+    actionCard: {
+        flex: 1,
+        minWidth: 140,
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        gap: 8,
+    },
+    actionText: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+        textAlign: 'center',
     },
     modalOverlay: {
         flex: 1,
