@@ -26,6 +26,8 @@ interface RequestOptions {
     timeout?: number;
     /** Skip request deduplication */
     skipDeduplication?: boolean;
+    /** Suppress console error logging for this request */
+    silent?: boolean;
 }
 
 /**
@@ -71,6 +73,7 @@ async function request<T = unknown>(
         params,
         timeout = DEFAULT_TIMEOUT_MS,
         skipDeduplication = false,
+        silent = false,
     } = options;
 
     const url = buildUrl(endpoint, params);
@@ -166,13 +169,17 @@ async function request<T = unknown>(
             if (!response.ok) {
                 const responseObj = data as Record<string, unknown>;
                 const message = (responseObj.message || responseObj.error || `Request failed with status ${response.status}`) as string;
-                console.error('[apiClient] Error response:', { status: response.status, message, data });
+                if (!silent) {
+                    console.error('[apiClient] Error response:', { status: response.status, message, data });
+                }
                 throw new ApiError(message, response.status, data);
             }
 
             return data as T;
         } catch (error: unknown) {
-            console.error('[apiClient] Request failed with error:', error);
+            if (!silent) {
+                console.error('[apiClient] Request failed with error:', error);
+            }
             
             // Handle abort/timeout errors
             if (error instanceof Error && error.name === 'AbortError') {

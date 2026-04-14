@@ -591,6 +591,11 @@ export default {
     emptyState: 'Your enrolled courses will appear here',
   },
 
+  // Cart
+  cart: {
+    title: 'My Cart',
+  },
+
   // Courses
   courses: {
     title: 'Explore Courses',
@@ -611,6 +616,9 @@ export default {
     location: 'Location',
     helpSupport: 'Help & Support',
     aiAssistant: 'AI Assistant',
+    aiServices: 'AI Assistant Services',
+    paymentHistory: 'Payment History',
+    paymentMethods: 'Payment Methods',
     logout: 'Logout',
     changeProfilePicture: 'Change Profile Picture',
     takePhoto: 'Take Photo',

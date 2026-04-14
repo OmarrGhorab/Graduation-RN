@@ -546,9 +546,8 @@ export default function MainHomeScreen() {
 
             {/* Header positioned absolutely on top */}
             <HomeHeader
-                onNotificationPress={handleNotificationBellPress}
+                onNotificationPress={() => setShowNotifications(true)}
                 onCalendarPress={() => router.push('/calendar')}
-                onSearchSubmit={handleSearchSubmit}
                 notificationCount={unreadCount}
                 scrollY={scrollY}
             />

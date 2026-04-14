@@ -58,6 +58,24 @@ export default function MainLayout() {
                     ),
                 }}
             />
+            <Tabs.Screen
+                name="cart"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="payment-history"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="payment-methods"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

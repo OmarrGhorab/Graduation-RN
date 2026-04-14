@@ -585,6 +585,11 @@ export default {
     emptyState: 'ستظهر الدورات المسجلة هنا',
   },
 
+  // Cart
+  cart: {
+    title: 'سلة التسوق',
+  },
+
   // QR
   qr: {
     title: 'ماسح QR',
@@ -600,6 +605,9 @@ export default {
     location: 'الموقع',
     helpSupport: 'المساعدة والدعم',
     aiAssistant: 'المساعد الذكي',
+    aiServices: 'خدمات المساعد الذكي',
+    paymentHistory: 'سجل المدفوعات',
+    paymentMethods: 'طرق الدفع',
     logout: 'تسجيل الخروج',
     changeProfilePicture: 'تغيير صورة الملف الشخصي',
     takePhoto: 'التقاط صورة',

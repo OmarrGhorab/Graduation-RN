@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/libs/auth';
-import { getStudentCalendar, getTeacherCalendar } from '@/services/CourseService';
+import { getStudentCalendar, getTeacherCalendar } from '@/services/CalendarService';
 import { useQuery } from '@tanstack/react-query';
 
 export function useStudentCalendar(start?: string, end?: string) {

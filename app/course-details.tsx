@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -41,6 +42,7 @@ export default function CourseDetailsScreen() {
     const [newLessonTitle, setNewLessonTitle] = useState('');
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
+    const { addToCart, isAdding } = useCart();
 
     // Reviews hook
     const {
@@ -120,6 +122,11 @@ export default function CourseDetailsScreen() {
             return;
         }
 
+        if (course.isPaid) {
+            router.push({ pathname: '/checkout', params: { courseId: courseId as string } });
+            return;
+        }
+
         try {
             await enrollMutation.mutateAsync({
                 courseId: courseId as string,
@@ -128,6 +135,21 @@ export default function CourseDetailsScreen() {
             Alert.alert('Success', 'You have been enrolled in this course!');
         } catch (err: any) {
             Alert.alert('Error', err.message || 'Failed to enroll in course');
+        }
+    };
+
+    const handleAddToCart = async () => {
+        try {
+            await addToCart({
+                courseId: courseId as string,
+                billingType: course.billingType || 'ONE_TIME'
+            });
+            Alert.alert('Success', 'Added to cart!', [
+                { text: 'View Cart', onPress: () => router.push('/cart') },
+                { text: 'Continue' }
+            ]);
+        } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to add to cart');
         }
     };
 
@@ -524,20 +546,37 @@ export default function CourseDetailsScreen() {
                             </Text>
                         </View>
                     </View>
-                    <TouchableOpacity
-                        style={[styles.enrollButton, { backgroundColor: theme.primary }]}
-                        onPress={handleEnroll}
-                        disabled={enrollMutation.isPending}
-                    >
-                        {enrollMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                        ) : (
-                            <>
-                                <Text style={styles.enrollButtonText}>Enroll Now</Text>
-                                <Ionicons name="arrow-forward" size={16} color="#FFF" />
-                            </>
+                    <View style={styles.enrollActions}>
+                        {course.isPaid && (
+                            <TouchableOpacity
+                                style={[styles.cartIconButton, { backgroundColor: `${theme.primary}15` }]}
+                                onPress={handleAddToCart}
+                                disabled={isAdding}
+                            >
+                                {isAdding ? (
+                                    <ActivityIndicator size="small" color={theme.primary} />
+                                ) : (
+                                    <Ionicons name="cart-outline" size={24} color={theme.primary} />
+                                )}
+                            </TouchableOpacity>
                         )}
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.enrollButton, { backgroundColor: theme.primary, flex: course.isPaid ? 1 : 0 }]}
+                            onPress={handleEnroll}
+                            disabled={enrollMutation.isPending}
+                        >
+                            {enrollMutation.isPending ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <>
+                                    <Text style={styles.enrollButtonText}>
+                                        {course.isPaid ? 'Buy Now' : 'Enroll Now'}
+                                    </Text>
+                                    <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
 
@@ -860,33 +899,41 @@ const styles = StyleSheet.create({
     priceLabel: {
         fontSize: 10,
         fontFamily: Fonts.bold,
-        letterSpacing: 1,
-        marginBottom: 4,
+        letterSpacing: 0.5,
     },
     priceRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
+        gap: 4,
     },
     priceAmount: {
-        fontSize: 28,
+        fontSize: 22,
         fontFamily: Fonts.bold,
     },
     priceCurrency: {
         fontSize: 12,
-        fontFamily: Fonts.semiBold,
+        fontFamily: Fonts.medium,
+    },
+    enrollActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    cartIconButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     enrollButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 32,
+        paddingVertical: 14,
+        paddingHorizontal: 24,
         borderRadius: 12,
-        shadowColor: '#4ec18b',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        elevation: 5,
+        gap: 8,
     },
     enrollButtonText: {
         fontSize: 16,

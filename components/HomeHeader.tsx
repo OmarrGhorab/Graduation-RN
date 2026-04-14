@@ -76,6 +76,7 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, notif
                             <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
 
+
                         <TouchableOpacity
                             style={styles.iconButton}
                             onPress={onNotificationPress}
