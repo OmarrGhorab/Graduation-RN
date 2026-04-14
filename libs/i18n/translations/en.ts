@@ -610,6 +610,7 @@ export default {
     settings: 'Settings',
     location: 'Location',
     helpSupport: 'Help & Support',
+    aiAssistant: 'AI Assistant',
     logout: 'Logout',
     changeProfilePicture: 'Change Profile Picture',
     takePhoto: 'Take Photo',

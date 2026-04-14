@@ -599,6 +599,7 @@ export default {
     settings: 'الإعدادات',
     location: 'الموقع',
     helpSupport: 'المساعدة والدعم',
+    aiAssistant: 'المساعد الذكي',
     logout: 'تسجيل الخروج',
     changeProfilePicture: 'تغيير صورة الملف الشخصي',
     takePhoto: 'التقاط صورة',

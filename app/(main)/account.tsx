@@ -158,6 +158,11 @@ export default function AccountScreen() {
                     
                     <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
                     <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />
+                    <MenuItem 
+                        icon="chatbubble-ellipses-outline" 
+                        label={t('account.aiAssistant')} 
+                        onPress={() => router.push('/ai-chat')} 
+                    />
                     <MenuItem icon="help-circle-outline" label={t('account.helpSupport')} />
                 </View>
 
