@@ -28,6 +28,8 @@ export function useCart() {
         mutationFn: (data: CheckoutRequest) => CartService.checkout(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['cart'] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['course'] });
         },
     });
 

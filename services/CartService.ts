@@ -29,7 +29,7 @@ export interface AddToCartRequest {
 }
 
 export interface CheckoutRequest {
-    paymentMethod: 'CARD' | 'TOKEN';
+    paymentMethod: 'CARD' | 'TOKEN' | 'WALLET';
     saveCard?: boolean;
     firstName?: string;
     lastName?: string;

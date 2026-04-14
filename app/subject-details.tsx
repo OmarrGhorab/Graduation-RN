@@ -73,7 +73,7 @@ export default function SubjectDetailsScreen() {
                             {item.progress && (
                                 <View style={[styles.progressBadge, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
                                     <Text style={[styles.progressBadgeText, { color: '#f59e0b' }]}>
-                                        {item.progress.attendancePercentage}% Attendance
+                                        {item.progress.attendancePercentage}% {t('course.attendance')}
                                     </Text>
                                 </View>
                             )}
@@ -95,7 +95,7 @@ export default function SubjectDetailsScreen() {
                     </View>
                     <View style={styles.priceContainer}>
                         <Text style={[styles.price, { color: theme.primary }]}>
-                            {item.price === 0 ? 'Free' : `${item.price} ${item.currency}`}
+                            {item.price === 0 ? t('course.free') : `${item.price} ${item.currency}`}
                         </Text>
                     </View>
                 </View>
@@ -116,10 +116,10 @@ export default function SubjectDetailsScreen() {
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
                 <Ionicons name="alert-circle-outline" size={48} color={theme.gray[400]} />
                 <Text style={{ marginTop: 12, color: theme.gray[600], textAlign: 'center' }}>
-                    Failed to load subject details
+                    {t('subjects.failedToLoad')}
                 </Text>
                 <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
-                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>Go Back</Text>
+                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>{t('common.back')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -148,7 +148,7 @@ export default function SubjectDetailsScreen() {
                             <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                                 <Ionicons name="arrow-back" size={22} color={isDark ? theme.text : '#000'} />
                             </TouchableOpacity>
-                            <Text style={[styles.navTitle, { color: isDark ? theme.text : '#000' }]}>Subject Details</Text>
+                            <Text style={[styles.navTitle, { color: isDark ? theme.text : '#000' }]}>{t('subjectDetails.title')}</Text>
                             <View style={{ width: 40 }} />
                         </View>
 
@@ -167,14 +167,14 @@ export default function SubjectDetailsScreen() {
                                 <View style={[styles.statBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                                     <Ionicons name="book-outline" size={14} color={theme.primary} />
                                     <Text style={[styles.statBadgeText, { color: isDark ? theme.text : theme.gray[600] }]}>
-                                        {subject.totalCourses} Courses
+                                        {t('subjectDetails.coursesCount', { count: subject.totalCourses })}
                                     </Text>
                                 </View>
                             </View>
                         </Animated.View>
 
                         <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>
-                            Available Courses
+                            {t('subjectDetails.availableCourses')}
                         </Text>
                     </View>
                 }
@@ -184,7 +184,7 @@ export default function SubjectDetailsScreen() {
                             <Ionicons name="journal-outline" size={48} color={theme.gray[300]} />
                         </View>
                         <Text style={[styles.emptyText, { color: theme.gray[400] }]}>
-                            No courses available for this subject
+                            {t('subjectDetails.noCourses')}
                         </Text>
                     </View>
                 }

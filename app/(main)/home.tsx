@@ -256,20 +256,20 @@ export default function MainHomeScreen() {
             if (result.success) {
                 // Refresh calendar to reflect attendance
                 queryClient.invalidateQueries({ queryKey: ['calendar'] });
-                Alert.alert('Success', result.message || 'Attendance marked successfully');
+                Alert.alert(t('common.success'), result.message || t('home.attendanceSuccess'));
                 router.push({
                     pathname: '/attendance-success',
                     params: {
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        location: 'Classroom'
+                        location: t('home.classroom')
                     }
                 });
             } else {
-                Alert.alert('Attendance Failed', result.message || 'Could not verify attendance.');
+                Alert.alert(t('courses.attendanceFailed'), result.message || t('courses.attendanceFailed'));
             }
         } catch (error: any) {
             logger.log('Error marking attendance:', error);
-            Alert.alert('Error', error.message || 'Failed to scan QR code.');
+            Alert.alert(t('common.error'), error.message || t('common.error'));
         }
     };
 
@@ -356,11 +356,11 @@ export default function MainHomeScreen() {
                             <View style={styles.dateRangeInfo}>
                                 <Ionicons name="calendar" size={20} color={theme.primary} />
                                 <Text style={[styles.dateRangeTitle, { color: isDark ? theme.text : theme.gray[900] }]}>
-                                    Date Range
+                                    {t('home.dateRange')}
                                 </Text>
                             </View>
                             <Text style={[styles.dateRangeDays, { color: theme.gray[500] }]}>
-                                {Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))} days
+                                {t('home.daysCount', { count: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) })}
                             </Text>
                         </View>
 
@@ -380,7 +380,7 @@ export default function MainHomeScreen() {
                                     <Ionicons name="calendar-outline" size={20} color={theme.primary} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>Start Date</Text>
+                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>{t('home.startDate')}</Text>
                                     <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
                                         {startDate.toLocaleDateString('en-US', { 
                                             weekday: 'short',
@@ -415,7 +415,7 @@ export default function MainHomeScreen() {
                                     <Ionicons name="calendar-outline" size={20} color={theme.primary} />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>End Date</Text>
+                                    <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>{t('home.endDate')}</Text>
                                     <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
                                         {endDate.toLocaleDateString('en-US', { 
                                             weekday: 'short',
@@ -430,7 +430,7 @@ export default function MainHomeScreen() {
 
                         {/* Quick Date Presets */}
                         <View style={styles.quickPresets}>
-                            <Text style={[styles.presetsLabel, { color: theme.gray[500] }]}>Quick select:</Text>
+                            <Text style={[styles.presetsLabel, { color: theme.gray[500] }]}>{t('home.quickSelect')}</Text>
                             <View style={styles.presetsRow}>
                                 <TouchableOpacity
                                     onPress={() => {
@@ -446,7 +446,7 @@ export default function MainHomeScreen() {
                                     }]}
                                 >
                                     <Ionicons name="time-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>7 days</Text>
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.sevenDays')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={() => {
@@ -463,7 +463,7 @@ export default function MainHomeScreen() {
                                     }]}
                                 >
                                     <Ionicons name="calendar-clear-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>This month</Text>
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.thisMonth')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPress={() => {
@@ -479,7 +479,7 @@ export default function MainHomeScreen() {
                                     }]}
                                 >
                                     <Ionicons name="trending-up-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>30 days</Text>
+                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.thirtyDays')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -509,7 +509,7 @@ export default function MainHomeScreen() {
                         ) : (
                             <View style={styles.emptySchedule}>
                                 <Ionicons name="calendar-outline" size={32} color={theme.gray[300]} />
-                                <Text style={{ color: theme.gray[400], marginTop: 8, fontFamily: Fonts.medium }}>No lessons found</Text>
+                                <Text style={{ color: theme.gray[400], marginTop: 8, fontFamily: Fonts.medium }}>{t('home.noLessons')}</Text>
                             </View>
                         )}
                     </View>

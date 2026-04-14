@@ -36,7 +36,7 @@ export interface PaymentHistoryItem {
 
 export interface DirectEnrollRequest {
     courseId: string;
-    paymentMethod: 'CARD' | 'TOKEN';
+    paymentMethod: 'CARD' | 'TOKEN' | 'WALLET';
     saveCard?: boolean;
     paymentMethodId?: string;
     idempotencyKey?: string;

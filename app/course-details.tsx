@@ -72,10 +72,10 @@ export default function CourseDetailsScreen() {
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
                 <Ionicons name="alert-circle-outline" size={48} color={theme.gray[400]} />
                 <Text style={{ marginTop: 12, color: theme.gray[600], textAlign: 'center' }}>
-                    {error ? 'Failed to load course details' : 'Course not found'}
+                    {error ? t('courses.failedToLoad') : t('courses.notFound')}
                 </Text>
                 <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
-                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>Go Back</Text>
+                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>{t('common.back')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -89,10 +89,10 @@ export default function CourseDetailsScreen() {
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
                 <Ionicons name="alert-circle-outline" size={48} color={theme.gray[400]} />
                 <Text style={{ marginTop: 12, color: theme.gray[600], textAlign: 'center' }}>
-                    Course data is incomplete
+                    {t('courses.incompleteData')}
                 </Text>
                 <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
-                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>Go Back</Text>
+                    <Text style={{ color: theme.primary, fontFamily: Fonts.bold }}>{t('common.back')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -118,7 +118,7 @@ export default function CourseDetailsScreen() {
 
     const handleEnroll = async () => {
         if (!profile?.id) {
-            Alert.alert('Error', 'Please login to enroll');
+            Alert.alert(t('common.info'), t('courses.loginRequired'));
             return;
         }
 
@@ -132,9 +132,9 @@ export default function CourseDetailsScreen() {
                 courseId: courseId as string,
                 studentId: profile.id
             });
-            Alert.alert('Success', 'You have been enrolled in this course!');
+            Alert.alert(t('common.success'), t('courses.enrolledMessage'));
         } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to enroll in course');
+            Alert.alert(t('common.error'), err.message || t('courses.attendanceFailed'));
         }
     };
 
@@ -144,12 +144,12 @@ export default function CourseDetailsScreen() {
                 courseId: courseId as string,
                 billingType: course.billingType || 'ONE_TIME'
             });
-            Alert.alert('Success', 'Added to cart!', [
-                { text: 'View Cart', onPress: () => router.push('/cart') },
-                { text: 'Continue' }
+            Alert.alert(t('common.success'), t('courses.addedToCart'), [
+                { text: t('courses.viewCart'), onPress: () => router.push('/cart') },
+                { text: t('courses.continueShopping') }
             ]);
         } catch (err: any) {
-            Alert.alert('Error', err.message || 'Failed to add to cart');
+            Alert.alert(t('common.error'), err.message || t('common.error'));
         }
     };
 
@@ -171,7 +171,7 @@ export default function CourseDetailsScreen() {
                     }
                 });
             } else {
-                Alert.alert('Attendance Failed', result.message || 'Could not verify attendance.');
+                Alert.alert(t('common.error'), result.message || t('courses.attendanceFailed'));
             }
         } catch (error: any) {
             console.error('[CourseDetails] Scan failed:', error);
@@ -204,7 +204,7 @@ export default function CourseDetailsScreen() {
             const result = await createLessonMutation.mutateAsync(lessonData);
             console.log('[CourseDetails] Lesson created successfully:', result);
 
-            Alert.alert('Success', 'Lesson created successfully');
+            Alert.alert(t('common.success'), t('courses.lessonCreated'));
             setShowCreateModal(false);
             setNewLessonTitle('');
         } catch (err: any) {
@@ -265,7 +265,7 @@ export default function CourseDetailsScreen() {
                         <View style={{ marginBottom: 8 }}>
                             <FreeTrialBadge />
                             <Text style={[styles.freeTrialText, { color: theme.gray[500] }]}>
-                                First {course.freeTrialLessons} {course.freeTrialLessons === 1 ? 'lesson' : 'lessons'} free
+                                {t('courseDetails.freeLessons', { count: course.freeTrialLessons })}
                             </Text>
                         </View>
                     )}
@@ -279,12 +279,12 @@ export default function CourseDetailsScreen() {
                                 style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
                             />
                             <View>
-                                <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>Instructor</Text>
+                                <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>{t('courseDetails.instructor')}</Text>
                                 <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacher.name}</Text>
                             </View>
                         </View>
                         <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
-                            <Text style={[styles.viewProfileText, { color: theme.primary }]}>View Profile</Text>
+                            <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -332,13 +332,13 @@ export default function CourseDetailsScreen() {
 
                 {/* Description Section */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>Description</Text>
+                    <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.description')}</Text>
                     <Text style={[styles.descriptionText, { color: theme.gray[600] }]} numberOfLines={showFullDescription ? undefined : 3}>
-                        {course.description || 'This course provides a comprehensive introduction to the subject matter. Topics include fundamental concepts, practical applications, and advanced techniques...'}
+                        {course.description || t('courseDetails.noDescription')}
                     </Text>
                     <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)} style={styles.readMoreButton}>
                         <Text style={[styles.readMoreText, { color: theme.primary }]}>
-                            {showFullDescription ? 'Read Less' : 'Read More'}
+                            {showFullDescription ? t('courseDetails.readLess') : t('courseDetails.readMore')}
                         </Text>
                         <Ionicons name={showFullDescription ? 'chevron-up' : 'chevron-down'} size={12} color={theme.primary} />
                     </TouchableOpacity>
@@ -356,9 +356,9 @@ export default function CourseDetailsScreen() {
                             try {
                                 await removeCourseAssistant(courseId as string, assistantId);
                                 queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
-                                Alert.alert('Success', 'Assistant removed successfully');
+                                Alert.alert(t('common.success'), t('courseDetails.removeAssistantSuccess'));
                             } catch (error: any) {
-                                Alert.alert('Error', error.message || 'Failed to remove assistant');
+                                Alert.alert(t('common.error'), error.message || t('common.error'));
                             }
                         }}
                     />
@@ -393,9 +393,9 @@ export default function CourseDetailsScreen() {
                                         onPress: async () => {
                                             try {
                                                 await deleteReview(reviewId);
-                                                Alert.alert('Success', 'Review deleted successfully');
+                                                Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
                                             } catch (error: any) {
-                                                Alert.alert('Error', error.message || 'Failed to delete review');
+                                                Alert.alert(t('common.error'), error.message || t('common.error'));
                                             }
                                         },
                                     },
@@ -408,7 +408,7 @@ export default function CourseDetailsScreen() {
                 {/* Curriculum Section */}
                 <View style={styles.section}>
                     <View style={styles.curriculumHeader}>
-                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>Curriculum</Text>
+                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.curriculum')}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                             {isTeacher && (
                                 <TouchableOpacity onPress={() => setShowCreateModal(true)}>
@@ -416,7 +416,7 @@ export default function CourseDetailsScreen() {
                                 </TouchableOpacity>
                             )}
                             <Text style={[styles.curriculumMeta, { color: theme.gray[500] }]}>
-                                {safeLessons.length} Lessons
+                                {safeLessons.length} {t('courseDetails.lessons')}
                             </Text>
                         </View>
                     </View>
@@ -436,7 +436,7 @@ export default function CourseDetailsScreen() {
                                     >
                                         <View>
                                             <Text style={[styles.moduleLabel, { color: isExpanded ? theme.primary : theme.gray[400] }]}>
-                                                LESSON {index + 1}
+                                                {t('courseDetails.lesson')} {index + 1}
                                             </Text>
                                             <Text style={[styles.moduleTitle, { color: isDark ? theme.text : '#000' }]}>
                                                 {lesson.title}
@@ -482,7 +482,7 @@ export default function CourseDetailsScreen() {
                                                     onPress={() => setShowScanner(true)}
                                                 >
                                                     <Ionicons name="qr-code-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>Mark Attendance</Text>
+                                                    <Text style={styles.actionButtonText}>{t('courseDetails.markAttendance')}</Text>
                                                 </TouchableOpacity>
                                             )}
 
@@ -492,7 +492,7 @@ export default function CourseDetailsScreen() {
                                                     onPress={() => router.push({ pathname: '/absence-request', params: { lessonId: lesson.id } })}
                                                 >
                                                     <Ionicons name="document-text-outline" size={18} color={theme.gray[700]} />
-                                                    <Text style={[styles.actionButtonText, { color: theme.gray[700] }]}>Request Excuse</Text>
+                                                    <Text style={[styles.actionButtonText, { color: theme.gray[700] }]}>{t('courseDetails.requestExcuse')}</Text>
                                                 </TouchableOpacity>
                                             )}
 
@@ -509,7 +509,7 @@ export default function CourseDetailsScreen() {
                                                     }}
                                                 >
                                                     <Ionicons name="play-circle-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>Start Lesson</Text>
+                                                    <Text style={styles.actionButtonText}>{t('courseDetails.startLesson')}</Text>
                                                 </TouchableOpacity>
                                             )}
 
@@ -519,7 +519,7 @@ export default function CourseDetailsScreen() {
                                                     onPress={() => router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } })}
                                                 >
                                                     <Ionicons name="settings-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>Manage Lesson</Text>
+                                                    <Text style={styles.actionButtonText}>{t('courseDetails.manageLesson')}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -534,9 +534,17 @@ export default function CourseDetailsScreen() {
             </ScrollView>
 
             {!isEnrolled && !isTeacher && (
-                <View style={[styles.bottomBar, { backgroundColor: isDark ? `${theme.surface}CC` : 'rgba(255,255,255,0.8)', borderTopColor: isDark ? theme.border : theme.gray[200] }]}>
+                <View style={[styles.bottomBar, { 
+                    backgroundColor: isDark ? theme.surface : '#FFFFFF', 
+                    borderTopColor: isDark ? theme.border : theme.gray[200],
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 10,
+                    elevation: 20
+                }]}>
                     <View style={styles.priceContainer}>
-                        <Text style={[styles.priceLabel, { color: theme.gray[400] }]}>FULL COURSE PRICE</Text>
+                        <Text style={[styles.priceLabel, { color: theme.gray[400] }]}>{t('courseDetails.priceLabel')}</Text>
                         <View style={styles.priceRow}>
                             <Text style={[styles.priceAmount, { color: isDark ? theme.text : '#000' }]}>
                                 {course.isPaid ? course.price : '0'}
@@ -549,14 +557,14 @@ export default function CourseDetailsScreen() {
                     <View style={styles.enrollActions}>
                         {course.isPaid && (
                             <TouchableOpacity
-                                style={[styles.cartIconButton, { backgroundColor: `${theme.primary}15` }]}
+                                style={[styles.cartIconButton, { backgroundColor: `${theme.primary}10` }]}
                                 onPress={handleAddToCart}
                                 disabled={isAdding}
                             >
                                 {isAdding ? (
                                     <ActivityIndicator size="small" color={theme.primary} />
                                 ) : (
-                                    <Ionicons name="cart-outline" size={24} color={theme.primary} />
+                                    <Ionicons name="cart-outline" size={22} color={theme.primary} />
                                 )}
                             </TouchableOpacity>
                         )}
@@ -570,7 +578,7 @@ export default function CourseDetailsScreen() {
                             ) : (
                                 <>
                                     <Text style={styles.enrollButtonText}>
-                                        {course.isPaid ? 'Buy Now' : 'Enroll Now'}
+                                        {course.isPaid ? t('courseDetails.buyNow') : t('courseDetails.enrollNow')}
                                     </Text>
                                     <Ionicons name="arrow-forward" size={16} color="#FFF" />
                                 </>
@@ -594,10 +602,10 @@ export default function CourseDetailsScreen() {
             >
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { backgroundColor: isDark ? theme.surface : '#FFF' }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? theme.text : '#000' }]}>Create New Lesson</Text>
+                        <Text style={[styles.modalTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.createLesson')}</Text>
                         <TextInput
                             style={[styles.input, { color: isDark ? theme.text : '#000', borderColor: theme.gray[200] }]}
-                            placeholder="Lesson Title"
+                            placeholder={t('courseDetails.lessonTitle')}
                             placeholderTextColor={theme.gray[400]}
                             value={newLessonTitle}
                             onChangeText={setNewLessonTitle}
@@ -607,7 +615,7 @@ export default function CourseDetailsScreen() {
                                 style={[styles.modalButton, { backgroundColor: theme.gray[100] }]}
                                 onPress={() => setShowCreateModal(false)}
                             >
-                                <Text style={{ color: '#000' }}>Cancel</Text>
+                                <Text style={{ color: '#000' }}>{t('common.cancel')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalButton, { backgroundColor: theme.primary }]}
@@ -617,7 +625,7 @@ export default function CourseDetailsScreen() {
                                 {createLessonMutation.isPending ? (
                                     <ActivityIndicator size="small" color="#FFF" />
                                 ) : (
-                                    <Text style={{ color: '#FFF' }}>Create</Text>
+                                    <Text style={{ color: '#FFF' }}>{t('courseDetails.create')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>
@@ -636,10 +644,10 @@ export default function CourseDetailsScreen() {
                     try {
                         if (editingReview) {
                             await updateReview({ reviewId: editingReview.id, data: { rating, comment } });
-                            Alert.alert('Success', 'Review updated successfully');
+                            Alert.alert(t('common.success'), t('courseDetails.reviewUpdated'));
                         } else {
                             await createReview({ rating, comment });
-                            Alert.alert('Success', 'Review submitted successfully');
+                            Alert.alert(t('common.success'), t('courseDetails.reviewSubmitted'));
                         }
                         setShowReviewModal(false);
                         setEditingReview(null);
@@ -888,9 +896,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 24,
-        paddingVertical: 16,
-        paddingBottom: 32,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        paddingBottom: 28,
         borderTopWidth: 1,
     },
     priceContainer: {
@@ -907,21 +915,22 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     priceAmount: {
-        fontSize: 22,
+        fontSize: 20,
         fontFamily: Fonts.bold,
     },
     priceCurrency: {
-        fontSize: 12,
+        fontSize: 11,
         fontFamily: Fonts.medium,
     },
     enrollActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
+        flex: 1.5,
     },
     cartIconButton: {
-        width: 50,
-        height: 50,
+        width: 44,
+        height: 44,
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
@@ -930,13 +939,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 24,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
         borderRadius: 12,
         gap: 8,
     },
     enrollButtonText: {
-        fontSize: 16,
+        fontSize: 15,
         fontFamily: Fonts.bold,
         color: '#FFF',
     },

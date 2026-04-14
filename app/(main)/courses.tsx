@@ -20,13 +20,13 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-const FILTERS = ['All', 'Mathematics', 'Science', 'Physics', 'Chemistry', 'English', 'Computer Science'];
+const FILTERS = ['all', 'math', 'science', 'physics', 'chemistry', 'english', 'cs'];
 
 export default function CoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
-    const [activeFilter, setActiveFilter] = useState('All');
+    const [activeFilter, setActiveFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
 
     const { data: coursesData, isLoading, refetch } = useAllCourses({
@@ -36,8 +36,9 @@ export default function CoursesScreen() {
 
     // Handle local filtering for demo if API doesn't support name filtering yet
     const filteredCourses = coursesData?.data?.filter(course => {
-        if (activeFilter === 'All') return true;
-        return course.subjectName === activeFilter;
+        if (activeFilter === 'all') return true;
+        const normalizedFilterName = t(`subjects_list.${activeFilter}`).toLowerCase();
+        return course.subjectName.toLowerCase() === normalizedFilterName.toLowerCase();
     });
 
     const handleCoursePress = (courseId: string) => {
@@ -58,7 +59,7 @@ export default function CoursesScreen() {
                     <Ionicons name="search-outline" size={20} color={theme.gray[400]} />
                     <TextInput
                         style={[styles.searchInput, { color: isDark ? theme.text : '#1F2937' }]}
-                        placeholder="Search for courses, teachers..."
+                        placeholder={t('courses.searchPlaceholder')}
                         placeholderTextColor={theme.gray[400]}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -90,7 +91,7 @@ export default function CoursesScreen() {
                                     { color: activeFilter === filter ? '#FFFFFF' : (isDark ? theme.gray[400] : theme.gray[600]) }
                                 ]}
                             >
-                                {filter}
+                                {filter === 'all' ? t('courses.all') : t(`subjects_list.${filter}`)}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -119,7 +120,7 @@ export default function CoursesScreen() {
                     ListEmptyComponent={
                         <View style={styles.emptyState}>
                             <Ionicons name="search" size={48} color={theme.gray[300]} />
-                            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>No courses found matching your criteria.</Text>
+                            <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{t('courses.noCoursesFound')}</Text>
                         </View>
                     }
                 />

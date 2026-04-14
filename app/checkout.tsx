@@ -16,12 +16,13 @@ import { WebView } from 'react-native-webview';
 import { useCart } from '@/hooks/useCart';
 import { usePayments } from '@/hooks/usePayments';
 import { useAuthStore } from '@/libs/auth';
-import { useTheme } from '@/hooks/useTheme';
 import { Fonts, cskColors } from '@/constants/theme';
+import { useTranslation } from '@/hooks/useTranslation';
 
 export default function CheckoutScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const { t } = useTranslation();
     const { theme, isDark } = useTheme();
     const { user } = useAuthStore();
     const { cart, checkout, isCheckingOut } = useCart();
@@ -29,6 +30,7 @@ export default function CheckoutScreen() {
 
     const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
     const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
+    const [paymentType, setPaymentType] = useState<'CARD' | 'WALLET'>('CARD');
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Form states
@@ -45,7 +47,7 @@ export default function CheckoutScreen() {
         setIsProcessing(true);
         try {
             if (!phoneNumber || phoneNumber.length < 5) {
-                Alert.alert('Missing Information', 'Please enter your phone number to proceed with the payment.');
+                Alert.alert(t('checkout.missingInfo'), t('checkout.enterPhone'));
                 setIsProcessing(false);
                 return;
             }
@@ -55,9 +57,9 @@ export default function CheckoutScreen() {
                 // Direct Enroll
                 response = await directEnroll({
                     courseId,
-                    paymentMethod: selectedMethodId ? 'TOKEN' : 'CARD',
+                    paymentMethod: selectedMethodId ? 'TOKEN' : paymentType,
                     paymentMethodId: selectedMethodId || undefined,
-                    saveCard: selectedMethodId ? false : saveCard,
+                    saveCard: selectedMethodId ? false : (paymentType === 'CARD' ? saveCard : false),
                     firstName,
                     lastName,
                     email,
@@ -66,9 +68,9 @@ export default function CheckoutScreen() {
             } else {
                 // Checkout Cart
                 response = await checkout({
-                    paymentMethod: selectedMethodId ? 'TOKEN' : 'CARD',
+                    paymentMethod: selectedMethodId ? 'TOKEN' : paymentType,
                     paymentMethodId: selectedMethodId || undefined,
-                    saveCard: selectedMethodId ? false : saveCard,
+                    saveCard: selectedMethodId ? false : (paymentType === 'CARD' ? saveCard : false),
                     firstName,
                     lastName,
                     email,
@@ -81,7 +83,7 @@ export default function CheckoutScreen() {
             } else if (response.success && response.data.status === 'SUCCESS') {
                 handleSuccess();
             } else {
-                Alert.alert('Payment Initialized', 'Waiting for confirmation...');
+                Alert.alert(t('checkout.paymentInitialized'), t('checkout.waitingConfirmation'));
             }
         } catch (error: any) {
             // Edge case: Handle status 400 but valid success payload (contains paymentUrl)
@@ -90,7 +92,7 @@ export default function CheckoutScreen() {
                 return;
             }
             
-            Alert.alert('Payment Error', error.message || 'Failed to initialize payment');
+            Alert.alert(t('checkout.paymentError'), error.message || t('checkout.paymentError'));
         } finally {
             setIsProcessing(false);
         }
@@ -98,19 +100,24 @@ export default function CheckoutScreen() {
 
     const handleSuccess = () => {
         setPaymentUrl(null);
-        Alert.alert('Success', 'Payment completed successfully!', [
-            { text: 'OK', onPress: () => router.replace('/(main)/home') }
+        Alert.alert(t('common.success'), t('checkout.paymentSuccess'), [
+            { text: t('common.ok'), onPress: () => router.replace('/(main)/home') }
         ]);
     };
 
     const handleNavigationStateChange = (navState: any) => {
         const { url } = navState;
+        console.log('[Checkout] WebView Navigation:', url);
+
         // Paymob success patterns: check for success=true or specific callback keywords
-        if (url.includes('success=true') || url.includes('payment_success')) {
+        // We check for these keywords even if the domain is localhost and fails to load
+        if (url.includes('success=true') || url.includes('payment_success') || url.includes('txn_response_code=0')) {
+            console.log('[Checkout] Success detected in URL');
             handleSuccess();
-        } else if (url.includes('success=false') || url.includes('payment_failed')) {
+        } else if (url.includes('success=false') || url.includes('payment_failed') || url.includes('error_occured=true')) {
+            console.log('[Checkout] Failure detected in URL');
             setPaymentUrl(null);
-            Alert.alert('Payment Failed', 'Transaction was not successful. Please try again.');
+            Alert.alert(t('checkout.paymentFailed'), t('checkout.paymentFailedMessage'));
         }
     };
 
@@ -121,12 +128,26 @@ export default function CheckoutScreen() {
                     <TouchableOpacity onPress={() => setPaymentUrl(null)} style={styles.backButton}>
                         <Ionicons name="close" size={28} color={theme.text} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.text }]}>Secure Payment</Text>
+                    <Text style={[styles.headerTitle, { color: theme.text }]}>{t('checkout.securePayment')}</Text>
                     <View style={{ width: 40 }} />
                 </View>
                 <WebView
                     source={{ uri: paymentUrl }}
                     onNavigationStateChange={handleNavigationStateChange}
+                    domStorageEnabled={true}
+                    javaScriptEnabled={true}
+                    originWhitelist={['*']}
+                    mixedContentMode="always"
+                    onError={(syntheticEvent) => {
+                        const { nativeEvent } = syntheticEvent;
+                        console.warn('[Checkout] WebView Error:', nativeEvent);
+                        handleNavigationStateChange(nativeEvent);
+                    }}
+                    onHttpError={(syntheticEvent) => {
+                        const { nativeEvent } = syntheticEvent;
+                        console.warn('[Checkout] WebView HTTP Error:', nativeEvent);
+                        handleNavigationStateChange(nativeEvent);
+                    }}
                     startInLoadingState={true}
                     renderLoading={() => (
                         <View style={[StyleSheet.absoluteFill, styles.center]}>
@@ -144,23 +165,77 @@ export default function CheckoutScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={28} color={theme.text} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>Checkout</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>{t('checkout.title')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 {/* Summary Section */}
                 <View style={[styles.section, { backgroundColor: theme.surface }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Total Amount</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('checkout.totalAmount')}</Text>
                     <Text style={[styles.amountText, { color: theme.primary }]}>
-                        {courseId ? 'Course Price' : `${(cart?.totalCents || 0) / 100} ${cart?.currency || 'EGP'}`}
+                        {courseId ? t('courseDetails.priceLabel') : `${(cart?.totalCents || 0) / 100} ${cart?.currency || 'EGP'}`}
                     </Text>
                 </View>
 
-                {/* Saved Cards Section */}
-                {savedMethods.length > 0 && (
+                {/* Payment Method Selection */}
+                <View style={styles.sectionContainer}>
+                    <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>{t('checkout.paymentMethod')}</Text>
+                    <View style={styles.methodSelector}>
+                        <TouchableOpacity
+                            style={[
+                                styles.methodToggle,
+                                { 
+                                    backgroundColor: paymentType === 'CARD' && !selectedMethodId ? theme.primary : theme.surface,
+                                    borderColor: theme.border 
+                                }
+                            ]}
+                            onPress={() => {
+                                setPaymentType('CARD');
+                                setSelectedMethodId(null);
+                            }}
+                        >
+                            <Ionicons 
+                                name="card" 
+                                size={20} 
+                                color={paymentType === 'CARD' && !selectedMethodId ? '#FFF' : theme.text} 
+                            />
+                            <Text style={[
+                                styles.methodToggleText, 
+                                { color: paymentType === 'CARD' && !selectedMethodId ? '#FFF' : theme.text }
+                            ]}>{t('checkout.card')}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.methodToggle,
+                                { 
+                                    backgroundColor: paymentType === 'WALLET' && !selectedMethodId ? theme.primary : theme.surface,
+                                    borderColor: theme.border 
+                                }
+                            ]}
+                            onPress={() => {
+                                setPaymentType('WALLET');
+                                setSelectedMethodId(null);
+                            }}
+                        >
+                            <Ionicons 
+                                name="wallet" 
+                                size={20} 
+                                color={paymentType === 'WALLET' && !selectedMethodId ? '#FFF' : theme.text} 
+                            />
+                            <Text style={[
+                                styles.methodToggleText, 
+                                { color: paymentType === 'WALLET' && !selectedMethodId ? '#FFF' : theme.text }
+                            ]}>{t('checkout.wallet')}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Saved Cards Section - Only show if Card is selected or we have saved methods */}
+                {paymentType === 'CARD' && savedMethods.length > 0 && (
                     <View style={styles.sectionContainer}>
-                        <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>Saved Cards</Text>
+                        <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>{t('checkout.savedCards')}</Text>
                         {savedMethods.map((method) => (
                             <TouchableOpacity
                                 key={method.ID}
@@ -172,7 +247,10 @@ export default function CheckoutScreen() {
                                         borderWidth: selectedMethodId === method.ID ? 2 : 1
                                     }
                                 ]}
-                                onPress={() => setSelectedMethodId(selectedMethodId === method.ID ? null : method.ID)}
+                                onPress={() => {
+                                    setSelectedMethodId(selectedMethodId === method.ID ? null : method.ID);
+                                    if (selectedMethodId !== method.ID) setPaymentType('CARD');
+                                }}
                             >
                                 <Ionicons name="card-outline" size={24} color={theme.primary} />
                                 <View style={styles.cardInfo}>
@@ -189,24 +267,24 @@ export default function CheckoutScreen() {
 
                 {/* Billing Info */}
                 <View style={styles.sectionContainer}>
-                    <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>Billing Information</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>{t('checkout.billingInformation')}</Text>
                     <View style={[styles.form, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                         <TextInput
-                            placeholder="First Name"
+                            placeholder={t('checkout.firstName')}
                             placeholderTextColor={theme.gray[400]}
                             style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]}
                             value={firstName}
                             onChangeText={setFirstName}
                         />
                         <TextInput
-                            placeholder="Last Name"
+                            placeholder={t('checkout.lastName')}
                             placeholderTextColor={theme.gray[400]}
                             style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]}
                             value={lastName}
                             onChangeText={setLastName}
                         />
                         <TextInput
-                            placeholder="Email Address"
+                            placeholder={t('checkout.email')}
                             placeholderTextColor={theme.gray[400]}
                             style={[styles.input, { color: theme.text, borderBottomColor: theme.border }]}
                             value={email}
@@ -214,7 +292,7 @@ export default function CheckoutScreen() {
                             keyboardType="email-address"
                         />
                         <TextInput
-                            placeholder="Phone Number"
+                            placeholder={t('checkout.phone')}
                             placeholderTextColor={theme.gray[400]}
                             style={[styles.input, { color: theme.text, borderBottomWidth: 0 }]}
                             value={phoneNumber}
@@ -223,7 +301,7 @@ export default function CheckoutScreen() {
                         />
                     </View>
                     
-                    {!selectedMethodId && (
+                    {(!selectedMethodId && paymentType === 'CARD') && (
                         <TouchableOpacity 
                             style={styles.checkboxContainer} 
                             onPress={() => setSaveCard(!saveCard)}
@@ -233,7 +311,7 @@ export default function CheckoutScreen() {
                                 size={24} 
                                 color={theme.primary} 
                             />
-                            <Text style={[styles.checkboxLabel, { color: theme.text }]}>Save card for future payments</Text>
+                            <Text style={[styles.checkboxLabel, { color: theme.text }]}>{t('checkout.saveCard')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -250,7 +328,7 @@ export default function CheckoutScreen() {
                     ) : (
                         <>
                             <Text style={styles.payButtonText}>
-                                {selectedMethodId ? 'Pay with Saved Card' : 'Pay via Paymob'}
+                                {selectedMethodId ? t('checkout.payWithSaved') : t('checkout.payVia', { method: paymentType === 'CARD' ? t('checkout.card') : t('checkout.wallet') })}
                             </Text>
                             <Ionicons name="lock-closed" size={18} color="#FFF" />
                         </>
@@ -282,6 +360,24 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 18,
+        fontFamily: Fonts.bold,
+    },
+    methodSelector: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    methodToggle: {
+        flex: 1,
+        height: 48,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        borderWidth: 1,
+    },
+    methodToggleText: {
+        fontSize: 14,
         fontFamily: Fonts.bold,
     },
     scrollContent: {

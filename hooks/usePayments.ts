@@ -18,7 +18,8 @@ export function usePayments() {
         mutationFn: (data: DirectEnrollRequest) => PaymentService.directEnroll(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payment-history'] });
-            queryClient.invalidateQueries({ queryKey: ['courses', 'my'] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            queryClient.invalidateQueries({ queryKey: ['course'] });
         },
     });
 
