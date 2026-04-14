@@ -2,6 +2,7 @@ import { BASE_URL } from '@/constants/config';
 import { logger } from '@/libs/logger';
 import { getValidAccessToken } from './AuthService';
 import { apiClient } from './apiClient';
+import { DeviceService } from './DeviceService';
 
 export interface ApiCourse {
     id: string;
@@ -528,12 +529,17 @@ export interface CreateCourseRequest {
     title: string;
     description: string;
     subjectId: string;
+    courseImage?: string;
+    previewVideoUrl?: string;
+    previewVideoPublicId?: string;
     deliveryType: 'OFFLINE' | 'ONLINE';
-    locationName: string;
+    totalLessons: number;
+    freeTrialLessons?: number;
+    locationName?: string;
     locationLat?: number;
     locationLng?: number;
-    geofenceRadiusM: number;
-    attendanceWindowMinutes: number;
+    geofenceRadiusM?: number;
+    attendanceWindowMinutes?: number;
     price: number;
     currency: string;
     isPaid: boolean;
@@ -953,8 +959,8 @@ export interface UploadVideoResponse {
     success: boolean;
     data: {
         id: string;
-        videoUrl: string;
-        videoPublicId: string;
+        url: string;
+        publicId: string;
     };
     message: string;
     upload_info?: {
@@ -967,7 +973,7 @@ export interface UploadDocumentResponse {
     success: boolean;
     data: {
         id: string;
-        materialsUrl: string;
+        url: string;
     };
     message: string;
 }
@@ -1043,7 +1049,7 @@ export async function uploadLessonVideo(
         });
         
         // Get auth token and setup request
-        getValidAccessToken().then(token => {
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             if (!token) {
                 reject(new Error('No authentication token found'));
                 return;
@@ -1051,6 +1057,12 @@ export async function uploadLessonVideo(
             
             xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-video`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
             xhr.send(formData as any);
         }).catch(reject);
     });
@@ -1120,7 +1132,7 @@ export async function uploadLessonDocument(
         });
         
         // Get auth token and setup request
-        getValidAccessToken().then(token => {
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             if (!token) {
                 reject(new Error('No authentication token found'));
                 return;
@@ -1128,6 +1140,12 @@ export async function uploadLessonDocument(
             
             xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-document`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
             xhr.send(formData as any);
         }).catch(reject);
     });
@@ -1347,9 +1365,138 @@ export async function getTeacherRating(teacherId: string): Promise<TeacherRating
     return apiClient.get<TeacherRatingResponse>(`/api/v1/teachers/${teacherId}/rating`);
 }
 
+/**
+ * Upload thumbnail for course (Teacher)
+ */
+export async function uploadCourseImage(
+    imageFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<{ success: boolean; data: { url: string }; message: string }> {
+    logger.log('[Courses] Uploading course thumbnail');
+    
+    const formData = new FormData();
+    formData.append('image', {
+        uri: imageFile.uri,
+        type: imageFile.type,
+        name: imageFile.name,
+    } as any);
+
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+        
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch (e) { reject(new Error('Failed to parse response')); }
+            } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+        });
+        
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+        
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-image`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Upload preview video for course (Teacher)
+ */
+export async function uploadCoursePreviewVideo(
+    videoFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<{ success: boolean; data: { url: string; publicId: string }; message: string }> {
+    logger.log('[Courses] Uploading course preview video');
+    
+    const formData = new FormData();
+    formData.append('video', {
+        uri: videoFile.uri,
+        type: videoFile.type,
+        name: videoFile.name,
+    } as any);
+
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+        
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch (e) { reject(new Error('Failed to parse response')); }
+            } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+        });
+        
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+        
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-video`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Get teacher analytics (Teacher)
+ */
+export async function getTeacherAnalytics(): Promise<{ success: boolean; data: any }> {
+    logger.log('[Analytics] Fetching teacher analytics');
+    return apiClient.get<{ success: boolean; data: any }>('/api/v1/courses/teacher/analytics');
+}
+
+/**
+ * Mark a lesson as completed (Student progress tracking)
+ */
+export async function markLessonCompleted(lessonId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Progress] Marking lesson as completed:', lessonId);
+    return apiClient.post<{ success: boolean; message: string }>(`/api/v1/progress/${lessonId}`, {});
+}
+
 // ============================================================================
 // HEALTH CHECKS
 // ============================================================================
+// ... (rest of original code)
 
 export interface HealthResponse {
     success: boolean;

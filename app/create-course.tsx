@@ -50,6 +50,7 @@ export default function CreateCourseScreen() {
     const [isPaid, setIsPaid] = useState(false);
     const [billingType, setBillingType] = useState<BillingType>('ONE_TIME');
     const [attendanceWeight, setAttendanceWeight] = useState('0.3');
+    const [freeTrialLessons, setFreeTrialLessons] = useState('0');
     const [showLocationPicker, setShowLocationPicker] = useState(false);
 
     // Fetch subjects
@@ -60,10 +61,14 @@ export default function CreateCourseScreen() {
 
     const subjects = subjectsResponse?.data || [];
 
+    // Form state extensions
+    const [videoFile, setVideoFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+    const [videoUrl, setVideoUrl] = useState('');
+    const [uploading, setUploading] = useState(false);
+
     const pickImage = async () => {
         try {
             const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            
             if (!permissionResult.granted) {
                 Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
                 return;
@@ -84,21 +89,41 @@ export default function CreateCourseScreen() {
         }
     };
 
+    const pickVideo = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                allowsEditing: true,
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                setVideoFile({
+                    uri: result.assets[0].uri,
+                    name: `course_preview_${Date.now()}.mp4`,
+                    type: 'video/mp4'
+                });
+                setVideoUrl(''); // Clear manual URL
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick video');
+        }
+    };
+
     const handleCreateCourse = async () => {
-        // Validation
-        if (!title.trim()) {
-            Alert.alert('Validation Error', 'Please enter a course title');
+        if (!title.trim() || !subjectId) {
+            Alert.alert('Validation Error', 'Title and Subject are required');
             return;
         }
 
-        if (!subjectId) {
-            Alert.alert('Validation Error', 'Please select a subject');
-            return;
-        }
-
-        if (deliveryType === 'ONLINE' && !locationName.trim()) {
-            Alert.alert('Validation Error', 'Please enter a meeting link for online courses');
-            return;
+        // Online Validation: Need either a Meeting Link OR a Video
+        if (deliveryType === 'ONLINE') {
+            const hasVideo = !!videoFile || !!videoUrl.trim();
+            const hasLink = !!locationName.trim();
+            if (!hasVideo && !hasLink) {
+                Alert.alert('Content Required', 'Please provide either a meeting link or upload a course preview video.');
+                return;
+            }
         }
 
         if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
@@ -107,17 +132,50 @@ export default function CreateCourseScreen() {
         }
 
         try {
+            setUploading(true);
+            const { uploadCourseImage, uploadCoursePreviewVideo } = await import('@/services/CourseService');
+            
+            // 1. Handle Image Upload if needed
+            let finalImageUrl = courseImage;
+            if (courseImage && courseImage.startsWith('file://')) {
+                const imgRes = await uploadCourseImage({
+                    uri: courseImage,
+                    name: 'course_thumb.jpg',
+                    type: 'image/jpeg'
+                });
+                finalImageUrl = imgRes.data.url;
+            }
+
+            // 2. Handle Video Upload if needed
+            let finalVideoUrl = videoUrl;
+            let finalVideoPublicId = '';
+            if (videoFile) {
+                const vidRes = await uploadCoursePreviewVideo({
+                    uri: videoFile.uri,
+                    name: videoFile.name,
+                    type: videoFile.type
+                }, (progress) => {
+                    console.log(`[Preview Upload] ${progress.toFixed(0)}%`);
+                });
+                finalVideoUrl = vidRes.data.url;
+                finalVideoPublicId = vidRes.data.publicId;
+            }
+
+            // 3. Prepare Final Data (MAPPED TO POSTMAN SPEC)
             const courseData = {
                 title: title.trim(),
                 description: description.trim(),
                 subjectId,
-                courseImage: courseImage.trim() || undefined,
+                courseImage: finalImageUrl,
+                previewVideoUrl: finalVideoUrl.trim() || undefined,
+                previewVideoPublicId: finalVideoPublicId || undefined,
                 deliveryType,
                 locationName: locationName.trim(),
                 locationLat: locationLat ? parseFloat(locationLat) : undefined,
                 locationLng: locationLng ? parseFloat(locationLng) : undefined,
                 geofenceRadiusM: parseInt(geofenceRadius) || 50,
                 totalLessons: parseInt(totalLessons) || 12,
+                freeTrialLessons: parseInt(freeTrialLessons) || 0,
                 attendanceWindowMinutes: parseInt(attendanceWindow) || 15,
                 price: parseFloat(price) || 0,
                 currency,
@@ -128,17 +186,12 @@ export default function CreateCourseScreen() {
 
             await createCourseMutation.mutateAsync(courseData);
             
-            Alert.alert(
-                'Success',
-                'Course created successfully!',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => router.back(),
-                    },
-                ]
-            );
+            setUploading(false);
+            Alert.alert('Success', 'Course created successfully!', [
+                { text: 'OK', onPress: () => router.back() }
+            ]);
         } catch (error: any) {
+            setUploading(false);
             Alert.alert('Error', error.message || 'Failed to create course');
         }
     };
@@ -333,6 +386,64 @@ export default function CreateCourseScreen() {
 
                         <View style={styles.inputContainer}>
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Course Preview Video (Trailer)
+                            </Text>
+                            
+                            {videoFile ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="videocam" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                        {videoFile.name}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setVideoFile(null)}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.uploadButton, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            borderColor: isDark ? '#3a4048' : '#d1d5d9',
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            padding: 12,
+                                            borderRadius: 12,
+                                            borderWidth: 1,
+                                            borderStyle: 'dashed',
+                                            justifyContent: 'center',
+                                            gap: 8,
+                                        }]}
+                                        onPress={pickVideo}
+                                    >
+                                        <MaterialIcons name="movie-creation" size={24} color={cskColors[500]} />
+                                        <Text style={{ color: isDark ? '#e1e5e9' : '#0d1b15', fontFamily: Fonts.medium }}>
+                                            Upload Preview Video
+                                        </Text>
+                                    </TouchableOpacity>
+                                    
+                                    <View style={{ height: 12 }} />
+                                    
+                                    <TextInput
+                                        style={[styles.input, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            color: isDark ? '#e1e5e9' : '#0d1b15',
+                                        }]}
+                                        placeholder="Or paste video URL (YouTube/Vimeo)"
+                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                        value={videoUrl}
+                                        onChangeText={setVideoUrl}
+                                        keyboardType="url"
+                                        autoCapitalize="none"
+                                    />
+                                </>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
                                 Total Lessons
                             </Text>
                             <TextInput
@@ -346,6 +457,26 @@ export default function CreateCourseScreen() {
                                 onChangeText={setTotalLessons}
                                 keyboardType="numeric"
                             />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Free Trial Lessons (Intro)
+                            </Text>
+                            <TextInput
+                                style={[styles.input, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    color: isDark ? '#e1e5e9' : '#0d1b15',
+                                }]}
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                value={freeTrialLessons}
+                                onChangeText={setFreeTrialLessons}
+                                keyboardType="numeric"
+                            />
+                            <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                Number of lessons students can watch before buying
+                            </Text>
                         </View>
                     </View>
 
@@ -671,9 +802,11 @@ export default function CreateCourseScreen() {
                 borderTopColor: isDark ? '#2a4d3d' : '#e9ebed',
             }]}>
                 <TouchableOpacity
-                    style={[styles.createButton, { backgroundColor: cskColors[500] }]}
+                    style={[styles.createButton, { 
+                        backgroundColor: (createCourseMutation.isPending || uploading) ? '#6b737c' : cskColors[500] 
+                    }]}
                     onPress={handleCreateCourse}
-                    disabled={createCourseMutation.isPending}
+                    disabled={createCourseMutation.isPending || uploading}
                     activeOpacity={0.9}
                 >
                     {createCourseMutation.isPending ? (
@@ -910,6 +1043,29 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 8,
         elevation: 4,
+    },
+    filePreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        gap: 12,
+        marginTop: 4,
+    },
+    fileName: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+    },
+    uploadButton: {
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
     },
     createButtonText: {
         color: '#ffffff',

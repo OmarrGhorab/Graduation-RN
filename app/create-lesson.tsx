@@ -152,17 +152,24 @@ export default function CreateLessonScreen() {
             return;
         }
 
-        if (deliveryType === 'ONLINE' && !locationName.trim()) {
-            Alert.alert('Validation Error', 'Please enter a meeting link for online lessons');
-            return;
-        }
-
-        if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
-            Alert.alert('Validation Error', 'Please select a location for offline lessons');
-            return;
-        }
-
         try {
+            // Updated Validation for Online Lessons: 
+            // Either a Meeting Link OR a Video must be provided.
+            if (deliveryType === 'ONLINE') {
+                const hasVideo = !!videoFile || !!videoUrl.trim();
+                const hasLink = !!locationName.trim();
+                
+                if (!hasVideo && !hasLink) {
+                    Alert.alert('Content Required', 'Please provide either a meeting link (Live) or upload a video (Recorded) for this online lesson.');
+                    return;
+                }
+            }
+
+            if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
+                Alert.alert('Validation Error', 'Please select a physical classroom location for offline lessons');
+                return;
+            }
+
             // Step 1: Create the lesson
             const lessonData = {
                 courseId,
