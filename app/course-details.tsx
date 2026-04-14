@@ -1,7 +1,7 @@
 import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, QRScannerModal, ReviewModal, ReviewsSection } from '@/components/course';
 import { Fonts } from '@/constants/theme';
 import { useCourseReviews } from '@/hooks/useCourseReviews';
-import { useCourseDetails, useEnrollCourse } from '@/hooks/useCourses';
+import { useCourse, useCourseDetails, useEnrollCourse } from '@/hooks/useCourses';
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
@@ -33,7 +34,10 @@ export default function CourseDetailsScreen() {
     const user = useAuthStore(state => state.user);
     const isTeacher = user?.role === 'TEACHER';
 
-    const { data: detailsData, isLoading, error } = useCourseDetails(courseId as string, profile?.id);
+    const { data: detailsData, isLoading: detailsLoading, error: detailsError } = useCourseDetails(courseId as string, profile?.id);
+    const { data: basicCourseData, isLoading: basicLoading } = useCourse(courseId as string);
+    const isLoading = detailsLoading || basicLoading;
+    const error = detailsError;
     const createLessonMutation = useCreateLesson();
     const { startLesson: startLessonMutation } = useLessonMutations();
     const enrollMutation = useEnrollCourse();
@@ -43,6 +47,20 @@ export default function CourseDetailsScreen() {
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
     const { addToCart, isAdding } = useCart();
+    const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1.0);
+    const videoRef = React.useRef<Video>(null);
+    const scrollViewRef = React.useRef<ScrollView>(null);
+    
+    const playbackRates = [1.0, 1.25, 1.5, 2.0];
+    const togglePlaybackRate = async () => {
+        const nextIndex = (playbackRates.indexOf(playbackRate) + 1) % playbackRates.length;
+        const nextRate = playbackRates[nextIndex];
+        setPlaybackRate(nextRate);
+        if (videoRef.current) {
+            await videoRef.current.setStatusAsync({ rate: nextRate, shouldCorrectPitch: true });
+        }
+    };
 
     // Reviews hook
     const {
@@ -84,6 +102,16 @@ export default function CourseDetailsScreen() {
     const { course, progress, teacher, lessons } = detailsData.data;
     const safeLessons = lessons || [];
     
+    // Check for preview video from either details endpoint or fallback to basic course endpoint
+    const previewUrl = course?.previewVideoUrl || 
+                       (detailsData.data as any).previewVideoUrl || 
+                       course?.preview_video_url || 
+                       (detailsData.data as any).preview_video_url ||
+                       basicCourseData?.data?.previewVideoUrl ||
+                       (basicCourseData?.data as any)?.preview_video_url;
+    
+    console.log('[CourseDetails] Found previewUrl:', previewUrl);
+    
     if (!course) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
@@ -107,7 +135,8 @@ export default function CourseDetailsScreen() {
     const getLessonIcon = (status: string, attendanceStatus?: string | null) => {
         if (attendanceStatus === 'PRESENT' || attendanceStatus === 'LATE') return 'checkmark-circle';
         if (status === 'LIVE') return 'play-circle';
-        return 'lock-closed';
+        if (status === 'COMPLETED') return 'checkbox-outline';
+        return 'calendar-outline';
     };
 
     const getLessonIconColor = (status: string, attendanceStatus?: string | null) => {
@@ -167,7 +196,7 @@ export default function CourseDetailsScreen() {
                     params: {
                         data,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        location: course.locationName || 'Main Campus'
+                        location: course.locationName || t('home.classroom')
                     }
                 });
             } else {
@@ -188,11 +217,11 @@ export default function CourseDetailsScreen() {
         const lessonData = {
             courseId: courseId as string,
             title: newLessonTitle,
-            description: 'New lesson created from mobile app',
+            description: t('courseDetails.newLessonDescription'),
             scheduledAt: new Date().toISOString(),
             durationMinutes: 90,
             deliveryType: course.deliveryType || 'OFFLINE',
-            locationName: course.locationName || 'Classroom',
+            locationName: course.locationName || t('home.classroom'),
             locationLat: course.locationLat || 30.0444,
             locationLng: course.locationLng || 31.2357,
             geofenceRadiusM: course.geofenceRadiusM || 100
@@ -223,15 +252,71 @@ export default function CourseDetailsScreen() {
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                ref={scrollViewRef}
+                contentContainerStyle={styles.scrollContent} 
+                showsVerticalScrollIndicator={false}
+            >
                 {/* Hero Image Section */}
                 <View style={styles.heroImageContainer}>
-                    <Image
-                        source={{ uri: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800' }}
-                        style={styles.heroImage}
-                    />
+                    {isPlayingVideo && previewUrl ? (
+                            <View style={{ flex: 1, position: 'relative' }}>
+                                <Video
+                                    ref={videoRef}
+                                    source={{ uri: previewUrl }}
+                                    style={styles.heroVideo}
+                                    useNativeControls
+                                    resizeMode={ResizeMode.COVER}
+                                    shouldPlay
+                                    rate={playbackRate}
+                                    shouldCorrectPitch={true}
+                                    posterSource={{ uri: course.courseImage }}
+                                    usePoster
+                                    posterStyle={styles.heroImage}
+                                    onPlaybackStatusUpdate={(status: any) => {
+                                        if (status.didJustFinish) {
+                                            setIsPlayingVideo(false);
+                                        }
+                                    }}
+                                    onError={(error) => {
+                                        console.error('[CourseDetails] Video Error:', error);
+                                        setIsPlayingVideo(false);
+                                    }}
+                                />
+                                <TouchableOpacity 
+                                    style={styles.speedButton}
+                                    onPress={togglePlaybackRate}
+                                >
+                                    <Ionicons name="speedometer-outline" size={14} color="#FFF" />
+                                    <Text style={styles.speedButtonText}>{playbackRate}x</Text>
+                                </TouchableOpacity>
+                            </View>
+                    ) : (
+                        <>
+                            <Image
+                                source={{ uri: course.courseImage || 'https://images.unsplash.com/photo-1501504905953-f8319bd23edc?w=800' }}
+                                style={styles.heroImage}
+                            />
+                            {previewUrl && (
+                                <TouchableOpacity 
+                                    style={styles.playButtonOverlay}
+                                    onPress={() => {
+                                        console.log('[CourseDetails] Playing video:', previewUrl);
+                                        setIsPlayingVideo(true);
+                                    }}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={styles.playIconContainer}>
+                                        <Ionicons name="play" size={32} color="#FFF" style={{ marginLeft: 4 }} />
+                                    </View>
+                                    <Text style={styles.playText}>{t('course.watchPreview') || 'Watch Preview'}</Text>
+                                </TouchableOpacity>
+                            )}
+                        </>
+                    )}
+                    
                     <LinearGradient
-                        colors={['rgba(0,0,0,0.5)', 'transparent']}
+                        colors={['rgba(0,0,0,0.4)', 'transparent']}
                         style={styles.heroGradient}
                     />
                     <View style={styles.heroNav}>
@@ -275,7 +360,7 @@ export default function CourseDetailsScreen() {
                     <View style={[styles.instructorCard, { backgroundColor: isDark ? theme.background : '#F6F8F7', borderColor: `${theme.primary}10` }]}>
                         <View style={styles.instructorInfo}>
                             <Image
-                                source={{ uri: teacher.profileImg || 'https://i.pravatar.cc/300?img=12' }}
+                                source={{ uri: teacher.profileImg || 'https://ui-avatars.com/api/?name=' + teacher.name }}
                                 style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
                             />
                             <View>
@@ -410,6 +495,18 @@ export default function CourseDetailsScreen() {
                     <View style={styles.curriculumHeader}>
                         <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.curriculum')}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            {previewUrl && (
+                                <TouchableOpacity 
+                                    style={styles.previewButtonInline}
+                                    onPress={() => {
+                                        setIsPlayingVideo(true);
+                                        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                                    }}
+                                >
+                                    <Ionicons name="play-circle" size={18} color={theme.primary} />
+                                    <Text style={[styles.previewButtonInlineText, { color: theme.primary }]}>{t('course.watchPreview')}</Text>
+                                </TouchableOpacity>
+                            )}
                             {isTeacher && (
                                 <TouchableOpacity onPress={() => setShowCreateModal(true)}>
                                     <Ionicons name="add-circle-outline" size={24} color={theme.primary} />
@@ -425,8 +522,9 @@ export default function CourseDetailsScreen() {
                         {safeLessons.map((lesson, index) => {
                             const moduleKey = index.toString();
                             const isExpanded = expandedModules[moduleKey];
-                            const lessonIcon = getLessonIcon(lesson.status, lesson.attendanceStatus);
-                            const lessonIconColor = getLessonIconColor(lesson.status, lesson.attendanceStatus);
+                            const isLocked = !lesson.isFree && !isEnrolled && !isTeacher;
+                            const lessonIcon = isLocked ? 'lock-closed' : getLessonIcon(lesson.status, lesson.attendanceStatus);
+                            const lessonIconColor = isLocked ? theme.gray[400] : getLessonIconColor(lesson.status, lesson.attendanceStatus);
 
                             return (
                                 <View key={lesson.id} style={[styles.moduleCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}>
@@ -443,9 +541,9 @@ export default function CourseDetailsScreen() {
                                             </Text>
                                         </View>
                                         <Ionicons
-                                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                                            size={24}
-                                            color={isExpanded ? theme.primary : theme.gray[400]}
+                                            name={isLocked ? 'lock-closed-outline' : (isExpanded ? 'chevron-up' : 'chevron-down')}
+                                            size={isLocked ? 18 : 24}
+                                            color={isLocked ? theme.gray[400] : (isExpanded ? theme.primary : theme.gray[400])}
                                         />
                                     </TouchableOpacity>
 
@@ -457,7 +555,7 @@ export default function CourseDetailsScreen() {
                                                 </View>
                                                 <View style={styles.lessonInfo}>
                                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000' }]}>
+                                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
                                                             {lesson.title}
                                                         </Text>
                                                         {lesson.isFree && <FreeTrialBadge variant="compact" />}
@@ -465,18 +563,26 @@ export default function CourseDetailsScreen() {
                                                     <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
                                                         {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </Text>
-                                                    {lesson.locationName && (
+                                                    {isLocked && (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                                            <Ionicons name="lock-closed" size={12} color={theme.gray[400]} />
+                                                            <Text style={{ fontSize: 12, color: theme.gray[400], fontFamily: Fonts.medium }}>
+                                                                {t('courseDetails.enrollToAccess')}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    {lesson.locationName && !isLocked && (
                                                         <Text style={[styles.lessonLocation, { color: theme.gray[400] }]}>
                                                             <Ionicons name="location-outline" size={12} /> {lesson.locationName}
                                                         </Text>
                                                     )}
                                                 </View>
-                                                {(lesson.attendanceStatus === 'PRESENT' || lesson.attendanceStatus === 'LATE') && (
+                                                {(lesson.attendanceStatus === 'PRESENT' || lesson.attendanceStatus === 'LATE') && !isLocked && (
                                                     <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
                                                 )}
                                             </View>
 
-                                            {!isTeacher && lesson.canMarkAttendance && (
+                                            {!isTeacher && !isLocked && lesson.canMarkAttendance && (
                                                 <TouchableOpacity
                                                     style={[styles.actionButton, { backgroundColor: theme.primary }]}
                                                     onPress={() => setShowScanner(true)}
@@ -486,7 +592,7 @@ export default function CourseDetailsScreen() {
                                                 </TouchableOpacity>
                                             )}
 
-                                            {!isTeacher && lesson.status === 'COMPLETED' && !lesson.attendanceStatus && (
+                                            {!isTeacher && !isLocked && lesson.status === 'COMPLETED' && !lesson.attendanceStatus && (
                                                 <TouchableOpacity
                                                     style={[styles.actionButton, { backgroundColor: theme.gray[200] }]}
                                                     onPress={() => router.push({ pathname: '/absence-request', params: { lessonId: lesson.id } })}
@@ -680,6 +786,62 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    heroVideo: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#000',
+    },
+    playButtonOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        zIndex: 10,
+    },
+    speedButton: {
+        position: 'absolute',
+        top: StatusBar.currentHeight ? StatusBar.currentHeight + 64 : 100,
+        right: 16,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        zIndex: 20,
+    },
+    speedButtonText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
+    playIconContainer: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: 'rgba(52, 199, 89, 0.9)', // Primary green
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    playText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+        marginTop: 12,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+    },
     heroGradient: {
         position: 'absolute',
         top: 0,
@@ -754,6 +916,21 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         lineHeight: 32,
         marginBottom: 16,
+    },
+    previewButtonInline: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(52, 199, 89, 0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        marginRight: 'auto',
+        marginLeft: 12,
+    },
+    previewButtonInlineText: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        marginLeft: 4,
     },
     instructorCard: {
         flexDirection: 'row',
@@ -898,7 +1075,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingVertical: 12,
-        paddingBottom: 28,
+        paddingBottom: 20, // Reduced from 28
         borderTopWidth: 1,
     },
     priceContainer: {
@@ -939,7 +1116,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 10, // Reduced from 12
         paddingHorizontal: 16,
         borderRadius: 12,
         gap: 8,

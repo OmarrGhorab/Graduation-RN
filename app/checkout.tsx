@@ -9,6 +9,8 @@ import {
     Alert,
     ScrollView,
     TextInput,
+    Image,
+    ImageBackground,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +20,8 @@ import { usePayments } from '@/hooks/usePayments';
 import { useAuthStore } from '@/libs/auth';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useTheme } from '@/hooks/useTheme';
+import { useCourseDetails } from '@/hooks/useCourses';
 
 export default function CheckoutScreen() {
     const router = useRouter();
@@ -27,6 +31,14 @@ export default function CheckoutScreen() {
     const { user } = useAuthStore();
     const { cart, checkout, isCheckingOut } = useCart();
     const { savedMethods, isLoadingMethods, directEnroll, isEnrolling } = usePayments();
+
+    // If direct buy from course details
+    const courseId = params.courseId as string;
+
+    const { data: detailsData } = useCourseDetails(courseId);
+    const courseDetails = detailsData?.data;
+    const course = courseDetails?.course;
+    const teacher = courseDetails?.teacher;
 
     const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
     const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
@@ -39,9 +51,6 @@ export default function CheckoutScreen() {
     const [email, setEmail] = useState(user?.email || '');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [saveCard, setSaveCard] = useState(true);
-
-    // If direct buy from course details
-    const courseId = params.courseId as string;
 
     const handlePayment = async () => {
         setIsProcessing(true);
@@ -171,12 +180,45 @@ export default function CheckoutScreen() {
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 {/* Summary Section */}
-                <View style={[styles.section, { backgroundColor: theme.surface }]}>
-                    <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('checkout.totalAmount')}</Text>
-                    <Text style={[styles.amountText, { color: theme.primary }]}>
-                        {courseId ? t('courseDetails.priceLabel') : `${(cart?.totalCents || 0) / 100} ${cart?.currency || 'EGP'}`}
-                    </Text>
-                </View>
+                {course ? (
+                    <ImageBackground
+                        source={{ uri: course.courseImage || 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800' }}
+                        style={styles.courseSummaryCard}
+                        imageStyle={{ borderRadius: 20 }}
+                    >
+                        <View style={styles.cardOverlay}>
+                            <View style={styles.courseMainInfo}>
+                                <Text style={styles.courseCategory}>{course.subjectName}</Text>
+                                <Text style={styles.courseTitle} numberOfLines={2}>{course.title}</Text>
+                                
+                                <View style={styles.instructorRow}>
+                                    <Image 
+                                        source={{ uri: teacher?.profileImg || 'https://ui-avatars.com/api/?name=' + (teacher?.name || 'Instructor') }} 
+                                        style={styles.instructorImage} 
+                                    />
+                                    <View>
+                                        <Text style={styles.instructorLabel}>{t('courseDetails.instructor')}</Text>
+                                        <Text style={styles.instructorName}>{teacher?.name}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                            
+                            <View style={styles.priceContainer}>
+                                <Text style={styles.amountLabel}>{t('checkout.totalAmount')}</Text>
+                                <Text style={styles.amountValue}>
+                                    {course.price} <Text style={styles.currencySmall}>{course.currency || 'EGP'}</Text>
+                                </Text>
+                            </View>
+                        </View>
+                    </ImageBackground>
+                ) : (
+                    <View style={[styles.section, { backgroundColor: theme.surface }]}>
+                        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('checkout.totalAmount')}</Text>
+                        <Text style={[styles.amountText, { color: theme.primary }]}>
+                            {`${(cart?.totalCents || 0) / 100} ${cart?.currency || 'EGP'}`}
+                        </Text>
+                    </View>
+                )}
 
                 {/* Payment Method Selection */}
                 <View style={styles.sectionContainer}>
@@ -469,5 +511,73 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 16,
         fontFamily: Fonts.bold,
+    },
+    courseSummaryCard: {
+        height: 220,
+        marginBottom: 24,
+        overflow: 'hidden',
+    },
+    cardOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 20,
+        justifyContent: 'space-between',
+    },
+    courseMainInfo: {
+        flex: 1,
+    },
+    courseCategory: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 4,
+    },
+    courseTitle: {
+        color: '#FFF',
+        fontSize: 22,
+        fontFamily: Fonts.bold,
+        marginBottom: 16,
+    },
+    instructorRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    instructorImage: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    instructorLabel: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 10,
+        fontFamily: Fonts.medium,
+    },
+    instructorName: {
+        color: '#FFF',
+        fontSize: 14,
+        fontFamily: Fonts.bold,
+    },
+    priceContainer: {
+        alignItems: 'flex-end',
+    },
+    amountLabel: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 10,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+    },
+    amountValue: {
+        color: '#FFF',
+        fontSize: 28,
+        fontFamily: Fonts.bold,
+    },
+    currencySmall: {
+        fontSize: 16,
+        opacity: 0.8,
     },
 });

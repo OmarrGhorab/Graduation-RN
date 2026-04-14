@@ -31,6 +31,10 @@ export interface ApiCourse {
     billingType: 'ONE_TIME' | 'MONTHLY';
     status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PAUSED';
     attendanceWeight: number;
+    previewVideoUrl?: string;
+    previewVideoPublicId?: string;
+    preview_video_url?: string;
+    preview_video_public_id?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -77,6 +81,11 @@ export interface ApiCourseDetails {
         freeTrialLessons?: number;
         courseRating?: number;
         totalReviews?: number;
+        courseImage?: string;
+        previewVideoUrl?: string;
+        previewVideoPublicId?: string;
+        preview_video_url?: string;
+        preview_video_public_id?: string;
     };
     progress?: {
         attendancePercentage: number;

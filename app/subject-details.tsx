@@ -86,7 +86,7 @@ export default function SubjectDetailsScreen() {
                 <View style={styles.courseFooter}>
                     <View style={styles.teacherInfo}>
                         <Image
-                            source={{ uri: item.teacherProfileImg || 'https://i.pravatar.cc/300?img=12' }}
+                            source={{ uri: item.teacherProfileImg || 'https://ui-avatars.com/api/?name=' + item.teacherName }}
                             style={styles.teacherAvatar}
                         />
                         <Text style={[styles.teacherName, { color: theme.gray[600] }]}>

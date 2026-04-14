@@ -600,6 +600,10 @@ export default {
   course: {
     title: 'Courses',
     emptyState: 'Your enrolled courses will appear here',
+    online: 'Online',
+    offline: 'Offline',
+    new: 'New',
+    watchPreview: 'Watch Preview',
   },
 
   // Cart
@@ -679,9 +683,12 @@ export default {
     reviewDeleted: 'Review deleted successfully',
     reviewUpdated: 'Review updated successfully',
     reviewSubmitted: 'Review submitted successfully',
+    contentLocked: 'Content Locked',
+    enrollToAccess: 'Enroll now to access this lesson',
     createLesson: 'Create New Lesson',
     lessonTitle: 'Lesson Title',
     create: 'Create',
+    newLessonDescription: 'New lesson created from mobile app',
   },
 
   // Checkout

@@ -600,6 +600,10 @@ export default {
   course: {
     title: 'الدورات',
     emptyState: 'ستظهر الدورات المسجلة هنا',
+    online: 'أونلاين',
+    offline: 'حضوري',
+    new: 'جديد',
+    watchPreview: 'شاهد العرض الترويجي',
     failedToLoad: 'فشل تحميل تفاصيل الدورة',
     notFound: 'الدورة غير موجودة',
     incompleteData: 'بيانات الدورة غير مكتملة',
@@ -669,9 +673,12 @@ export default {
     reviewDeleted: 'تم حذف التقييم بنجاح',
     reviewUpdated: 'تم تحديث التقييم بنجاح',
     reviewSubmitted: 'تم إرسال التقييم بنجاح',
+    contentLocked: 'المحتوى مقفل',
+    enrollToAccess: 'اشترك الآن للوصول إلى هذا الدرس',
     createLesson: 'إنشاء درس جديد',
     lessonTitle: 'عنوان الدرس',
     create: 'إنشاء',
+    newLessonDescription: 'درس جديد تم إنشاؤه من تطبيق الهاتف',
   },
 
   // Checkout

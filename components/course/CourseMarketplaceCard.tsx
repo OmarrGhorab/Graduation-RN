@@ -4,6 +4,7 @@ import { ApiCourse } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { memo } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface CourseMarketplaceCardProps {
     course: ApiCourse;
@@ -12,6 +13,7 @@ interface CourseMarketplaceCardProps {
 
 export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMarketplaceCardProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <TouchableOpacity
@@ -30,13 +32,13 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
             {/* Banner Image */}
             <View style={styles.imageContainer}>
                 <Image
-                    source={{ uri: course.courseImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80' }}
+                    source={{ uri: course.courseImage || 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=800' }}
                     style={styles.image}
                     resizeMode="cover"
                 />
                 <View style={styles.badgeContainer}>
                     <View style={[styles.badge, { backgroundColor: course.deliveryType === 'ONLINE' ? '#3b82f6' : theme.primary }]}>
-                        <Text style={styles.badgeText}>{course.deliveryType}</Text>
+                        <Text style={styles.badgeText}>{course.deliveryType === 'ONLINE' ? t('course.online') : t('course.offline')}</Text>
                     </View>
                 </View>
             </View>
@@ -50,7 +52,7 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
                     <View style={styles.ratingContainer}>
                         <Ionicons name="star" size={14} color="#F59E0B" />
                         <Text style={[styles.ratingText, { color: isDark ? theme.gray[400] : theme.gray[600] }]}>
-                            {course.courseRating || 'New'} <Text style={{ fontSize: 10, color: theme.gray[400] }}>({course.totalRatings || 0})</Text>
+                            {course.courseRating || t('course.new')} <Text style={{ fontSize: 10, color: theme.gray[400] }}>({course.totalRatings || 0})</Text>
                         </Text>
                     </View>
                 </View>
@@ -63,7 +65,7 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
                 {/* Teacher Info */}
                 <View style={styles.teacherRow}>
                     <Image
-                        source={{ uri: course.teacherProfileImg || 'https://i.pravatar.cc/100' }}
+                        source={{ uri: course.teacherProfileImg || 'https://ui-avatars.com/api/?name=' + course.teacherName }}
                         style={styles.avatar}
                     />
                     <Text style={[styles.teacherName, { color: theme.gray[500] }]}>
@@ -80,20 +82,20 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
                         <View style={styles.detailItem}>
                             <Ionicons name="location-outline" size={14} color={theme.gray[400]} />
                             <Text style={[styles.detailText, { color: theme.gray[500] }]} numberOfLines={1}>
-                                {course.deliveryType === 'ONLINE' ? 'Online' : (course.locationName || 'Campus')}
+                                {course.deliveryType === 'ONLINE' ? t('course.online') : (course.locationName || t('home.classroom'))}
                             </Text>
                         </View>
                         <View style={[styles.detailItem, { marginTop: 4 }]}>
                             <Ionicons name="book-outline" size={14} color={theme.gray[400]} />
                             <Text style={[styles.detailText, { color: theme.gray[500] }]}>
-                                {course.totalLessons} Lessons
+                                {course.totalLessons} {t('courseDetails.lessons')}
                             </Text>
                         </View>
                     </View>
 
                     <View style={styles.priceColumn}>
                         <Text style={[styles.price, { color: theme.primary }]}>
-                            {course.price === 0 ? 'Free' : `${course.price} ${course.currency}`}
+                            {course.price === 0 ? t('course.free') : `${course.price} ${course.currency || 'EGP'}`}
                         </Text>
                     </View>
                 </View>
