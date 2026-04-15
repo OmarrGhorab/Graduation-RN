@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+    AppState,
     View,
     StyleSheet,
     TouchableOpacity,
     ActivityIndicator,
     Dimensions,
-    Platform,
-    StatusBar,
     Text,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -16,9 +15,10 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider'; // You have this in package.json
-import Animated, { FadeIn, FadeOut, useAnimatedStyle, withTiming, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, useSharedValue } from 'react-native-reanimated';
 import { markLessonCompleted } from '@/services/CourseService';
 import * as Haptics from 'expo-haptics';
+import { useVideoTracking } from '@/hooks/useVideoTracking';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -26,11 +26,17 @@ interface Props {
     videoUrl: string;
     lessonId: string;
     onComplete?: () => void;
+    trackingEnabled?: boolean;
 }
 
 const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 
-export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Props) {
+export default function LessonVideoPlayer({
+    videoUrl,
+    lessonId,
+    onComplete,
+    trackingEnabled = true,
+}: Props) {
     useKeepAwake('LessonPlayer');
     
     // State for UI updates
@@ -43,6 +49,14 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [isCompleted, setIsCompleted] = useState(false);
     const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+    const hasMarkedCompletionRef = useRef(false);
+
+    const {
+        recordHeartbeat,
+        shouldRestorePosition,
+        initialPosition,
+        markPositionRestored,
+    } = useVideoTracking(lessonId, trackingEnabled);
 
     const player = useVideoPlayer(videoUrl, player => {
         player.loop = false;
@@ -72,7 +86,83 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
             })
         ];
         return () => subscriptions.forEach(s => s.remove());
-    }, [player, lessonId, isCompleted]);
+    }, [player, lessonId, isCompleted, onComplete]);
+
+    useEffect(() => {
+        if (!shouldRestorePosition) {
+            return;
+        }
+
+        player.currentTime = initialPosition;
+        setCurrentTime(initialPosition);
+        markPositionRestored();
+    }, [initialPosition, markPositionRestored, player, shouldRestorePosition]);
+
+    useEffect(() => {
+        if (!trackingEnabled || !lessonId) {
+            return;
+        }
+
+        const interval = setInterval(() => {
+            recordHeartbeat({
+                currentPosition: player.currentTime,
+                duration: player.duration || duration,
+                isPlaying: player.playing,
+            });
+        }, 10000);
+
+        return () => clearInterval(interval);
+    }, [duration, lessonId, player, recordHeartbeat, trackingEnabled]);
+
+    useEffect(() => {
+        if (!trackingEnabled || !lessonId) {
+            return;
+        }
+
+        const subscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState !== 'active') {
+                recordHeartbeat({
+                    currentPosition: player.currentTime,
+                    duration: player.duration || duration,
+                    isPlaying: player.playing,
+                    force: true,
+                });
+            }
+        });
+
+        return () => subscription.remove();
+    }, [duration, lessonId, player, recordHeartbeat, trackingEnabled]);
+
+    useEffect(() => {
+        return () => {
+            if (!trackingEnabled || !lessonId || !player.playing) {
+                return;
+            }
+
+            recordHeartbeat({
+                currentPosition: player.currentTime,
+                duration: player.duration || duration,
+                isPlaying: player.playing,
+                force: true,
+            });
+        };
+    }, [duration, lessonId, player, recordHeartbeat, trackingEnabled]);
+
+    useEffect(() => {
+        if (hasMarkedCompletionRef.current || !trackingEnabled || duration <= 0) {
+            return;
+        }
+
+        if ((currentTime / duration) >= 0.9) {
+            hasMarkedCompletionRef.current = true;
+            recordHeartbeat({
+                currentPosition: currentTime,
+                duration,
+                isPlaying: true,
+                force: true,
+            });
+        }
+    }, [currentTime, duration, recordHeartbeat, trackingEnabled]);
 
     const controlsOpacity = useSharedValue(1);
     const controlsTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -88,7 +178,7 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
                 setShowSpeedMenu(false);
             }
         }, 3500);
-    }, [isPlaying]);
+    }, [controlsOpacity, isPlaying]);
 
     useEffect(() => {
         resetControlsTimer();

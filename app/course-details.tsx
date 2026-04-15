@@ -5,6 +5,7 @@ import { useCourse, useCourseDetails, useEnrollCourse, useMyCourses } from '@/ho
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
+import { useVideoTracking } from '@/hooks/useVideoTracking';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { CourseReview, removeCourseAssistant, scanAttendance } from '@/services/CourseService';
@@ -54,6 +55,16 @@ export default function CourseDetailsScreen() {
     const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const scrollViewRef = React.useRef<ScrollView>(null);
+
+    const isEnrolledInMyCourses = React.useMemo(() => {
+        if (!myCoursesData?.data) return false;
+        return myCoursesData.data.some((c: any) => c.id === courseId);
+    }, [myCoursesData?.data, courseId]);
+
+    const isEnrolledForPreviewTracking =
+        !!detailsData?.data?.enrollment ||
+        !!detailsData?.data?.progress ||
+        isEnrolledInMyCourses;
     
     // Check for preview video from either details endpoint or fallback to basic course endpoint
     const previewUrl = detailsData?.data?.course?.previewVideoUrl || 
@@ -65,6 +76,24 @@ export default function CourseDetailsScreen() {
     
     const player = useVideoPlayer(previewUrl, player => {
         player.loop = false;
+        player.timeUpdateEventInterval = 1;
+    });
+    const previewPlaybackSnapshotRef = React.useRef({
+        currentPosition: 0,
+        duration: 0,
+        isPlaying: false,
+    });
+    const previousPreviewPositionRef = React.useRef(0);
+
+    const {
+        recordHeartbeat: recordPreviewHeartbeat,
+        shouldRestorePosition: shouldRestorePreviewPosition,
+        initialPosition: initialPreviewPosition,
+        markPositionRestored: markPreviewPositionRestored,
+    } = useVideoTracking({
+        entityId: courseId as string,
+        enabled: !!previewUrl && isPlayingVideo && !isTeacher && !isEnrolledForPreviewTracking,
+        mode: 'preview',
     });
 
     useEffect(() => {
@@ -79,6 +108,57 @@ export default function CourseDetailsScreen() {
             player.replace(previewUrl);
         }
     }, [previewUrl, player]);
+
+    useEffect(() => {
+        if (!isPlayingVideo || !previewUrl || isTeacher || isEnrolledForPreviewTracking || !shouldRestorePreviewPosition) {
+            return;
+        }
+
+        player.currentTime = initialPreviewPosition;
+        markPreviewPositionRestored();
+    }, [
+        initialPreviewPosition,
+        isPlayingVideo,
+        isEnrolledForPreviewTracking,
+        isTeacher,
+        markPreviewPositionRestored,
+        player,
+        previewUrl,
+        shouldRestorePreviewPosition,
+    ]);
+
+    useEffect(() => {
+        if (!isPlayingVideo || !previewUrl || isTeacher || isEnrolledForPreviewTracking || !courseId) {
+            return;
+        }
+
+        console.log('[VideoTracking] Preview tracking attached', { courseId });
+
+        const pollInterval = setInterval(() => {
+            const currentPosition = typeof player.currentTime === 'number' ? player.currentTime : 0;
+            const duration = typeof player.duration === 'number' ? player.duration : 0;
+            const isAdvancing = currentPosition > previousPreviewPositionRef.current;
+            const isPlaying = player.playing || isAdvancing;
+
+            previewPlaybackSnapshotRef.current = {
+                currentPosition,
+                duration,
+                isPlaying,
+            };
+
+            if (isAdvancing) {
+                recordPreviewHeartbeat({
+                    currentPosition,
+                    duration,
+                    isPlaying,
+                });
+            }
+
+            previousPreviewPositionRef.current = currentPosition;
+        }, 1000);
+
+        return () => clearInterval(pollInterval);
+    }, [courseId, isEnrolledForPreviewTracking, isPlayingVideo, isTeacher, player, previewUrl, recordPreviewHeartbeat]);
 
     const playbackRates = [1.0, 1.25, 1.5, 2.0];
 
@@ -97,12 +177,6 @@ export default function CourseDetailsScreen() {
         updateReview,
         deleteReview,
     } = useCourseReviews(courseId as string);
-
-    // Evaluate if enrolled in "My Courses" securely (must be before any early return)
-    const isEnrolledInMyCourses = React.useMemo(() => {
-        if (!myCoursesData?.data) return false;
-        return myCoursesData.data.some((c: any) => c.id === courseId);
-    }, [myCoursesData?.data, courseId]);
 
     useEffect(() => {
         if (params.action === 'scan') {
@@ -287,9 +361,9 @@ export default function CourseDetailsScreen() {
                                 <VideoView
                                     player={player}
                                     style={styles.heroVideo}
-                                    allowsFullscreen
+                                    fullscreenOptions={{ enable: true }}
                                     allowsPictureInPicture
-                                    startsPictureInPictureAutomatically={true}
+                                    startsPictureInPictureAutomatically
                                 />
                                 <TouchableOpacity 
                                     style={styles.speedButton}

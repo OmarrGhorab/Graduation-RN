@@ -1,8 +1,9 @@
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
+import { useVideoTracking } from '@/hooks/useVideoTracking';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions, SafeAreaView } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { AppState, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions, SafeAreaView } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LessonMaterialsSection } from './LessonMaterialsSection';
 
@@ -18,10 +19,82 @@ interface LessonDetailsModalProps {
 
 export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: LessonDetailsModalProps) {
     const { theme, isDark } = useTheme();
+    const lessonId = lesson?.id;
+    const playbackSnapshotRef = useRef({
+        currentPosition: 0,
+        duration: 0,
+        isPlaying: false,
+    });
+    const previousPositionRef = useRef(0);
     
     const player = useVideoPlayer(lesson?.videoUrl, player => {
         player.loop = false;
+        player.timeUpdateEventInterval = 1;
     });
+
+    const {
+        recordHeartbeat,
+        shouldRestorePosition,
+        initialPosition,
+        markPositionRestored,
+    } = useVideoTracking(lessonId, visible && !isTeacher);
+
+    useEffect(() => {
+        if (!visible || isTeacher || !shouldRestorePosition) {
+            return;
+        }
+
+        player.currentTime = initialPosition;
+        markPositionRestored();
+    }, [initialPosition, isTeacher, markPositionRestored, player, shouldRestorePosition, visible]);
+
+    useEffect(() => {
+        if (!visible || isTeacher || !lessonId) {
+            return;
+        }
+
+        console.log('[VideoTracking] Tracking attached', { lessonId });
+
+        const pollInterval = setInterval(() => {
+            const currentPosition = typeof player.currentTime === 'number' ? player.currentTime : 0;
+            const duration = typeof player.duration === 'number' ? player.duration : 0;
+            const isAdvancing = currentPosition > previousPositionRef.current;
+            const isPlaying = player.playing || isAdvancing;
+
+            playbackSnapshotRef.current = {
+                currentPosition,
+                duration,
+                isPlaying,
+            };
+
+            if (isAdvancing) {
+                recordHeartbeat({
+                    currentPosition,
+                    duration,
+                    isPlaying,
+                });
+            }
+
+            previousPositionRef.current = currentPosition;
+        }, 1000);
+
+        const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState !== 'active') {
+                const snapshot = playbackSnapshotRef.current;
+                recordHeartbeat({
+                    currentPosition: snapshot.currentPosition,
+                    duration: snapshot.duration,
+                    isPlaying: snapshot.isPlaying,
+                    force: true,
+                });
+            }
+        });
+
+        return () => {
+            clearInterval(pollInterval);
+            appStateSubscription.remove();
+        };
+    }, [isTeacher, lessonId, player, recordHeartbeat, visible]);
 
     if (!lesson) return null;
 
@@ -51,9 +124,8 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
                             <VideoView
                                 player={player}
                                 style={styles.video}
-                                allowsFullscreen
+                                fullscreenOptions={{ enable: true }}
                                 allowsPictureInPicture
-                                startsPictureInPictureAutomatically={true}
                             />
                         </View>
                     ) : (
