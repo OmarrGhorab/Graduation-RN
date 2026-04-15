@@ -2,7 +2,7 @@ import { videoTrackingService, type DeviceType } from '@/services/VideoTrackingS
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
-const HEARTBEAT_INTERVAL_MS = 10000;
+const HEARTBEAT_INTERVAL_MS = 5000; // Reduced to 5s for better responsiveness
 const MIN_WATCH_DELTA_SECONDS = 1;
 
 const getDeviceType = (): DeviceType => {
@@ -18,6 +18,7 @@ interface RecordHeartbeatArgs {
     duration: number;
     isPlaying: boolean;
     force?: boolean;
+    completed?: boolean;
 }
 
 interface UseVideoTrackingOptions {
@@ -105,8 +106,12 @@ export function useVideoTracking(
         duration,
         isPlaying,
         force = false,
+        completed: explicitCompleted = false,
     }: RecordHeartbeatArgs) => {
-        if (!enabled || !entityId || !isPlaying || duration <= 0) {
+        if (!enabled || !entityId || (!isPlaying && !force) || duration <= 0) {
+            if (force) {
+                console.log('[VideoTracking] Heartbeat skip (pre-checks)', { enabled, entityId, isPlaying, duration });
+            }
             return;
         }
 
@@ -114,13 +119,14 @@ export function useVideoTracking(
         const elapsedMs = now - lastHeartbeatAtRef.current;
 
         if (!force && elapsedMs < HEARTBEAT_INTERVAL_MS) {
+            // No log here to avoid spamming
             return;
         }
 
         const safeCurrentPosition = Math.max(0, Math.floor(currentPosition));
         const previousTrackedPosition = lastTrackedPositionRef.current;
         const watchedSeconds = Math.max(0, safeCurrentPosition - previousTrackedPosition);
-        const completed = duration > 0 && (safeCurrentPosition / duration) >= 0.9;
+        const completed = explicitCompleted || (duration > 0 && (safeCurrentPosition / duration) >= 0.9);
 
         if (watchedSeconds < MIN_WATCH_DELTA_SECONDS && !completed) {
             return;
@@ -128,11 +134,17 @@ export function useVideoTracking(
 
         try {
             setIsTracking(true);
+            
+            // Update refs immediately to prevent race conditions from subsequent ticks
+            lastHeartbeatAtRef.current = now;
+            const positionToTrack = safeCurrentPosition;
+            lastTrackedPositionRef.current = positionToTrack;
+
             console.log('[VideoTracking] Sending heartbeat', {
                 entityId,
                 mode,
                 watchedSeconds,
-                lastPosition: safeCurrentPosition,
+                lastPosition: positionToTrack,
                 completed,
                 force,
             });
@@ -141,21 +153,19 @@ export function useVideoTracking(
                 ? await videoTrackingService.recordPreviewHeartbeat({
                     courseId: entityId,
                     watchedSeconds,
-                    lastPosition: safeCurrentPosition,
+                    lastPosition: positionToTrack,
                     completed,
                     deviceType: getDeviceType(),
                 })
                 : await videoTrackingService.recordHeartbeat({
                     lessonId: entityId,
                     watchedSeconds,
-                    lastPosition: safeCurrentPosition,
+                    lastPosition: positionToTrack,
                     completed,
                     deviceType: getDeviceType(),
                 });
 
-            lastHeartbeatAtRef.current = now;
-            lastTrackedPositionRef.current = safeCurrentPosition;
-            setCurrentProgress(response.data.progress ?? ((safeCurrentPosition / duration) * 100));
+            setCurrentProgress(response.data.progress ?? ((positionToTrack / duration) * 100));
             console.log('[VideoTracking] Heartbeat accepted', response.data);
         } catch (error) {
             console.error('Failed to record heartbeat:', error);

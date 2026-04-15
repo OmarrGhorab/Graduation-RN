@@ -20,7 +20,8 @@ import {
     updateCourse,
     getCourseReviews,
     createCourseReview,
-    updateCourseReview
+    updateCourseReview,
+    deleteCourseReview
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -273,8 +274,21 @@ export function useUpdateReview() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ courseId, data }: { courseId: string; data: Parameters<typeof updateCourseReview>[1] }) =>
-            updateCourseReview(courseId, data),
+        mutationFn: ({ courseId, reviewId, data }: { courseId: string; reviewId: string; data: Parameters<typeof updateCourseReview>[2] }) =>
+            updateCourseReview(courseId, reviewId, data),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
+}
+
+export function useDeleteReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, reviewId }: { courseId: string; reviewId: string }) =>
+            deleteCourseReview(courseId, reviewId),
         onSuccess: (_, { courseId }) => {
             queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
             queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });

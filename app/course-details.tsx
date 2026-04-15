@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
-import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -53,6 +53,8 @@ export default function CourseDetailsScreen() {
     const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
     const { addToCart, isAdding } = useCart();
     const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isPiP, setIsPiP] = useState(false);
     const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const scrollViewRef = React.useRef<ScrollView>(null);
@@ -100,10 +102,22 @@ export default function CourseDetailsScreen() {
 
     useEffect(() => {
         const subscription = player.addListener('playToEnd', () => {
+            console.log('[VideoTracking] Video ended, sending final heartbeat');
             setIsPlayingVideo(false);
+            
+            // Send final heartbeat
+            const currentPosition = Math.floor(player.currentTime);
+            const duration = Math.floor(player.duration);
+            recordPreviewHeartbeat({
+                currentPosition,
+                duration,
+                isPlaying: false,
+                force: true,
+                completed: true
+            });
         });
         return () => subscription.remove();
-    }, [player]);
+    }, [player, recordPreviewHeartbeat]);
 
     useEffect(() => {
         if (previewUrl && player) {
@@ -130,17 +144,30 @@ export default function CourseDetailsScreen() {
     ]);
 
     useEffect(() => {
-        if (!isPlayingVideo || !previewUrl || isTeacher || isEnrolledForPreviewTracking || !courseId) {
+        const isTrackingEnabled = !!previewUrl && !isTeacher && !isEnrolledForPreviewTracking && !!courseId;
+        
+        console.log('[VideoTracking] Preview effect trigger', { 
+            isPlayingVideo, 
+            isTrackingEnabled,
+            courseId 
+        });
+
+        if (!isPlayingVideo || !isTrackingEnabled) {
             return;
         }
 
         console.log('[VideoTracking] Preview tracking attached', { courseId });
 
-        const pollInterval = setInterval(() => {
-            const currentPosition = typeof player.currentTime === 'number' ? player.currentTime : 0;
+        const timeUpdateSubscription = player.addListener('timeUpdate', (event) => {
+            const currentPosition = typeof event.currentTime === 'number' ? event.currentTime : player.currentTime;
             const duration = typeof player.duration === 'number' ? player.duration : 0;
             const isAdvancing = currentPosition > previousPreviewPositionRef.current;
             const isPlaying = player.playing || isAdvancing;
+
+            if (__DEV__) {
+                // Throttle tick logs a bit to avoid too much spam, or keep them for now
+                // console.log('[VideoTracking] Tick (native)', { currentPosition, isAdvancing, isPlaying });
+            }
 
             previewPlaybackSnapshotRef.current = {
                 currentPosition,
@@ -148,19 +175,43 @@ export default function CourseDetailsScreen() {
                 isPlaying,
             };
 
-            if (isAdvancing) {
+            if (isAdvancing || isPlaying) {
                 recordPreviewHeartbeat({
                     currentPosition,
                     duration,
                     isPlaying,
+                    force: !previousPreviewPositionRef.current && currentPosition > 0 // Force first heartbeat
                 });
             }
 
             previousPreviewPositionRef.current = currentPosition;
-        }, 1000);
+        });
 
-        return () => clearInterval(pollInterval);
-    }, [courseId, isEnrolledForPreviewTracking, isPlayingVideo, isTeacher, player, previewUrl, recordPreviewHeartbeat]);
+        const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+            if (nextState !== 'active') {
+                // If we are in fullscreen or PiP, don't consider it "backgrounded" for tracking purposes
+                // although the OS might still throttle us, we shouldn't trigger the "stop" logic
+                if (isFullscreen || isPiP) {
+                    console.log('[VideoTracking] App state changed but in Fullscreen/PiP, ignoring background pause', { nextState, isFullscreen, isPiP });
+                    return;
+                }
+
+                console.log('[VideoTracking] App backgrounded, sending preview heartbeat');
+                const snapshot = previewPlaybackSnapshotRef.current;
+                recordPreviewHeartbeat({
+                    currentPosition: snapshot.currentPosition,
+                    duration: snapshot.duration,
+                    isPlaying: snapshot.isPlaying,
+                    force: true,
+                });
+            }
+        });
+
+        return () => {
+            timeUpdateSubscription.remove();
+            appStateSubscription.remove();
+        };
+    }, [courseId, isEnrolledForPreviewTracking, isPlayingVideo, isTeacher, player, recordPreviewHeartbeat, isFullscreen, isPiP]);
 
     const playbackRates = [1.0, 1.25, 1.5, 2.0];
 
@@ -361,6 +412,10 @@ export default function CourseDetailsScreen() {
                                     fullscreenOptions={{ enable: true }}
                                     allowsPictureInPicture
                                     startsPictureInPictureAutomatically
+                                    onFullscreenEnter={() => setIsFullscreen(true)}
+                                    onFullscreenExit={() => setIsFullscreen(false)}
+                                    onPictureInPictureStart={() => setIsPiP(true)}
+                                    onPictureInPictureStop={() => setIsPiP(false)}
                                 />
                                 <TouchableOpacity 
                                     style={styles.speedButton}
@@ -711,8 +766,11 @@ export default function CourseDetailsScreen() {
                                                 style: 'destructive',
                                                 onPress: async () => {
                                                     try {
-                                                        await deleteReview();
-                                                        Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
+                                                        const userReview = reviews.find(r => r.studentId === profile?.id);
+                                                        if (userReview) {
+                                                            await deleteReview(userReview.id);
+                                                            Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
+                                                        }
                                                     } catch (error: any) {
                                                         Alert.alert(t('common.error'), error.message || t('common.error'));
                                                     }
@@ -846,10 +904,13 @@ export default function CourseDetailsScreen() {
                 onSubmit={async (rating, review) => {
                     try {
                         if (editingReview) {
-                            await updateReview({ rating, Review: review });
+                            await updateReview({ 
+                                reviewId: editingReview.id, 
+                                data: { rating, review } 
+                            });
                             Alert.alert(t('common.success'), t('courseDetails.reviewUpdated'));
                         } else {
-                            await createReview({ rating, Review: review });
+                            await createReview({ rating, review });
                             Alert.alert(t('common.success'), t('courseDetails.reviewSubmitted'));
                         }
                         setShowReviewModal(false);

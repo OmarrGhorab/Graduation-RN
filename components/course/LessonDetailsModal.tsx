@@ -26,6 +26,8 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
         isPlaying: false,
     });
     const previousPositionRef = useRef(0);
+    const [isFullscreen, setIsFullscreen] = React.useState(false);
+    const [isPiP, setIsPiP] = React.useState(false);
     
     const player = useVideoPlayer(lesson?.videoUrl, player => {
         player.loop = false;
@@ -40,6 +42,24 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
     } = useVideoTracking(lessonId, visible && !isTeacher);
 
     useEffect(() => {
+        const subscription = player.addListener('playToEnd', () => {
+            console.log('[VideoTracking] Lesson video ended, sending final heartbeat');
+            
+            // Send final heartbeat
+            const currentPosition = Math.floor(player.currentTime);
+            const duration = Math.floor(player.duration);
+            recordHeartbeat({
+                currentPosition,
+                duration,
+                isPlaying: false,
+                force: true,
+                completed: true
+            });
+        });
+        return () => subscription.remove();
+    }, [player, recordHeartbeat]);
+
+    useEffect(() => {
         if (!visible || isTeacher || !shouldRestorePosition) {
             return;
         }
@@ -49,14 +69,21 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
     }, [initialPosition, isTeacher, markPositionRestored, player, shouldRestorePosition, visible]);
 
     useEffect(() => {
+        console.log('[VideoTracking] Lesson effect trigger', { 
+            visible, 
+            isTeacher, 
+            lessonId,
+            hasVideoUrl: !!lesson?.videoUrl
+        });
+
         if (!visible || isTeacher || !lessonId) {
             return;
         }
 
-        console.log('[VideoTracking] Tracking attached', { lessonId });
+        console.log('[VideoTracking] Lesson tracking attached', { lessonId });
 
-        const pollInterval = setInterval(() => {
-            const currentPosition = typeof player.currentTime === 'number' ? player.currentTime : 0;
+        const timeUpdateSubscription = player.addListener('timeUpdate', (event) => {
+            const currentPosition = typeof event.currentTime === 'number' ? event.currentTime : player.currentTime;
             const duration = typeof player.duration === 'number' ? player.duration : 0;
             const isAdvancing = currentPosition > previousPositionRef.current;
             const isPlaying = player.playing || isAdvancing;
@@ -67,19 +94,25 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
                 isPlaying,
             };
 
-            if (isAdvancing) {
+            if (isAdvancing || isPlaying) {
                 recordHeartbeat({
                     currentPosition,
                     duration,
                     isPlaying,
+                    force: !previousPositionRef.current && currentPosition > 0 // Force first heartbeat
                 });
             }
 
             previousPositionRef.current = currentPosition;
-        }, 1000);
+        });
 
         const appStateSubscription = AppState.addEventListener('change', (nextState) => {
             if (nextState !== 'active') {
+                if (isFullscreen || isPiP) {
+                    console.log('[VideoTracking] Lesson App state changed but in Fullscreen/PiP, ignoring background check', { nextState, isFullscreen, isPiP });
+                    return;
+                }
+
                 const snapshot = playbackSnapshotRef.current;
                 recordHeartbeat({
                     currentPosition: snapshot.currentPosition,
@@ -91,10 +124,10 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
         });
 
         return () => {
-            clearInterval(pollInterval);
+            timeUpdateSubscription.remove();
             appStateSubscription.remove();
         };
-    }, [isTeacher, lessonId, player, recordHeartbeat, visible]);
+    }, [isTeacher, lessonId, player, recordHeartbeat, visible, isFullscreen, isPiP]);
 
     if (!lesson) return null;
 
@@ -126,6 +159,10 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
                                 style={styles.video}
                                 fullscreenOptions={{ enable: true }}
                                 allowsPictureInPicture
+                                onFullscreenEnter={() => setIsFullscreen(true)}
+                                onFullscreenExit={() => setIsFullscreen(false)}
+                                onPictureInPictureStart={() => setIsPiP(true)}
+                                onPictureInPictureStop={() => setIsPiP(false)}
                             />
                         </View>
                     ) : (

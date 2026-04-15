@@ -125,7 +125,7 @@ export interface CourseReviewsResponse {
 
 export interface CreateReviewRequest {
     rating: number;
-    Review: string;
+    review: string;
 }
 
 export interface CreateReviewResponse {
@@ -1528,17 +1528,17 @@ export async function createCourseReview(courseId: string, data: CreateReviewReq
 /**
  * Update a review for a course (Student)
  */
-export async function updateCourseReview(courseId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
-    logger.log('[Courses] Updating review for course:', courseId);
-    return apiClient.put<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
+export async function updateCourseReview(courseId: string, reviewId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
+    logger.log('[Courses] Updating review for course:', courseId, reviewId);
+    return apiClient.put<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews/${reviewId}`, data);
 }
 
 /**
  * Delete a course review (Student)
  */
-export async function deleteCourseReview(courseId: string): Promise<{ success: boolean; message: string }> {
-    logger.log('[Courses] Deleting review for course:', courseId);
-    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews`);
+export async function deleteCourseReview(courseId: string, reviewId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Deleting review for course:', courseId, reviewId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews/${reviewId}`);
 }
 
 // ============================================================================

@@ -17,7 +17,7 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const createReviewMutation = useMutation({
-        mutationFn: (reviewData: { rating: number; Review: string }) =>
+        mutationFn: (reviewData: { rating: number; review: string }) =>
             createCourseReview(courseId, reviewData),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
@@ -26,8 +26,8 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const updateReviewMutation = useMutation({
-        mutationFn: (reviewData: { rating: number; Review: string }) =>
-            updateCourseReview(courseId, reviewData),
+        mutationFn: ({ reviewId, data }: { reviewId: string; data: { rating: number; review: string } }) =>
+            updateCourseReview(courseId, reviewId, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
@@ -35,7 +35,7 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const deleteReviewMutation = useMutation({
-        mutationFn: () => deleteCourseReview(courseId),
+        mutationFn: (reviewId: string) => deleteCourseReview(courseId, reviewId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });

@@ -28,6 +28,8 @@ interface RequestOptions {
     skipDeduplication?: boolean;
     /** Suppress console error logging for this request */
     silent?: boolean;
+    /** Internal flag to avoid infinite retry loops */
+    _isRetry?: boolean;
 }
 
 /**
@@ -169,6 +171,29 @@ async function request<T = unknown>(
             if (!response.ok) {
                 const responseObj = data as Record<string, unknown>;
                 const message = (responseObj.message || responseObj.error || `Request failed with status ${response.status}`) as string;
+
+                // Handle 401 Unauthorized - attempt to refresh token and retry
+                if (response.status === 401 && !options._isRetry && !skipAuth) {
+                    console.log('[apiClient] 401 detected, attempting token refresh and retry...');
+                    try {
+                        // Import here to avoid circular dependency if any, or just use the injected getValidAccessToken
+                        // Actually, we want to FORCE a refresh here because the supposedly "valid" token was rejected
+                        const { refreshAccessToken, getRefreshToken, clearAuthToken } = require('./auth/tokenService');
+                        const refreshToken = getRefreshToken();
+                        
+                        if (refreshToken) {
+                            await refreshAccessToken(refreshToken);
+                            // Retry the request with new token
+                            return await request<T>(method, endpoint, { ...options, _isRetry: true });
+                        } else {
+                            await clearAuthToken();
+                        }
+                    } catch (refreshError) {
+                        console.error('[apiClient] Token refresh failed during 401 retry:', refreshError);
+                        // Fall through to error throwing
+                    }
+                }
+
                 if (!silent) {
                     console.error('[apiClient] Error response:', { status: response.status, message, data });
                 }
