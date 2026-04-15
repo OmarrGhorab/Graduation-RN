@@ -8,4 +8,7 @@ export { default as QRScannerModal } from './QRScannerModal';
 export { ReviewModal } from './ReviewModal';
 export { ReviewsSection } from './ReviewsSection';
 export { TeacherCard } from './TeacherCard';
+export { LessonDetailsModal } from './LessonDetailsModal';
+export { LessonMaterialsSection } from './LessonMaterialsSection';
+
 

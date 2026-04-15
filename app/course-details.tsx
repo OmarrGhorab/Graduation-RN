@@ -1,7 +1,7 @@
-import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, QRScannerModal, ReviewModal, ReviewsSection } from '@/components/course';
+import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, LessonDetailsModal, QRScannerModal, ReviewModal, ReviewsSection } from '@/components/course';
 import { Fonts } from '@/constants/theme';
 import { useCourseReviews } from '@/hooks/useCourseReviews';
-import { useCourse, useCourseDetails, useEnrollCourse } from '@/hooks/useCourses';
+import { useCourse, useCourseDetails, useEnrollCourse, useMyCourses } from '@/hooks/useCourses';
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
@@ -36,7 +36,9 @@ export default function CourseDetailsScreen() {
 
     const { data: detailsData, isLoading: detailsLoading, error: detailsError } = useCourseDetails(courseId as string, profile?.id);
     const { data: basicCourseData, isLoading: basicLoading } = useCourse(courseId as string);
-    const isLoading = detailsLoading || basicLoading;
+    const { data: myCoursesData, isLoading: myCoursesLoading } = useMyCourses();
+    
+    const isLoading = detailsLoading || basicLoading || myCoursesLoading;
     const error = detailsError;
     const createLessonMutation = useCreateLesson();
     const { startLesson: startLessonMutation } = useLessonMutations();
@@ -48,6 +50,7 @@ export default function CourseDetailsScreen() {
     const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
     const { addToCart, isAdding } = useCart();
     const [isPlayingVideo, setIsPlayingVideo] = useState(false);
+    const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const videoRef = React.useRef<Video>(null);
     const scrollViewRef = React.useRef<ScrollView>(null);
@@ -70,6 +73,12 @@ export default function CourseDetailsScreen() {
         updateReview,
         deleteReview,
     } = useCourseReviews(courseId as string);
+
+    // Evaluate if enrolled in "My Courses" securely (must be before any early return)
+    const isEnrolledInMyCourses = React.useMemo(() => {
+        if (!myCoursesData?.data) return false;
+        return myCoursesData.data.some((c: any) => c.id === courseId);
+    }, [myCoursesData?.data, courseId]);
 
     useEffect(() => {
         if (params.action === 'scan') {
@@ -112,6 +121,8 @@ export default function CourseDetailsScreen() {
     
     console.log('[CourseDetails] Found previewUrl:', previewUrl);
     
+    console.log('[CourseDetails] Found previewUrl:', previewUrl);
+    
     if (!course) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
@@ -126,7 +137,7 @@ export default function CourseDetailsScreen() {
         );
     }
 
-    const isEnrolled = !!detailsData.data?.enrollment || !!progress;
+    const isEnrolled = !!detailsData.data?.enrollment || !!progress || isEnrolledInMyCourses;
 
     const toggleModule = (index: string) => {
         setExpandedModules(prev => ({ ...prev, [index]: !prev[index] }));
@@ -549,7 +560,11 @@ export default function CourseDetailsScreen() {
 
                                     {isExpanded && (
                                         <View style={styles.lessonDetails}>
-                                            <View style={[styles.lessonItem, { backgroundColor: `${theme.primary}08` }]}>
+                                            <TouchableOpacity 
+                                                activeOpacity={0.7}
+                                                onPress={() => !isLocked && setSelectedLesson(lesson)}
+                                                style={[styles.lessonItem, { backgroundColor: `${theme.primary}08` }]}
+                                            >
                                                 <View style={[styles.lessonIconContainer, { backgroundColor: lessonIconColor }]}>
                                                     <Ionicons name={lessonIcon as any} size={16} color="#FFF" />
                                                 </View>
@@ -558,8 +573,14 @@ export default function CourseDetailsScreen() {
                                                         <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
                                                             {lesson.title}
                                                         </Text>
-                                                        {lesson.isFree && <FreeTrialBadge variant="compact" />}
-                                                    </View>
+                                                            {lesson.isFree && <FreeTrialBadge variant="compact" />}
+                                                            {lesson.videoUrl && !isLocked && (
+                                                                <View style={{ backgroundColor: `${theme.primary}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                    <Ionicons name="play-circle" size={12} color={theme.primary} />
+                                                                    <Text style={{ fontSize: 10, color: theme.primary, fontFamily: Fonts.bold }}>WATCH</Text>
+                                                                </View>
+                                                            )}
+                                                        </View>
                                                     <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
                                                         {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </Text>
@@ -580,7 +601,7 @@ export default function CourseDetailsScreen() {
                                                 {(lesson.attendanceStatus === 'PRESENT' || lesson.attendanceStatus === 'LATE') && !isLocked && (
                                                     <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
                                                 )}
-                                            </View>
+                                            </TouchableOpacity>
 
                                             {!isTeacher && !isLocked && lesson.canMarkAttendance && (
                                                 <TouchableOpacity
@@ -765,6 +786,13 @@ export default function CourseDetailsScreen() {
                 initialRating={editingReview?.rating}
                 initialComment={editingReview?.comment}
                 isEdit={!!editingReview}
+            />
+
+            <LessonDetailsModal
+                visible={!!selectedLesson}
+                lesson={selectedLesson}
+                isTeacher={isTeacher}
+                onClose={() => setSelectedLesson(null)}
             />
         </View>
     );
