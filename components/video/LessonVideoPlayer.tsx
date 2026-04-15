@@ -9,7 +9,7 @@ import {
     StatusBar,
     Text,
 } from 'react-native';
-import { Video, ResizeMode, Audio, AVPlaybackStatus, AVPlaybackStatusSuccess } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 // @ts-ignore
 import * as ScreenOrientation from 'expo-screen-orientation';
 // @ts-ignore
@@ -32,10 +32,11 @@ const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 
 export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Props) {
     useKeepAwake('LessonPlayer');
-    const videoRef = useRef<Video>(null);
     
-    // State
-    const [status, setStatus] = useState<AVPlaybackStatusSuccess | null>(null);
+    // State for UI updates
+    const [isPlaying, setIsPlaying] = useState(true);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [showControls, setShowControls] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -43,9 +44,37 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
     const [isCompleted, setIsCompleted] = useState(false);
     const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
-    const controlsOpacity = useSharedValue(1);
+    const player = useVideoPlayer(videoUrl, player => {
+        player.loop = false;
+        player.play();
+    });
 
-    // Auto-hide controls
+    useEffect(() => {
+        const subscriptions = [
+            player.addListener('playingChange', (event) => setIsPlaying(event.isPlaying)),
+            player.addListener('timeUpdate', (event) => {
+                setCurrentTime(event.currentTime);
+                const duration = player.duration;
+                // Completion logic (90%)
+                if (!isCompleted && duration > 0) {
+                    const progress = (event.currentTime / duration) * 100;
+                    if (progress >= 90) {
+                        setIsCompleted(true);
+                        markLessonCompleted(lessonId).then(onComplete).catch(console.error);
+                    }
+                }
+            }),
+            player.addListener('statusChange', (event) => {
+                if (event.status === 'readyToPlay') {
+                    setIsLoading(false);
+                    setDuration(player.duration);
+                }
+            })
+        ];
+        return () => subscriptions.forEach(s => s.remove());
+    }, [player, lessonId, isCompleted]);
+
+    const controlsOpacity = useSharedValue(1);
     const controlsTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
     const resetControlsTimer = useCallback(() => {
@@ -53,13 +82,13 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
         controlsOpacity.value = withTiming(1, { duration: 200 });
         if (controlsTimer.current) clearTimeout(controlsTimer.current);
         controlsTimer.current = setTimeout(() => {
-            if (status?.isPlaying) {
+            if (isPlaying) {
                 controlsOpacity.value = withTiming(0, { duration: 300 });
                 setShowControls(false);
                 setShowSpeedMenu(false);
             }
         }, 3500);
-    }, [status?.isPlaying]);
+    }, [isPlaying]);
 
     useEffect(() => {
         resetControlsTimer();
@@ -77,64 +106,41 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
         }
     };
 
-    const handlePlaybackStatusUpdate = (playbackStatus: AVPlaybackStatus) => {
-        if (!playbackStatus.isLoaded) {
-            if (playbackStatus.error) {
-                console.error(`Encountered a fatal error during playback: ${playbackStatus.error}`);
-            }
-            return;
-        }
-
-        setStatus(playbackStatus);
-        setIsLoading(playbackStatus.isBuffering);
-
-        // Completion logic (90%)
-        if (!isCompleted && playbackStatus.durationMillis) {
-            const progress = (playbackStatus.positionMillis / playbackStatus.durationMillis) * 100;
-            if (progress >= 90) {
-                setIsCompleted(true);
-                markLessonCompleted(lessonId).then(onComplete).catch(console.error);
-            }
-        }
-    };
-
-    const togglePlay = async () => {
-        if (!status) return;
+    const togglePlay = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        if (status.isPlaying) {
-            await videoRef.current?.pauseAsync();
+        if (isPlaying) {
+            player.pause();
         } else {
-            await videoRef.current?.playAsync();
+            player.play();
         }
         resetControlsTimer();
     };
 
-    const skipForward = async () => {
-        if (!status) return;
+    const skipForward = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await videoRef.current?.setPositionAsync(Math.min(status.positionMillis + 10000, status.durationMillis || 0));
+        player.currentTime = Math.min(player.currentTime + 10, player.duration);
         resetControlsTimer();
     };
 
-    const skipBackward = async () => {
-        if (!status) return;
+    const skipBackward = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await videoRef.current?.setPositionAsync(Math.max(status.positionMillis - 10000, 0));
+        player.currentTime = Math.max(player.currentTime - 10, 0);
         resetControlsTimer();
     };
 
-    const changeSpeed = async (speed: number) => {
+    const changeSpeed = (speed: number) => {
         setPlaybackSpeed(speed);
-        await videoRef.current?.setRateAsync(speed, true);
+        player.playbackRate = speed;
         setShowSpeedMenu(false);
         resetControlsTimer();
     };
 
-    const formatTime = (millis: number) => {
-        const totalSeconds = millis / 1000;
-        const seconds = Math.floor(totalSeconds % 60);
-        const minutes = Math.floor(totalSeconds / 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
     const animatedControlsStyle = useAnimatedStyle(() => ({
@@ -148,15 +154,13 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
                 onPress={resetControlsTimer}
                 style={styles.videoWrapper}
             >
-                <Video
-                    ref={videoRef}
-                    source={{ uri: videoUrl }}
+                <VideoView
+                    player={player}
                     style={styles.video}
-                    resizeMode={ResizeMode.CONTAIN}
-                    onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                    rate={playbackSpeed}
-                    shouldPlay
-                    useNativeControls={false}
+                    allowsFullscreen={false} // We have custom controls
+                    allowsPictureInPicture={true}
+                    startsPictureInPictureAutomatically={true}
+                    contentFit="contain"
                 />
 
                 {isLoading && (
@@ -198,7 +202,7 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={togglePlay} style={styles.playBtn}>
-                            <Ionicons name={status?.isPlaying ? "pause" : "play"} size={48} color="#FFF" />
+                            <Ionicons name={isPlaying ? "pause" : "play"} size={48} color="#FFF" />
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={skipForward} style={styles.mainControlBtn}>
@@ -210,22 +214,22 @@ export default function LessonVideoPlayer({ videoUrl, lessonId, onComplete }: Pr
                     {/* Bottom Bar */}
                     <View style={styles.bottomBar}>
                         <Text style={styles.timeLabel}>
-                            {formatTime(status?.positionMillis || 0)}
+                            {formatTime(currentTime)}
                         </Text>
                         
                         <Slider
                             style={styles.slider}
                             minimumValue={0}
-                            maximumValue={status?.durationMillis || 1}
-                            value={status?.positionMillis || 0}
-                            onSlidingComplete={val => videoRef.current?.setPositionAsync(val)}
+                            maximumValue={duration > 0 ? duration : 1}
+                            value={currentTime}
+                            onSlidingComplete={val => player.currentTime = val}
                             minimumTrackTintColor="#34D399"
                             maximumTrackTintColor="rgba(255,255,255,0.3)"
                             thumbTintColor="#34D399"
                         />
 
                         <Text style={styles.timeLabel}>
-                            {formatTime(status?.durationMillis || 0)}
+                            {formatTime(duration)}
                         </Text>
                     </View>
                 </Animated.View>

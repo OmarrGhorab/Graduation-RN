@@ -15,7 +15,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+
 
 const { width } = Dimensions.get('window');
 
@@ -52,17 +53,40 @@ export default function CourseDetailsScreen() {
     const [isPlayingVideo, setIsPlayingVideo] = useState(false);
     const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
-    const videoRef = React.useRef<Video>(null);
     const scrollViewRef = React.useRef<ScrollView>(null);
     
+    // Check for preview video from either details endpoint or fallback to basic course endpoint
+    const previewUrl = detailsData?.data?.course?.previewVideoUrl || 
+                       (detailsData?.data as any)?.previewVideoUrl || 
+                       detailsData?.data?.course?.preview_video_url || 
+                       (detailsData?.data as any)?.preview_video_url ||
+                       basicCourseData?.data?.previewVideoUrl ||
+                       (basicCourseData?.data as any)?.preview_video_url;
+    
+    const player = useVideoPlayer(previewUrl, player => {
+        player.loop = false;
+    });
+
+    useEffect(() => {
+        const subscription = player.addListener('playToEnd', () => {
+            setIsPlayingVideo(false);
+        });
+        return () => subscription.remove();
+    }, [player]);
+
+    useEffect(() => {
+        if (previewUrl && player) {
+            player.replace(previewUrl);
+        }
+    }, [previewUrl, player]);
+
     const playbackRates = [1.0, 1.25, 1.5, 2.0];
-    const togglePlaybackRate = async () => {
+
+    const togglePlaybackRate = () => {
         const nextIndex = (playbackRates.indexOf(playbackRate) + 1) % playbackRates.length;
         const nextRate = playbackRates[nextIndex];
         setPlaybackRate(nextRate);
-        if (videoRef.current) {
-            await videoRef.current.setStatusAsync({ rate: nextRate, shouldCorrectPitch: true });
-        }
+        player.playbackRate = nextRate;
     };
 
     // Reviews hook
@@ -110,18 +134,6 @@ export default function CourseDetailsScreen() {
 
     const { course, progress, teacher, lessons } = detailsData.data;
     const safeLessons = lessons || [];
-    
-    // Check for preview video from either details endpoint or fallback to basic course endpoint
-    const previewUrl = course?.previewVideoUrl || 
-                       (detailsData.data as any).previewVideoUrl || 
-                       course?.preview_video_url || 
-                       (detailsData.data as any).preview_video_url ||
-                       basicCourseData?.data?.previewVideoUrl ||
-                       (basicCourseData?.data as any)?.preview_video_url;
-    
-    console.log('[CourseDetails] Found previewUrl:', previewUrl);
-    
-    console.log('[CourseDetails] Found previewUrl:', previewUrl);
     
     if (!course) {
         return (
@@ -272,27 +284,12 @@ export default function CourseDetailsScreen() {
                 <View style={styles.heroImageContainer}>
                     {isPlayingVideo && previewUrl ? (
                             <View style={{ flex: 1, position: 'relative' }}>
-                                <Video
-                                    ref={videoRef}
-                                    source={{ uri: previewUrl }}
+                                <VideoView
+                                    player={player}
                                     style={styles.heroVideo}
-                                    useNativeControls
-                                    resizeMode={ResizeMode.COVER}
-                                    shouldPlay
-                                    rate={playbackRate}
-                                    shouldCorrectPitch={true}
-                                    posterSource={{ uri: course.courseImage }}
-                                    usePoster
-                                    posterStyle={styles.heroImage}
-                                    onPlaybackStatusUpdate={(status: any) => {
-                                        if (status.didJustFinish) {
-                                            setIsPlayingVideo(false);
-                                        }
-                                    }}
-                                    onError={(error) => {
-                                        console.error('[CourseDetails] Video Error:', error);
-                                        setIsPlayingVideo(false);
-                                    }}
+                                    allowsFullscreen
+                                    allowsPictureInPicture
+                                    startsPictureInPictureAutomatically={true}
                                 />
                                 <TouchableOpacity 
                                     style={styles.speedButton}
@@ -314,6 +311,7 @@ export default function CourseDetailsScreen() {
                                     onPress={() => {
                                         console.log('[CourseDetails] Playing video:', previewUrl);
                                         setIsPlayingVideo(true);
+                                        player.play();
                                     }}
                                     activeOpacity={0.7}
                                 >

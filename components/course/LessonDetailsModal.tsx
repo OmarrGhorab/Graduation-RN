@@ -3,8 +3,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions, SafeAreaView } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { LessonMaterialsSection } from './LessonMaterialsSection';
+
 
 const { width } = Dimensions.get('window');
 
@@ -17,7 +18,10 @@ interface LessonDetailsModalProps {
 
 export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: LessonDetailsModalProps) {
     const { theme, isDark } = useTheme();
-    const videoRef = useRef<Video>(null);
+    
+    const player = useVideoPlayer(lesson?.videoUrl, player => {
+        player.loop = false;
+    });
 
     if (!lesson) return null;
 
@@ -44,13 +48,12 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
                     {/* Video Player */}
                     {lesson.videoUrl ? (
                         <View style={styles.videoContainer}>
-                            <Video
-                                ref={videoRef}
-                                source={{ uri: lesson.videoUrl }}
+                            <VideoView
+                                player={player}
                                 style={styles.video}
-                                useNativeControls
-                                resizeMode={ResizeMode.CONTAIN}
-                                shouldPlay={false}
+                                allowsFullscreen
+                                allowsPictureInPicture
+                                startsPictureInPictureAutomatically={true}
                             />
                         </View>
                     ) : (
@@ -105,7 +108,7 @@ export function LessonDetailsModal({ visible, onClose, lesson, isTeacher }: Less
                         materialsUrl={lesson.materialsUrl}
                         duration={lesson.duration}
                         isTeacher={isTeacher}
-                        onPlayVideo={() => videoRef.current?.playAsync()}
+                        onPlayVideo={() => player.play()}
                     />
                 </ScrollView>
             </SafeAreaView>
