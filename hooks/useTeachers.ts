@@ -1,5 +1,5 @@
 import { getTeacherRating, getTopRatedTeachers } from '@/services/CourseService';
-import { searchTeacherProfiles } from '@/services/ProfileService';
+import { searchTeacherProfiles, getTeacherProfile } from '@/services/ProfileService';
 import { useQuery } from '@tanstack/react-query';
 
 export function useTopRatedTeachers(limit: number = 10, minRating: number = 4.0) {
@@ -24,3 +24,12 @@ export function useTeacherSearch(query: string) {
         enabled: query.length >= 2,
     });
 }
+
+export function useTeacherProfile(teacherId: string) {
+    return useQuery({
+        queryKey: ['teacher', teacherId, 'profile'],
+        queryFn: () => getTeacherProfile(teacherId),
+        enabled: !!teacherId,
+    });
+}
+

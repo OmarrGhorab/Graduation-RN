@@ -2,7 +2,8 @@ import {
     createCourseReview,
     deleteCourseReview,
     getCourseReviews,
-    updateCourseReview
+    updateCourseReview,
+    CourseReview
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -16,7 +17,7 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const createReviewMutation = useMutation({
-        mutationFn: (reviewData: { rating: number; comment: string }) =>
+        mutationFn: (reviewData: { rating: number; Review: string }) =>
             createCourseReview(courseId, reviewData),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
@@ -25,8 +26,8 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const updateReviewMutation = useMutation({
-        mutationFn: ({ reviewId, data }: { reviewId: string; data: { rating: number; comment: string } }) =>
-            updateCourseReview(courseId, reviewId, data),
+        mutationFn: (reviewData: { rating: number; Review: string }) =>
+            updateCourseReview(courseId, reviewData),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
@@ -34,7 +35,7 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     const deleteReviewMutation = useMutation({
-        mutationFn: (reviewId: string) => deleteCourseReview(courseId, reviewId),
+        mutationFn: () => deleteCourseReview(courseId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'reviews'] });
             queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
@@ -42,9 +43,13 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
     });
 
     return {
-        reviews: data?.data.reviews || [],
-        summary: data?.data.summary,
-        pagination: data?.data.pagination,
+        reviews: data?.data?.reviews || [],
+        summary: data?.data ? {
+            averageRating: data.data.averageRating,
+            totalReviews: data.data.totalRatings,
+            ratingBreakdown: data.data.ratingBreakdown
+        } : null,
+        pagination: data?.data?.pagination,
         isLoading,
         error,
         createReview: createReviewMutation.mutateAsync,
@@ -55,3 +60,4 @@ export function useCourseReviews(courseId: string, page: number = 1, limit: numb
         isDeleting: deleteReviewMutation.isPending,
     };
 }
+

@@ -17,6 +17,7 @@ import React, { useEffect, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 
 const { width } = Dimensions.get('window');
@@ -55,6 +56,7 @@ export default function CourseDetailsScreen() {
     const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const scrollViewRef = React.useRef<ScrollView>(null);
+    const [activeTab, setActiveTab] = useState<'ABOUT' | 'CURRICULUM' | 'REVIEWS'>('ABOUT');
 
     const isEnrolledInMyCourses = React.useMemo(() => {
         if (!myCoursesData?.data) return false;
@@ -176,6 +178,7 @@ export default function CourseDetailsScreen() {
         createReview,
         updateReview,
         deleteReview,
+        isLoading: reviewsLoading,
     } = useCourseReviews(courseId as string);
 
     useEffect(() => {
@@ -335,12 +338,6 @@ export default function CourseDetailsScreen() {
             setNewLessonTitle('');
         } catch (err: any) {
             console.error('[CourseDetails] Failed to create lesson:', err);
-            console.error('[CourseDetails] Error details:', {
-                message: err.message,
-                response: err.response,
-                data: err.response?.data,
-                status: err.response?.status,
-            });
             Alert.alert('Error', err.message || 'Failed to create lesson');
         }
     };
@@ -383,7 +380,6 @@ export default function CourseDetailsScreen() {
                                 <TouchableOpacity 
                                     style={styles.playButtonOverlay}
                                     onPress={() => {
-                                        console.log('[CourseDetails] Playing video:', previewUrl);
                                         setIsPlayingVideo(true);
                                         player.play();
                                     }}
@@ -421,7 +417,7 @@ export default function CourseDetailsScreen() {
                         <View style={styles.ratingContainer}>
                             <Ionicons name="star" size={14} color="#FFC107" />
                             <Text style={[styles.ratingText, { color: theme.gray[600] }]}>
-                                {course.courseRating ? course.courseRating.toFixed(1) : 'New'}
+                                {course.courseRating ? course.courseRating.toFixed(1) : t('courseDetails.newRating')}
                             </Text>
                             <Text style={[styles.ratingCount, { color: theme.gray[400] }]}>
                                 ({course.totalReviews || 0})
@@ -456,7 +452,6 @@ export default function CourseDetailsScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Enrollment Count */}
                     {course.enrollmentCount !== undefined && (
                         <View style={{ marginTop: 12 }}>
                             <EnrollmentBadge count={course.enrollmentCount} />
@@ -464,270 +459,280 @@ export default function CourseDetailsScreen() {
                     )}
                 </View>
 
-                {/* Quick Actions Section - Temporarily Disabled
-                <View style={styles.section}>
-                    <View style={styles.quickActions}>
-                        {isEnrolled && !isTeacher && (
-                            <TouchableOpacity
-                                style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
-                                onPress={() => router.push({ pathname: '/my-progress', params: { courseId } })}
-                            >
-                                <Ionicons name="stats-chart" size={24} color={theme.primary} />
-                                <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>My Progress</Text>
-                            </TouchableOpacity>
-                        )}
-                        {isTeacher && (
-                            <>
-                                <TouchableOpacity
-                                    style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
-                                    onPress={() => router.push({ pathname: '/course-enrollments', params: { id: courseId } })}
-                                >
-                                    <Ionicons name="people" size={24} color={theme.primary} />
-                                    <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>Enrollments</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.actionCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
-                                    onPress={() => router.push({ pathname: '/course-progress', params: { id: courseId } })}
-                                >
-                                    <Ionicons name="analytics" size={24} color={theme.primary} />
-                                    <Text style={[styles.actionText, { color: isDark ? theme.text : '#000' }]}>Progress</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </View>
-                */}
-
-                {/* Description Section */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.description')}</Text>
-                    <Text style={[styles.descriptionText, { color: theme.gray[600] }]} numberOfLines={showFullDescription ? undefined : 3}>
-                        {course.description || t('courseDetails.noDescription')}
-                    </Text>
-                    <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)} style={styles.readMoreButton}>
-                        <Text style={[styles.readMoreText, { color: theme.primary }]}>
-                            {showFullDescription ? t('courseDetails.readLess') : t('courseDetails.readMore')}
+                {/* Tabs Selector */}
+                <View style={[styles.tabsContainer, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderBottomColor: isDark ? theme.border : theme.gray[100] }]}>
+                    <TouchableOpacity 
+                        style={[styles.tabButton, activeTab === 'ABOUT' && { borderBottomColor: theme.primary }]} 
+                        onPress={() => setActiveTab('ABOUT')}
+                    >
+                        <Text style={[styles.tabText, { color: activeTab === 'ABOUT' ? theme.primary : theme.gray[500] }, activeTab === 'ABOUT' && { fontFamily: Fonts.bold }]}>
+                            {t('courseDetails.aboutTab')}
                         </Text>
-                        <Ionicons name={showFullDescription ? 'chevron-up' : 'chevron-down'} size={12} color={theme.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.tabButton, activeTab === 'CURRICULUM' && { borderBottomColor: theme.primary }]} 
+                        onPress={() => setActiveTab('CURRICULUM')}
+                    >
+                        <Text style={[styles.tabText, { color: activeTab === 'CURRICULUM' ? theme.primary : theme.gray[500] }, activeTab === 'CURRICULUM' && { fontFamily: Fonts.bold }]}>
+                            {t('courseDetails.curriculumTab')}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.tabButton, activeTab === 'REVIEWS' && { borderBottomColor: theme.primary }]} 
+                        onPress={() => setActiveTab('REVIEWS')}
+                    >
+                        <Text style={[styles.tabText, { color: activeTab === 'REVIEWS' ? theme.primary : theme.gray[500] }, activeTab === 'REVIEWS' && { fontFamily: Fonts.bold }]}>
+                            {t('courseDetails.reviewsTab')}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Course Assistants Section */}
-                {course.assistants && course.assistants.length > 0 && (
-                    <AssistantsSection
-                        assistants={course.assistants}
-                        isTeacher={isTeacher}
-                        onAddAssistant={() => {
-                            Alert.alert('Add Assistant', 'Assistant management UI coming soon');
-                        }}
-                        onRemoveAssistant={async (assistantId) => {
-                            try {
-                                await removeCourseAssistant(courseId as string, assistantId);
-                                queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
-                                Alert.alert(t('common.success'), t('courseDetails.removeAssistantSuccess'));
-                            } catch (error: any) {
-                                Alert.alert(t('common.error'), error.message || t('common.error'));
-                            }
-                        }}
-                    />
-                )}
-
-                {/* Reviews Section */}
-                {summary && (
-                    <ReviewsSection
-                        reviews={reviews}
-                        averageRating={summary.averageRating}
-                        totalReviews={summary.totalReviews}
-                        ratingBreakdown={summary.ratingBreakdown}
-                        canReview={isEnrolled && !isTeacher}
-                        userReview={reviews.find(r => r.studentId === profile?.id)}
-                        onAddReview={() => {
-                            setEditingReview(null);
-                            setShowReviewModal(true);
-                        }}
-                        onEditReview={(review) => {
-                            setEditingReview(review);
-                            setShowReviewModal(true);
-                        }}
-                        onDeleteReview={async (reviewId) => {
-                            Alert.alert(
-                                'Delete Review',
-                                'Are you sure you want to delete your review?',
-                                [
-                                    { text: 'Cancel', style: 'cancel' },
-                                    {
-                                        text: 'Delete',
-                                        style: 'destructive',
-                                        onPress: async () => {
-                                            try {
-                                                await deleteReview(reviewId);
-                                                Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
-                                            } catch (error: any) {
-                                                Alert.alert(t('common.error'), error.message || t('common.error'));
-                                            }
-                                        },
-                                    },
-                                ]
-                            );
-                        }}
-                    />
-                )}
-
-                {/* Curriculum Section */}
-                <View style={styles.section}>
-                    <View style={styles.curriculumHeader}>
-                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.curriculum')}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            {previewUrl && (
-                                <TouchableOpacity 
-                                    style={styles.previewButtonInline}
-                                    onPress={() => {
-                                        setIsPlayingVideo(true);
-                                        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-                                    }}
-                                >
-                                    <Ionicons name="play-circle" size={18} color={theme.primary} />
-                                    <Text style={[styles.previewButtonInlineText, { color: theme.primary }]}>{t('course.watchPreview')}</Text>
-                                </TouchableOpacity>
-                            )}
-                            {isTeacher && (
-                                <TouchableOpacity onPress={() => setShowCreateModal(true)}>
-                                    <Ionicons name="add-circle-outline" size={24} color={theme.primary} />
-                                </TouchableOpacity>
-                            )}
-                            <Text style={[styles.curriculumMeta, { color: theme.gray[500] }]}>
-                                {safeLessons.length} {t('courseDetails.lessons')}
+                {/* Tab Content */}
+                {activeTab === 'ABOUT' && (
+                    <Animated.View entering={FadeIn.duration(400)}>
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.description')}</Text>
+                            <Text style={[styles.descriptionText, { color: theme.gray[600] }]} numberOfLines={showFullDescription ? undefined : 6}>
+                                {course.description || t('courseDetails.noDescription')}
                             </Text>
+                            <TouchableOpacity onPress={() => setShowFullDescription(!showFullDescription)} style={styles.readMoreButton}>
+                                <Text style={[styles.readMoreText, { color: theme.primary }]}>
+                                    {showFullDescription ? t('courseDetails.readLess') : t('courseDetails.readMore')}
+                                </Text>
+                                <Ionicons name={showFullDescription ? 'chevron-up' : 'chevron-down'} size={12} color={theme.primary} />
+                            </TouchableOpacity>
                         </View>
-                    </View>
 
-                    <View style={styles.curriculumList}>
-                        {safeLessons.map((lesson, index) => {
-                            const moduleKey = index.toString();
-                            const isExpanded = expandedModules[moduleKey];
-                            const isLocked = !lesson.isFree && !isEnrolled && !isTeacher;
-                            const lessonIcon = isLocked ? 'lock-closed' : getLessonIcon(lesson.status, lesson.attendanceStatus);
-                            const lessonIconColor = isLocked ? theme.gray[400] : getLessonIconColor(lesson.status, lesson.attendanceStatus);
+                        {course.assistants && course.assistants.length > 0 && (
+                            <AssistantsSection
+                                assistants={course.assistants}
+                                isTeacher={isTeacher}
+                                onAddAssistant={() => {
+                                    Alert.alert('Add Assistant', 'Assistant management UI coming soon');
+                                }}
+                                onRemoveAssistant={async (assistantId) => {
+                                    try {
+                                        await removeCourseAssistant(courseId as string, assistantId);
+                                        queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
+                                        Alert.alert(t('common.success'), t('courseDetails.removeAssistantSuccess'));
+                                    } catch (error: any) {
+                                        Alert.alert(t('common.error'), error.message || t('common.error'));
+                                    }
+                                }}
+                            />
+                        )}
+                    </Animated.View>
+                )}
 
-                            return (
-                                <View key={lesson.id} style={[styles.moduleCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}>
-                                    <TouchableOpacity
-                                        onPress={() => toggleModule(moduleKey)}
-                                        style={[styles.moduleHeader, { backgroundColor: isExpanded ? `${theme.primary}08` : 'transparent' }]}
-                                    >
-                                        <View>
-                                            <Text style={[styles.moduleLabel, { color: isExpanded ? theme.primary : theme.gray[400] }]}>
-                                                {t('courseDetails.lesson')} {index + 1}
-                                            </Text>
-                                            <Text style={[styles.moduleTitle, { color: isDark ? theme.text : '#000' }]}>
-                                                {lesson.title}
-                                            </Text>
-                                        </View>
-                                        <Ionicons
-                                            name={isLocked ? 'lock-closed-outline' : (isExpanded ? 'chevron-up' : 'chevron-down')}
-                                            size={isLocked ? 18 : 24}
-                                            color={isLocked ? theme.gray[400] : (isExpanded ? theme.primary : theme.gray[400])}
-                                        />
-                                    </TouchableOpacity>
+                {activeTab === 'CURRICULUM' && (
+                    <Animated.View entering={FadeIn.duration(400)}>
+                        <View style={styles.section}>
+                            <View style={styles.curriculumHeader}>
+                                <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.curriculum')}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    {previewUrl && (
+                                        <TouchableOpacity 
+                                            style={styles.previewButtonInline}
+                                            onPress={() => {
+                                                setIsPlayingVideo(true);
+                                                scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                                            }}
+                                        >
+                                            <Ionicons name="play-circle" size={18} color={theme.primary} />
+                                            <Text style={[styles.previewButtonInlineText, { color: theme.primary }]}>{t('course.watchPreview')}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {isTeacher && (
+                                        <TouchableOpacity onPress={() => setShowCreateModal(true)}>
+                                            <Ionicons name="add-circle-outline" size={24} color={theme.primary} />
+                                        </TouchableOpacity>
+                                    )}
+                                    <Text style={[styles.curriculumMeta, { color: theme.gray[500] }]}>
+                                        {safeLessons.length} {t('courseDetails.lessons')}
+                                    </Text>
+                                </View>
+                            </View>
 
-                                    {isExpanded && (
-                                        <View style={styles.lessonDetails}>
-                                            <TouchableOpacity 
-                                                activeOpacity={0.7}
-                                                onPress={() => !isLocked && setSelectedLesson(lesson)}
-                                                style={[styles.lessonItem, { backgroundColor: `${theme.primary}08` }]}
+                            <View style={styles.curriculumList}>
+                                {safeLessons.map((lesson, index) => {
+                                    const moduleKey = index.toString();
+                                    const isExpanded = expandedModules[moduleKey];
+                                    const isLocked = !lesson.isFree && !isEnrolled && !isTeacher;
+                                    const lessonIcon = isLocked ? 'lock-closed' : getLessonIcon(lesson.status, lesson.attendanceStatus);
+                                    const lessonIconColor = isLocked ? theme.gray[400] : getLessonIconColor(lesson.status, lesson.attendanceStatus);
+
+                                    return (
+                                        <View key={lesson.id} style={[styles.moduleCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}>
+                                            <TouchableOpacity
+                                                onPress={() => toggleModule(moduleKey)}
+                                                style={[styles.moduleHeader, { backgroundColor: isExpanded ? `${theme.primary}08` : 'transparent' }]}
                                             >
-                                                <View style={[styles.lessonIconContainer, { backgroundColor: lessonIconColor }]}>
-                                                    <Ionicons name={lessonIcon as any} size={16} color="#FFF" />
-                                                </View>
-                                                <View style={styles.lessonInfo}>
-                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
-                                                            {lesson.title}
-                                                        </Text>
-                                                            {lesson.isFree && <FreeTrialBadge variant="compact" />}
-                                                            {lesson.videoUrl && !isLocked && (
-                                                                <View style={{ backgroundColor: `${theme.primary}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                                    <Ionicons name="play-circle" size={12} color={theme.primary} />
-                                                                    <Text style={{ fontSize: 10, color: theme.primary, fontFamily: Fonts.bold }}>WATCH</Text>
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
-                                                        {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                <View>
+                                                    <Text style={[styles.moduleLabel, { color: isExpanded ? theme.primary : theme.gray[400] }]}>
+                                                        {t('courseDetails.lesson')} {index + 1}
                                                     </Text>
-                                                    {isLocked && (
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                                                            <Ionicons name="lock-closed" size={12} color={theme.gray[400]} />
-                                                            <Text style={{ fontSize: 12, color: theme.gray[400], fontFamily: Fonts.medium }}>
-                                                                {t('courseDetails.enrollToAccess')}
-                                                            </Text>
-                                                        </View>
-                                                    )}
-                                                    {lesson.locationName && !isLocked && (
-                                                        <Text style={[styles.lessonLocation, { color: theme.gray[400] }]}>
-                                                            <Ionicons name="location-outline" size={12} /> {lesson.locationName}
-                                                        </Text>
-                                                    )}
+                                                    <Text style={[styles.moduleTitle, { color: isDark ? theme.text : '#000' }]}>
+                                                        {lesson.title}
+                                                    </Text>
                                                 </View>
-                                                {(lesson.attendanceStatus === 'PRESENT' || lesson.attendanceStatus === 'LATE') && !isLocked && (
-                                                    <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
-                                                )}
+                                                <Ionicons
+                                                    name={isLocked ? 'lock-closed-outline' : (isExpanded ? 'chevron-up' : 'chevron-down')}
+                                                    size={isLocked ? 18 : 24}
+                                                    color={isLocked ? theme.gray[400] : (isExpanded ? theme.primary : theme.gray[400])}
+                                                />
                                             </TouchableOpacity>
 
-                                            {!isTeacher && !isLocked && lesson.canMarkAttendance && (
-                                                <TouchableOpacity
-                                                    style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                                                    onPress={() => setShowScanner(true)}
-                                                >
-                                                    <Ionicons name="qr-code-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>{t('courseDetails.markAttendance')}</Text>
-                                                </TouchableOpacity>
-                                            )}
+                                            {isExpanded && (
+                                                <View style={styles.lessonDetails}>
+                                                    <TouchableOpacity 
+                                                        activeOpacity={0.7}
+                                                        onPress={() => !isLocked && setSelectedLesson(lesson)}
+                                                        style={[styles.lessonItem, { backgroundColor: `${theme.primary}08` }]}
+                                                    >
+                                                        <View style={[styles.lessonIconContainer, { backgroundColor: lessonIconColor }]}>
+                                                            <Ionicons name={lessonIcon as any} size={16} color="#FFF" />
+                                                        </View>
+                                                        <View style={styles.lessonInfo}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                                <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
+                                                                    {lesson.title}
+                                                                </Text>
+                                                                    {lesson.isFree && <FreeTrialBadge variant="compact" />}
+                                                                    {lesson.videoUrl && !isLocked && (
+                                                                        <View style={{ backgroundColor: `${theme.primary}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                            <Ionicons name="play-circle" size={12} color={theme.primary} />
+                                                                            <Text style={{ fontSize: 10, color: theme.primary, fontFamily: Fonts.bold }}>WATCH</Text>
+                                                                        </View>
+                                                                    )}
+                                                                </View>
+                                                            <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
+                                                                {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </Text>
+                                                            {isLocked && (
+                                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                                                                    <Ionicons name="lock-closed" size={12} color={theme.gray[400]} />
+                                                                    <Text style={{ fontSize: 12, color: theme.gray[400], fontFamily: Fonts.medium }}>
+                                                                        {t('courseDetails.enrollToAccess')}
+                                                                    </Text>
+                                                                </View>
+                                                            )}
+                                                            {lesson.locationName && !isLocked && (
+                                                                <Text style={[styles.lessonLocation, { color: theme.gray[400] }]}>
+                                                                    <Ionicons name="location-outline" size={12} /> {lesson.locationName}
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                        {(lesson.attendanceStatus === 'PRESENT' || lesson.attendanceStatus === 'LATE') && !isLocked && (
+                                                            <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                                                        )}
+                                                    </TouchableOpacity>
 
-                                            {!isTeacher && !isLocked && lesson.status === 'COMPLETED' && !lesson.attendanceStatus && (
-                                                <TouchableOpacity
-                                                    style={[styles.actionButton, { backgroundColor: theme.gray[200] }]}
-                                                    onPress={() => router.push({ pathname: '/absence-request', params: { lessonId: lesson.id } })}
-                                                >
-                                                    <Ionicons name="document-text-outline" size={18} color={theme.gray[700]} />
-                                                    <Text style={[styles.actionButtonText, { color: theme.gray[700] }]}>{t('courseDetails.requestExcuse')}</Text>
-                                                </TouchableOpacity>
-                                            )}
+                                                    {!isTeacher && !isLocked && lesson.canMarkAttendance && (
+                                                        <TouchableOpacity
+                                                            style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                                                            onPress={() => setShowScanner(true)}
+                                                        >
+                                                            <Ionicons name="qr-code-outline" size={18} color="#FFF" />
+                                                            <Text style={styles.actionButtonText}>{t('courseDetails.markAttendance')}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
 
-                                            {isTeacher && lesson.status === 'SCHEDULED' && (
-                                                <TouchableOpacity
-                                                    style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                                                    onPress={async () => {
-                                                        try {
-                                                            await startLessonMutation.mutateAsync(lesson.id);
-                                                            router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
-                                                        } catch (err: any) {
-                                                            Alert.alert('Error', err.message || 'Failed to start lesson');
-                                                        }
-                                                    }}
-                                                >
-                                                    <Ionicons name="play-circle-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>{t('courseDetails.startLesson')}</Text>
-                                                </TouchableOpacity>
-                                            )}
+                                                    {!isTeacher && !isLocked && lesson.status === 'COMPLETED' && !lesson.attendanceStatus && (
+                                                        <TouchableOpacity
+                                                            style={[styles.actionButton, { backgroundColor: theme.gray[200] }]}
+                                                            onPress={() => router.push({ pathname: '/absence-request', params: { lessonId: lesson.id } })}
+                                                        >
+                                                            <Ionicons name="document-text-outline" size={18} color={theme.gray[700]} />
+                                                            <Text style={[styles.actionButtonText, { color: theme.gray[700] }]}>{t('courseDetails.requestExcuse')}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
 
-                                            {isTeacher && lesson.status === 'LIVE' && (
-                                                <TouchableOpacity
-                                                    style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                                                    onPress={() => router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } })}
-                                                >
-                                                    <Ionicons name="settings-outline" size={18} color="#FFF" />
-                                                    <Text style={styles.actionButtonText}>{t('courseDetails.manageLesson')}</Text>
-                                                </TouchableOpacity>
+                                                    {isTeacher && lesson.status === 'SCHEDULED' && (
+                                                        <TouchableOpacity
+                                                            style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                                                            onPress={async () => {
+                                                                try {
+                                                                    await startLessonMutation.mutateAsync(lesson.id);
+                                                                    router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
+                                                                } catch (err: any) {
+                                                                    Alert.alert('Error', err.message || 'Failed to start lesson');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Ionicons name="play-circle-outline" size={18} color="#FFF" />
+                                                            <Text style={styles.actionButtonText}>{t('courseDetails.startLesson')}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+
+                                                    {isTeacher && lesson.status === 'LIVE' && (
+                                                        <TouchableOpacity
+                                                            style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                                                            onPress={() => router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } })}
+                                                        >
+                                                            <Ionicons name="settings-outline" size={18} color="#FFF" />
+                                                            <Text style={styles.actionButtonText}>{t('courseDetails.manageLesson')}</Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
                                             )}
                                         </View>
-                                    )}
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    </Animated.View>
+                )}
+
+                {activeTab === 'REVIEWS' && (
+                    <Animated.View entering={FadeIn.duration(400)}>
+                        <ReviewsSection
+                                reviews={reviews}
+                                averageRating={summary?.averageRating || 0}
+                                totalReviews={summary?.totalReviews || 0}
+                                ratingBreakdown={summary?.ratingBreakdown || { fiveStars: 0, fourStars: 0, threeStars: 0, twoStars: 0, oneStar: 0 }}
+                                canReview={isEnrolled && !isTeacher}
+                                userReview={reviews.find(r => r.studentId === profile?.id)}
+                                onAddReview={() => {
+                                    setEditingReview(null);
+                                    setShowReviewModal(true);
+                                }}
+                                onEditReview={(review) => {
+                                    setEditingReview(review);
+                                    setShowReviewModal(true);
+                                }}
+                                onDeleteReview={async () => {
+                                    Alert.alert(
+                                        'Delete Review',
+                                        'Are you sure you want to delete your review?',
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            {
+                                                text: 'Delete',
+                                                style: 'destructive',
+                                                onPress: async () => {
+                                                    try {
+                                                        await deleteReview();
+                                                        Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
+                                                    } catch (error: any) {
+                                                        Alert.alert(t('common.error'), error.message || t('common.error'));
+                                                    }
+                                                },
+                                            },
+                                        ]
+                                    );
+                                }}
+                            />
+                        {reviews.length === 0 && !reviewsLoading && (
+                            <View style={[styles.emptyState, { backgroundColor: isDark ? theme.surface : '#FFFFFF', marginTop: 0 }]}>
+                                <Ionicons name="chatbubbles-outline" size={48} color={theme.gray[300]} />
+                                <Text style={[styles.emptyText, { color: theme.gray[500] }]}>No reviews yet.</Text>
+                            </View>
+                        )}
+                        {reviewsLoading && (
+                            <ActivityIndicator size="small" color={theme.primary} style={{ marginTop: 20 }} />
+                        )}
+                    </Animated.View>
+                )}
 
                 <View style={{ height: 120 }} />
             </ScrollView>
@@ -832,20 +837,19 @@ export default function CourseDetailsScreen() {
                 </View>
             </Modal>
 
-            {/* Review Modal */}
             <ReviewModal
                 visible={showReviewModal}
                 onClose={() => {
                     setShowReviewModal(false);
                     setEditingReview(null);
                 }}
-                onSubmit={async (rating, comment) => {
+                onSubmit={async (rating, review) => {
                     try {
                         if (editingReview) {
-                            await updateReview({ reviewId: editingReview.id, data: { rating, comment } });
+                            await updateReview({ rating, Review: review });
                             Alert.alert(t('common.success'), t('courseDetails.reviewUpdated'));
                         } else {
-                            await createReview({ rating, comment });
+                            await createReview({ rating, Review: review });
                             Alert.alert(t('common.success'), t('courseDetails.reviewSubmitted'));
                         }
                         setShowReviewModal(false);
@@ -856,7 +860,7 @@ export default function CourseDetailsScreen() {
                     }
                 }}
                 initialRating={editingReview?.rating}
-                initialComment={editingReview?.comment}
+                initialReview={editingReview?.review}
                 isEdit={!!editingReview}
             />
 
@@ -1226,27 +1230,6 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         color: '#FFF',
     },
-    quickActions: {
-        flexDirection: 'row',
-        gap: 12,
-        flexWrap: 'wrap',
-    },
-    actionCard: {
-        flex: 1,
-        minWidth: 140,
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 8,
-    },
-    actionText: {
-        fontSize: 13,
-        fontFamily: Fonts.semiBold,
-        textAlign: 'center',
-    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1263,6 +1246,7 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontFamily: Fonts.bold,
         textAlign: 'center',
+        marginBottom: 20,
     },
     input: {
         height: 56,
@@ -1270,17 +1254,47 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         paddingHorizontal: 16,
         fontFamily: Fonts.regular,
+        marginBottom: 16,
     },
     modalButtons: {
         flexDirection: 'row',
-        marginTop: 12,
+        gap: 12,
+        marginTop: 8,
     },
     modalButton: {
         flex: 1,
         height: 48,
         borderRadius: 12,
-        justifyContent: 'center',
         alignItems: 'center',
-        marginHorizontal: 6,
+        justifyContent: 'center',
+    },
+    tabsContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        marginTop: 16,
+    },
+    tabButton: {
+        paddingVertical: 12,
+        marginRight: 24,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    tabText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+    },
+    emptyState: {
+        padding: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        marginTop: 20,
+        borderRadius: 16,
+    },
+    emptyText: {
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+        textAlign: 'center',
     },
 });

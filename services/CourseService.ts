@@ -85,6 +85,54 @@ export interface ApiSubject {
     icon: string;
 }
 
+export interface CourseReview {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentUsername: string;
+    studentProfile?: string;
+    rating: number;
+    review: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RatingBreakdown {
+    fiveStars: number;
+    fourStars: number;
+    threeStars: number;
+    twoStars: number;
+    oneStar: number;
+}
+
+export interface CourseReviewsResponse {
+    success: boolean;
+    data: {
+        courseId: string;
+        courseTitle: string;
+        averageRating: number;
+        totalRatings: number;
+        ratingBreakdown: RatingBreakdown;
+        reviews: CourseReview[];
+        pagination: {
+            page: number;
+            limit: number;
+            totalItems: number;
+            totalPages: number;
+        };
+    };
+}
+
+export interface CreateReviewRequest {
+    rating: number;
+    Review: string;
+}
+
+export interface CreateReviewResponse {
+    success: boolean;
+    data: CourseReview;
+}
+
 export interface SubjectsResponse {
     data: ApiSubject[];
     success: boolean;
@@ -245,6 +293,8 @@ export async function getMySubjects(): Promise<SubjectsResponse> {
  * Fetch all available courses with filters and pagination
  */
 export async function getAllCourses(params?: {
+    teacherId?: string;
+    subjectId?: string;
     teacherName?: string;
     subjectName?: string;
     search?: string;
@@ -915,101 +965,6 @@ export async function removeCourseAssistant(
  * REVIEWS & RATINGS ENDPOINTS
  */
 
-export interface CourseReview {
-    id: string;
-    studentId: string;
-    studentName: string;
-    studentProfileImg: string;
-    rating: number;
-    comment: string;
-    createdAt: string;
-    updatedAt?: string;
-}
-
-export interface CourseReviewsResponse {
-    success: boolean;
-    data: {
-        reviews: CourseReview[];
-        summary: {
-            averageRating: number;
-            totalReviews: number;
-            ratingBreakdown: {
-                5: number;
-                4: number;
-                3: number;
-                2: number;
-                1: number;
-            };
-        };
-        pagination: {
-            page: number;
-            limit: number;
-            total: number;
-            totalPages: number;
-        };
-    };
-}
-
-export interface CreateReviewRequest {
-    rating: number;
-    comment: string;
-}
-
-export interface ReviewResponse {
-    success: boolean;
-    data: CourseReview;
-}
-
-/**
- * Get course reviews
- */
-export async function getCourseReviews(
-    courseId: string,
-    page: number = 1,
-    limit: number = 20
-): Promise<CourseReviewsResponse> {
-    logger.log('[Reviews] Fetching course reviews:', courseId);
-    return apiClient.get<CourseReviewsResponse>(`/api/v1/courses/${courseId}/reviews`, {
-        params: { page, limit }
-    });
-}
-
-/**
- * Create a course review
- */
-export async function createCourseReview(
-    courseId: string,
-    data: CreateReviewRequest
-): Promise<ReviewResponse> {
-    logger.log('[Reviews] Creating review for course:', courseId);
-    return apiClient.post<ReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
-}
-
-/**
- * Update a course review
- */
-export async function updateCourseReview(
-    courseId: string,
-    reviewId: string,
-    data: CreateReviewRequest
-): Promise<ReviewResponse> {
-    logger.log('[Reviews] Updating review:', reviewId);
-    return apiClient.put<ReviewResponse>(`/api/v1/courses/${courseId}/reviews/${reviewId}`, data);
-}
-
-/**
- * Delete a course review
- */
-export async function deleteCourseReview(
-    courseId: string,
-    reviewId: string
-): Promise<{ success: boolean; message: string }> {
-    logger.log('[Reviews] Deleting review:', reviewId);
-    return apiClient.delete<{ success: boolean; message: string }>(
-        `/api/v1/courses/${courseId}/reviews/${reviewId}`
-    );
-}
-
 /**
  * LESSON MATERIALS ENDPOINTS
  */
@@ -1550,6 +1505,40 @@ export async function getTeacherAnalytics(): Promise<{ success: boolean; data: a
 export async function markLessonCompleted(lessonId: string): Promise<{ success: boolean; message: string }> {
     logger.log('[Progress] Marking lesson as completed:', lessonId);
     return apiClient.post<{ success: boolean; message: string }>(`/api/v1/progress/${lessonId}`, {});
+}
+
+/**
+ * Get reviews for a specific course
+ */
+export async function getCourseReviews(courseId: string, page: number = 1, limit: number = 20): Promise<CourseReviewsResponse> {
+    logger.log('[Courses] Fetching reviews for course:', courseId);
+    return apiClient.get<CourseReviewsResponse>(`/api/v1/courses/${courseId}/reviews`, {
+        params: { page, limit }
+    });
+}
+
+/**
+ * Add a review for a course (Student)
+ */
+export async function createCourseReview(courseId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
+    logger.log('[Courses] Adding review for course:', courseId);
+    return apiClient.post<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
+}
+
+/**
+ * Update a review for a course (Student)
+ */
+export async function updateCourseReview(courseId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
+    logger.log('[Courses] Updating review for course:', courseId);
+    return apiClient.put<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
+}
+
+/**
+ * Delete a course review (Student)
+ */
+export async function deleteCourseReview(courseId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Deleting review for course:', courseId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews`);
 }
 
 // ============================================================================

@@ -4,12 +4,19 @@ import { CourseReview } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ReviewsSectionProps {
     reviews: CourseReview[];
     averageRating: number;
     totalReviews: number;
-    ratingBreakdown: { 5: number; 4: number; 3: number; 2: number; 1: number };
+    ratingBreakdown: { 
+        fiveStars: number; 
+        fourStars: number; 
+        threeStars: number; 
+        twoStars: number; 
+        oneStar: number; 
+    };
     canReview: boolean;
     userReview?: CourseReview;
     onAddReview: () => void;
@@ -33,6 +40,7 @@ export function ReviewsSection({
     hasMore,
 }: ReviewsSectionProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
 
     const renderStars = (rating: number, size: number = 16) => {
@@ -73,7 +81,7 @@ export function ReviewsSection({
         <View style={styles.section}>
             <View style={styles.header}>
                 <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>
-                    Reviews & Ratings
+                    {t('courseDetails.reviewsAndRatings')}
                 </Text>
                 {canReview && !userReview && (
                     <TouchableOpacity onPress={onAddReview}>
@@ -90,11 +98,15 @@ export function ReviewsSection({
                     </Text>
                     {renderStars(Math.round(averageRating), 20)}
                     <Text style={[styles.totalReviews, { color: theme.gray[500] }]}>
-                        {totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}
+                        {totalReviews === 1 ? t('courseDetails.reviewCount', { count: totalReviews }) : t('courseDetails.reviewsCount', { count: totalReviews })}
                     </Text>
                 </View>
                 <View style={styles.summaryRight}>
-                    {[5, 4, 3, 2, 1].map((stars) => renderRatingBar(stars, ratingBreakdown[stars as keyof typeof ratingBreakdown] || 0))}
+                    {renderRatingBar(5, ratingBreakdown.fiveStars)}
+                    {renderRatingBar(4, ratingBreakdown.fourStars)}
+                    {renderRatingBar(3, ratingBreakdown.threeStars)}
+                    {renderRatingBar(2, ratingBreakdown.twoStars)}
+                    {renderRatingBar(1, ratingBreakdown.oneStar)}
                 </View>
             </View>
 
@@ -102,7 +114,7 @@ export function ReviewsSection({
             {userReview && (
                 <View style={[styles.userReviewCard, { backgroundColor: `${theme.primary}10`, borderColor: theme.primary }]}>
                     <View style={styles.reviewHeader}>
-                        <Text style={[styles.userReviewLabel, { color: theme.primary }]}>Your Review</Text>
+                        <Text style={[styles.userReviewLabel, { color: theme.primary }]}>{t('courseDetails.yourReview')}</Text>
                         <View style={styles.reviewActions}>
                             <TouchableOpacity onPress={() => onEditReview(userReview)} style={styles.actionButton}>
                                 <Ionicons name="create-outline" size={20} color={theme.primary} />
@@ -114,7 +126,7 @@ export function ReviewsSection({
                     </View>
                     {renderStars(userReview.rating, 16)}
                     <Text style={[styles.reviewComment, { color: isDark ? theme.text : '#000', marginTop: 8 }]}>
-                        {userReview.comment}
+                        {userReview.review}
                     </Text>
                 </View>
             )}
@@ -123,7 +135,7 @@ export function ReviewsSection({
             {reviews.length > 0 && (
                 <View style={styles.reviewsList}>
                     <Text style={[styles.reviewsListTitle, { color: isDark ? theme.text : '#000' }]}>
-                        Student Reviews
+                        {t('courseDetails.studentReviews')}
                     </Text>
                     {reviews.slice(0, expanded ? reviews.length : 3).map((review) => (
                         <View
@@ -138,12 +150,15 @@ export function ReviewsSection({
                         >
                             <View style={styles.reviewHeader}>
                                 <Image
-                                    source={{ uri: review.studentProfileImg || 'https://i.pravatar.cc/300' }}
+                                    source={{ uri: review.studentProfile || 'https://i.pravatar.cc/300' }}
                                     style={styles.reviewerAvatar}
                                 />
                                 <View style={styles.reviewerInfo}>
                                     <Text style={[styles.reviewerName, { color: isDark ? theme.text : '#000' }]}>
                                         {review.studentName}
+                                    </Text>
+                                    <Text style={[styles.reviewerUsername, { color: theme.gray[400] }]}>
+                                        @{review.studentUsername}
                                     </Text>
                                     {renderStars(review.rating, 14)}
                                 </View>
@@ -152,7 +167,7 @@ export function ReviewsSection({
                                 </Text>
                             </View>
                             <Text style={[styles.reviewComment, { color: theme.gray[600] }]}>
-                                {review.comment}
+                                {review.review}
                             </Text>
                         </View>
                     ))}
@@ -163,7 +178,7 @@ export function ReviewsSection({
                             onPress={() => setExpanded(!expanded)}
                         >
                             <Text style={[styles.showMoreText, { color: theme.primary }]}>
-                                {expanded ? 'Show Less' : `Show All ${reviews.length} Reviews`}
+                                {expanded ? t('courseDetails.showLess') : t('courseDetails.showAllReviews', { count: reviews.length })}
                             </Text>
                             <Ionicons
                                 name={expanded ? 'chevron-up' : 'chevron-down'}
@@ -178,7 +193,7 @@ export function ReviewsSection({
                             style={[styles.loadMoreButton, { backgroundColor: theme.primary }]}
                             onPress={onLoadMore}
                         >
-                            <Text style={styles.loadMoreText}>Load More Reviews</Text>
+                            <Text style={styles.loadMoreText}>{t('courseDetails.loadMoreReviews')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -188,7 +203,7 @@ export function ReviewsSection({
                 <View style={[styles.emptyState, { backgroundColor: isDark ? theme.surface : '#F6F8F7' }]}>
                     <Ionicons name="chatbubbles-outline" size={32} color={theme.gray[400]} />
                     <Text style={[styles.emptyText, { color: theme.gray[500] }]}>
-                        No reviews yet. Be the first to review!
+                        {t('courseDetails.noReviewsYet')}
                     </Text>
                 </View>
             )}
@@ -317,6 +332,11 @@ const styles = StyleSheet.create({
     reviewerName: {
         fontSize: 14,
         fontFamily: Fonts.semiBold,
+        marginBottom: 2,
+    },
+    reviewerUsername: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
         marginBottom: 4,
     },
     reviewDate: {

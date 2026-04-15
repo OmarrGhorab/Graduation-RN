@@ -17,7 +17,10 @@ import {
     getStudentAnalytics,
     getSubjectDetails,
     respondToAbsenceRequest,
-    updateCourse
+    updateCourse,
+    getCourseReviews,
+    createCourseReview,
+    updateCourseReview
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -33,6 +36,7 @@ export const ABNSENCE_LESSON_QUERY_KEY = (lessonId: string) => ['absences', 'les
 export const ABSENCES_PENDING_PARENT_QUERY_KEY = ['absences', 'pending-parent'];
 export const TRENDING_COURSES_QUERY_KEY = ['courses', 'trending'];
 export const RECOMMENDED_COURSES_QUERY_KEY = ['courses', 'recommended'];
+export const REVIEWS_QUERY_KEY = (courseId: string, page?: number) => ['reviews', courseId, { page }];
 
 export function useMyCourses() {
     return useQuery({
@@ -43,6 +47,8 @@ export function useMyCourses() {
 }
 
 export function useAllCourses(params?: {
+    teacherId?: string;
+    subjectId?: string;
     teacherName?: string;
     subjectName?: string;
     search?: string;
@@ -239,4 +245,39 @@ export function useAbsenceMutations() {
         createAbsence: createMutation,
         respondToAbsence: respondMutation,
     };
+}
+
+export function useCourseReviews(courseId: string, page: number = 1, limit: number = 20) {
+    return useQuery({
+        queryKey: REVIEWS_QUERY_KEY(courseId, page),
+        queryFn: () => getCourseReviews(courseId, page, limit),
+        enabled: !!courseId,
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useCreateReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, data }: { courseId: string; data: Parameters<typeof createCourseReview>[1] }) =>
+            createCourseReview(courseId, data),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
+}
+
+export function useUpdateReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, data }: { courseId: string; data: Parameters<typeof updateCourseReview>[1] }) =>
+            updateCourseReview(courseId, data),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
 }

@@ -190,3 +190,10 @@ export async function searchTeacherProfiles(query: string): Promise<TeacherSearc
         params: { query }
     });
 }
+/**
+ * Get a specific teacher profile by ID
+ */
+export async function getTeacherProfile(id: string): Promise<{ success: boolean; data: TeacherProfile }> {
+    logger.log('[Profile] Fetching teacher profile:', id);
+    return apiClient.get<{ success: boolean; data: TeacherProfile }>(`/api/v1/profile/teachers/${id}`);
+}

@@ -29,8 +29,7 @@ export default function TeachersScreen() {
     const teachers = teachersData?.data || [];
 
     const handleTeacherPress = (teacherId: string) => {
-        // router.push({ pathname: '/teacher-profile', params: { id: teacherId } });
-        console.log('Teacher pressed:', teacherId);
+        router.push({ pathname: '/teacher-profile', params: { id: teacherId } });
     };
 
     const renderTeacherItem = ({ item, index }: { item: TeacherProfile; index: number }) => (

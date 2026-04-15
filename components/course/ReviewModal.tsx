@@ -2,8 +2,10 @@ import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
     ActivityIndicator,
+    Alert,
     Modal,
     StyleSheet,
     Text,
@@ -15,9 +17,9 @@ import {
 interface ReviewModalProps {
     visible: boolean;
     onClose: () => void;
-    onSubmit: (rating: number, comment: string) => Promise<void>;
+    onSubmit: (rating: number, review: string) => Promise<void>;
     initialRating?: number;
-    initialComment?: string;
+    initialReview?: string;
     isEdit?: boolean;
 }
 
@@ -26,12 +28,13 @@ export function ReviewModal({
     onClose,
     onSubmit,
     initialRating = 0,
-    initialComment = '',
+    initialReview = '',
     isEdit = false,
 }: ReviewModalProps) {
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const [rating, setRating] = useState(initialRating);
-    const [comment, setComment] = useState(initialComment);
+    const [review, setReview] = useState(initialReview);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
@@ -39,9 +42,14 @@ export function ReviewModal({
             return;
         }
 
+        if (review.trim().length < 10) {
+            Alert.alert(t('common.error'), t('courseDetails.reviewTooShort'));
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            await onSubmit(rating, comment);
+            await onSubmit(rating, review);
             onClose();
         } catch (error) {
             // Error handled by parent
@@ -53,7 +61,7 @@ export function ReviewModal({
     const handleClose = () => {
         if (!isSubmitting) {
             setRating(initialRating);
-            setComment(initialComment);
+            setReview(initialReview);
             onClose();
         }
     };
@@ -106,7 +114,7 @@ export function ReviewModal({
                     {/* Comment */}
                     <View style={styles.commentSection}>
                         <Text style={[styles.label, { color: isDark ? theme.text : '#000' }]}>
-                            Your Review (Optional)
+                            {t('courseDetails.reviewLabel')}
                         </Text>
                         <TextInput
                             style={[
@@ -117,10 +125,10 @@ export function ReviewModal({
                                     borderColor: isDark ? theme.border : theme.gray[200],
                                 },
                             ]}
-                            placeholder="Share your experience with this course..."
+                            placeholder={t('courseDetails.reviewPlaceholder')}
                             placeholderTextColor={theme.gray[400]}
-                            value={comment}
-                            onChangeText={setComment}
+                            value={review}
+                            onChangeText={setReview}
                             multiline
                             numberOfLines={6}
                             textAlignVertical="top"
@@ -142,11 +150,11 @@ export function ReviewModal({
                                 styles.button,
                                 styles.submitButton,
                                 {
-                                    backgroundColor: rating > 0 ? theme.primary : theme.gray[300],
+                                    backgroundColor: rating > 0 && review.trim().length >= 10 ? theme.primary : theme.gray[300],
                                 },
                             ]}
                             onPress={handleSubmit}
-                            disabled={rating === 0 || isSubmitting}
+                            disabled={rating === 0 || review.trim().length < 10 || isSubmitting}
                         >
                             {isSubmitting ? (
                                 <ActivityIndicator size="small" color="#FFFFFF" />

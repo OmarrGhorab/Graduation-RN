@@ -229,7 +229,7 @@ export default function CoursesScreen() {
             <View style={[styles.header, { backgroundColor: isDark ? theme.surface : '#FFFFFF', paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 48 }]}>
                 <View style={styles.headerTopRow}>
                     <Text style={[styles.headerTitle, { color: theme.primary }]}>
-                        {t('courses.exploreTitle') || 'Explore Courses'}
+                        {t('courses.exploreTitle')}
                     </Text>
                 </View>
 
@@ -285,7 +285,7 @@ export default function CoursesScreen() {
                                 { color: activeFilter === 'all' ? '#FFFFFF' : (isDark ? theme.gray[400] : theme.gray[600]) }
                             ]}
                         >
-                            {t('courses.all') || 'All'}
+                            {t('courses.all')}
                         </Text>
                     </TouchableOpacity>
 
@@ -327,13 +327,13 @@ export default function CoursesScreen() {
                 ListHeaderComponent={
                     <View style={styles.listHeader}>
                         {renderSliderSection(
-                            t('courses.recommendedForYou') || 'Recommended For You',
+                            t('courses.recommendedForYou'),
                             'sparkles-outline',
                             recommendedCourses,
                             recommendedLoading
                         )}
                         {renderSliderSection(
-                            t('courses.trendingNow') || 'Trending Now',
+                            t('courses.trendingNow'),
                             'flame-outline',
                             trendingCourses,
                             trendingLoading
@@ -342,7 +342,7 @@ export default function CoursesScreen() {
                         {/* Section Title */}
                         <View style={styles.allCoursesTitleRow}>
                             <Text style={[styles.filterOptionsTitle, { color: isDark ? theme.text : '#1F2937' }]}>
-                                {t('courses.allCourses') || 'All Courses'}
+                                {t('courses.allCourses')}
                             </Text>
                         </View>
                     </View>
