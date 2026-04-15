@@ -4,9 +4,11 @@ import {
     createCourse,
     enrollInCourse,
     getAllCourses,
+    getRecommendedCourses,
     getAllSubjects,
     getCourse,
     getCourseDetails,
+    getTrendingCourses,
     getLessonAbsenceRequests,
     getMyCourses,
     getMySubjects,
@@ -29,6 +31,8 @@ export const STUDENT_ANALYTICS_QUERY_KEY = (studentId: string, courseId: string)
 export const ABNSENCE_STUDENT_QUERY_KEY = (studentId: string) => ['absences', 'student', studentId];
 export const ABNSENCE_LESSON_QUERY_KEY = (lessonId: string) => ['absences', 'lesson', lessonId];
 export const ABSENCES_PENDING_PARENT_QUERY_KEY = ['absences', 'pending-parent'];
+export const TRENDING_COURSES_QUERY_KEY = ['courses', 'trending'];
+export const RECOMMENDED_COURSES_QUERY_KEY = ['courses', 'recommended'];
 
 export function useMyCourses() {
     return useQuery({
@@ -46,6 +50,22 @@ export function useAllCourses(params?: {
     return useQuery({
         queryKey: ALL_COURSES_QUERY_KEY(params),
         queryFn: () => getAllCourses(params),
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useTrendingCourses() {
+    return useQuery({
+        queryKey: TRENDING_COURSES_QUERY_KEY,
+        queryFn: getTrendingCourses,
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useRecommendedCourses() {
+    return useQuery({
+        queryKey: RECOMMENDED_COURSES_QUERY_KEY,
+        queryFn: getRecommendedCourses,
         staleTime: STALE_TIMES.STANDARD,
     });
 }

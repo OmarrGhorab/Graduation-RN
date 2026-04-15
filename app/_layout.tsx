@@ -17,6 +17,8 @@ import NotificationListener from '@/components/NotificationListener';
 import { setQueryClientRef, useAuthStore } from '@/libs/auth';
 import { defaultQueryOptions } from '@/constants/queryConfig';
 import { logger } from '@/libs/logger';
+import { RECOMMENDED_COURSES_QUERY_KEY, TRENDING_COURSES_QUERY_KEY } from '@/hooks/useCourses';
+import { getRecommendedCourses, getTrendingCourses } from '@/services/CourseService';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -118,6 +120,26 @@ export default function RootLayout() {
     return () => {
       LocationUpdateService.stop();
     };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    queryClient.prefetchQuery({
+      queryKey: TRENDING_COURSES_QUERY_KEY,
+      queryFn: getTrendingCourses,
+    }).catch((error) => {
+      logger.log('[Layout] Trending prefetch skipped:', error);
+    });
+
+    queryClient.prefetchQuery({
+      queryKey: RECOMMENDED_COURSES_QUERY_KEY,
+      queryFn: getRecommendedCourses,
+    }).catch((error) => {
+      logger.log('[Layout] Recommendations prefetch skipped:', error);
+    });
   }, [isAuthenticated]);
 
   // Don't render anything until fonts are loaded and i18n is ready

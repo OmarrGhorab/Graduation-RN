@@ -629,6 +629,8 @@ export default {
     searchPlaceholder: 'Search for courses, teachers...',
     noCoursesFound: 'No courses found matching your criteria.',
     all: 'All',
+    recommendedForYou: 'Recommendations For You',
+    trendingNow: 'Trending Now',
   },
 
   // Subject List for Filters

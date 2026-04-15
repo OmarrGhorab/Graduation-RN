@@ -622,6 +622,28 @@ export default {
   },
 
   // Subject List for Filters
+  courses: {
+    title: 'الدورات',
+    failedToLoad: 'فشل تحميل تفاصيل الدورة',
+    notFound: 'الدورة غير موجودة',
+    incompleteData: 'بيانات الدورة غير مكتملة',
+    enrolledMessage: 'تم تسجيلك في هذه الدورة بنجاح!',
+    loginRequired: 'يرجى تسجيل الدخول للتسجيل',
+    addedToCart: 'تمت الإضافة إلى السلة!',
+    viewCart: 'عرض السلة',
+    continueShopping: 'متابعة',
+    attendanceFailed: 'فشل تسجيل الحضور',
+    lessonCreated: 'تم إنشاء الدرس بنجاح',
+    free: 'مجاني',
+    attendance: 'الحضور',
+    searchPlaceholder: 'ابحث عن الدورات أو المعلمين...',
+    noCoursesFound: 'لم يتم العثور على دورات مطابقة.',
+    all: 'الكل',
+    recommendedForYou: 'توصيات لك',
+    trendingNow: 'الأكثر رواجاً',
+  },
+
+  // Subject List for Filters
   subjects_list: {
     math: 'الرياضيات',
     science: 'العلوم',

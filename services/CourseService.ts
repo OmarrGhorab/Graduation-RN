@@ -44,6 +44,28 @@ export interface CoursesResponse {
     success: boolean;
 }
 
+export interface RecommendationCourseItem {
+    courseId: string;
+    score: number;
+    title: string;
+    courseImage?: string;
+    price: number;
+    currency: string;
+    enrolledCount: number;
+    subjectName: string;
+    teacher: {
+        name: string;
+        avatar?: string;
+    };
+    matchReason?: string;
+    priority?: string;
+}
+
+export interface RecommendationCoursesResponse {
+    success: boolean;
+    data: RecommendationCourseItem[];
+}
+
 export interface ApiSubject {
     id: string;
     name: string;
@@ -217,6 +239,16 @@ export async function getAllCourses(params?: {
 }): Promise<CoursesResponse> {
     logger.log('[Courses] Fetching all courses', params);
     return apiClient.get<CoursesResponse>('/api/v1/courses', { params });
+}
+
+export async function getTrendingCourses(): Promise<RecommendationCoursesResponse> {
+    logger.log('[Courses] Fetching trending courses');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/trending/');
+}
+
+export async function getRecommendedCourses(): Promise<RecommendationCoursesResponse> {
+    logger.log('[Courses] Fetching recommended courses');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/');
 }
 
 /**
