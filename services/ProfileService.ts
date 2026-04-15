@@ -65,6 +65,22 @@ export interface UsernameCheckResponse {
     suggestions?: string[];
 }
 
+export interface TeacherProfile {
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+    profileImg?: string;
+    bio?: string;
+    role: string;
+    createdAt: string;
+}
+
+export interface TeacherSearchResponse {
+    success: boolean;
+    data: TeacherProfile[];
+}
+
 export interface UserPreferences {
     language: string;
     themePreference: string;
@@ -163,4 +179,14 @@ export async function getPreferences(): Promise<UserPreferences> {
 export async function updatePreferences(data: UpdatePreferencesRequest): Promise<{ message: string; preferences: UserPreferences }> {
     logger.log('[Profile] Updating preferences:', data);
     return apiClient.patch<{ message: string; preferences: UserPreferences }>('/api/v1/profile/preferences', data);
+}
+
+/**
+ * Search for teacher profiles
+ */
+export async function searchTeacherProfiles(query: string): Promise<TeacherSearchResponse> {
+    logger.log('[Profile] Searching for teachers:', query);
+    return apiClient.get<TeacherSearchResponse>('/api/v1/profile/teachers', {
+        params: { query }
+    });
 }

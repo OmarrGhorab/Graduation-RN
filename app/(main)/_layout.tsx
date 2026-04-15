@@ -76,6 +76,12 @@ export default function MainLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="teachers"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

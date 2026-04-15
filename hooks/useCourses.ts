@@ -43,9 +43,15 @@ export function useMyCourses() {
 }
 
 export function useAllCourses(params?: {
-    subjectId?: string;
-    deliveryType?: 'OFFLINE' | 'ONLINE';
+    teacherName?: string;
+    subjectName?: string;
     search?: string;
+    deliveryType?: 'OFFLINE' | 'ONLINE';
+    isPaid?: boolean;
+    status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+    billingType?: 'ONE_TIME' | 'MONTHLY';
+    page?: number;
+    limit?: number;
 }) {
     return useQuery({
         queryKey: ALL_COURSES_QUERY_KEY(params),

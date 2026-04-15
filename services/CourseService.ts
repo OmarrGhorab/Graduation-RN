@@ -39,9 +39,21 @@ export interface ApiCourse {
     updatedAt: string;
 }
 
+export interface CourseMeta {
+    total: number;
+    limit: number;
+    page: number;
+}
+
 export interface CoursesResponse {
-    data: ApiCourse[];
-    success: boolean;
+     data: ApiCourse[];
+     meta?: {
+         total: number;
+         page: number;
+         limit: number;
+         totalPages?: number;
+     };
+     success: boolean;
 }
 
 export interface RecommendationCourseItem {
@@ -230,12 +242,18 @@ export async function getMySubjects(): Promise<SubjectsResponse> {
 }
 
 /**
- * Fetch all available courses
+ * Fetch all available courses with filters and pagination
  */
 export async function getAllCourses(params?: {
-    subjectId?: string;
-    deliveryType?: 'OFFLINE' | 'ONLINE';
+    teacherName?: string;
+    subjectName?: string;
     search?: string;
+    deliveryType?: 'OFFLINE' | 'ONLINE';
+    isPaid?: boolean;
+    status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+    billingType?: 'ONE_TIME' | 'MONTHLY';
+    page?: number;
+    limit?: number;
 }): Promise<CoursesResponse> {
     logger.log('[Courses] Fetching all courses', params);
     return apiClient.get<CoursesResponse>('/api/v1/courses', { params });
@@ -1537,7 +1555,6 @@ export async function markLessonCompleted(lessonId: string): Promise<{ success: 
 // ============================================================================
 // HEALTH CHECKS
 // ============================================================================
-// ... (rest of original code)
 
 export interface HealthResponse {
     success: boolean;
