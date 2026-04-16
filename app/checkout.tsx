@@ -120,10 +120,10 @@ export default function CheckoutScreen() {
 
         // Paymob success patterns: check for success=true or specific callback keywords
         // We check for these keywords even if the domain is localhost and fails to load
-        if (url.includes('success=true') || url.includes('payment_success') || url.includes('txn_response_code=0')) {
+        if (url.includes('success=true') || url.includes('payment_success') || url.includes('txn_response_code=0') || url.includes('txn_response_code=APPROVED')) {
             console.log('[Checkout] Success detected in URL');
             handleSuccess();
-        } else if (url.includes('success=false') || url.includes('payment_failed') || url.includes('error_occured=true')) {
+        } else if (url.includes('success=false') || url.includes('payment_failed') || url.includes('error_occured=true') || url.includes('txn_response_code=DECLINED')) {
             console.log('[Checkout] Failure detected in URL');
             setPaymentUrl(null);
             Alert.alert(t('checkout.paymentFailed'), t('checkout.paymentFailedMessage'));

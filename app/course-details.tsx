@@ -121,7 +121,7 @@ export default function CourseDetailsScreen() {
 
     useEffect(() => {
         if (previewUrl && player) {
-            player.replace(previewUrl);
+            player.replaceAsync(previewUrl);
         }
     }, [previewUrl, player]);
 
