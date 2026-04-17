@@ -35,6 +35,7 @@ export interface ApiCourse {
     previewVideoPublicId?: string;
     preview_video_url?: string;
     preview_video_public_id?: string;
+    reminderIntervals?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -46,14 +47,14 @@ export interface CourseMeta {
 }
 
 export interface CoursesResponse {
-     data: ApiCourse[];
-     meta?: {
-         total: number;
-         page: number;
-         limit: number;
-         totalPages?: number;
-     };
-     success: boolean;
+    data: ApiCourse[];
+    meta?: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages?: number;
+    };
+    success: boolean;
 }
 
 export interface RecommendationCourseItem {
@@ -518,9 +519,9 @@ export async function createLesson(data: CreateLessonRequest): Promise<CreateLes
     console.log('  locationLng:', data.locationLng);
     console.log('  geofenceRadiusM:', data.geofenceRadiusM);
     console.log('[CourseService] Full object:', data);
-    
+
     logger.log('[Lessons] Creating new lesson:', data.title);
-    
+
     try {
         const response = await apiClient.post<CreateLessonResponse>('/api/v1/lessons', data);
         console.log('[CourseService] Lesson created successfully:', response);
@@ -643,6 +644,7 @@ export interface UpdateCourseRequest {
     billingType?: 'ONE_TIME' | 'MONTHLY';
     status?: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PAUSED';
     attendanceWeight?: number;
+    reminderIntervals?: string;
 }
 
 export async function updateCourse(
@@ -679,6 +681,7 @@ export interface CreateCourseRequest {
     isPaid: boolean;
     billingType: 'ONE_TIME' | 'MONTHLY';
     attendanceWeight: number;
+    reminderIntervals?: string;
 }
 
 export async function createCourse(data: CreateCourseRequest): Promise<{ success: boolean; data: ApiCourse }> {
@@ -1037,9 +1040,9 @@ export async function uploadLessonVideo(
     onProgress?: (progress: number) => void
 ): Promise<UploadVideoResponse> {
     logger.log('[Lessons] Uploading video for lesson:', lessonId);
-    
+
     const formData = new FormData();
-    
+
     // Format file object correctly for React Native FormData
     formData.append('video', {
         uri: videoFile.uri,
@@ -1050,7 +1053,7 @@ export async function uploadLessonVideo(
     // Use XMLHttpRequest for progress tracking
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        
+
         // Track upload progress
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
@@ -1060,7 +1063,7 @@ export async function uploadLessonVideo(
                 }
             });
         }
-        
+
         xhr.addEventListener('load', async () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
@@ -1078,22 +1081,22 @@ export async function uploadLessonVideo(
                 }
             }
         });
-        
+
         xhr.addEventListener('error', () => {
             reject(new Error('Network error during upload'));
         });
-        
+
         xhr.addEventListener('abort', () => {
             reject(new Error('Upload cancelled'));
         });
-        
+
         // Get auth token and setup request
         Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             if (!token) {
                 reject(new Error('No authentication token found'));
                 return;
             }
-            
+
             xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-video`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
@@ -1120,9 +1123,9 @@ export async function uploadLessonDocument(
     onProgress?: (progress: number) => void
 ): Promise<UploadDocumentResponse> {
     logger.log('[Lessons] Uploading document for lesson:', lessonId);
-    
+
     const formData = new FormData();
-    
+
     // Format file object correctly for React Native FormData
     formData.append('document', {
         uri: documentFile.uri,
@@ -1133,7 +1136,7 @@ export async function uploadLessonDocument(
     // Use XMLHttpRequest for progress tracking
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        
+
         // Track upload progress
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
@@ -1143,7 +1146,7 @@ export async function uploadLessonDocument(
                 }
             });
         }
-        
+
         xhr.addEventListener('load', async () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
@@ -1161,22 +1164,22 @@ export async function uploadLessonDocument(
                 }
             }
         });
-        
+
         xhr.addEventListener('error', () => {
             reject(new Error('Network error during upload'));
         });
-        
+
         xhr.addEventListener('abort', () => {
             reject(new Error('Upload cancelled'));
         });
-        
+
         // Get auth token and setup request
         Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             if (!token) {
                 reject(new Error('No authentication token found'));
                 return;
             }
-            
+
             xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-document`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
@@ -1335,7 +1338,7 @@ export async function getStudentCalendar(
     const params: any = {};
     if (start) params.start = start;
     if (end) params.end = end;
-    
+
     return apiClient.get<CalendarResponse>('/api/v1/calendar/student', { params });
 }
 
@@ -1350,7 +1353,7 @@ export async function getTeacherCalendar(
     const params: any = {};
     if (start) params.start = start;
     if (end) params.end = end;
-    
+
     return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', { params });
 }
 
@@ -1416,7 +1419,7 @@ export async function uploadCourseImage(
     onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; data: { url: string }; message: string }> {
     logger.log('[Courses] Uploading course thumbnail');
-    
+
     const formData = new FormData();
     formData.append('image', {
         uri: imageFile.uri,
@@ -1434,7 +1437,7 @@ export async function uploadCourseImage(
                 }
             });
         }
-        
+
         xhr.addEventListener('load', () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try { resolve(JSON.parse(xhr.responseText)); }
@@ -1443,13 +1446,13 @@ export async function uploadCourseImage(
                 reject(new Error(`Upload failed with status ${xhr.status}`));
             }
         });
-        
+
         xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-        
+
         Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-image`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            
+
             // Attach Device Headers (Passport)
             Object.entries(deviceHeaders).forEach(([key, value]) => {
                 xhr.setRequestHeader(key, value as string);
@@ -1472,7 +1475,7 @@ export async function uploadCoursePreviewVideo(
     onProgress?: (progress: number) => void
 ): Promise<{ success: boolean; data: { url: string; publicId: string }; message: string }> {
     logger.log('[Courses] Uploading course preview video');
-    
+
     const formData = new FormData();
     formData.append('video', {
         uri: videoFile.uri,
@@ -1490,7 +1493,7 @@ export async function uploadCoursePreviewVideo(
                 }
             });
         }
-        
+
         xhr.addEventListener('load', () => {
             if (xhr.status >= 200 && xhr.status < 300) {
                 try { resolve(JSON.parse(xhr.responseText)); }
@@ -1499,13 +1502,13 @@ export async function uploadCoursePreviewVideo(
                 reject(new Error(`Upload failed with status ${xhr.status}`));
             }
         });
-        
+
         xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-        
+
         Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
             xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-video`);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            
+
             // Attach Device Headers (Passport)
             Object.entries(deviceHeaders).forEach(([key, value]) => {
                 xhr.setRequestHeader(key, value as string);

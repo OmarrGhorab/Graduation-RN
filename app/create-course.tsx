@@ -52,6 +52,14 @@ export default function CreateCourseScreen() {
     const [attendanceWeight, setAttendanceWeight] = useState('0.3');
     const [freeTrialLessons, setFreeTrialLessons] = useState('0');
     const [showLocationPicker, setShowLocationPicker] = useState(false);
+    const [reminderIntervals, setReminderIntervals] = useState<string[]>(['60', '15']);
+    const [uploadProgress, setUploadProgress] = useState<{
+        image: number;
+        video: number;
+    }>({
+        image: 0,
+        video: 0,
+    });
 
     // Fetch subjects
     const { data: subjectsResponse, isLoading: isLoadingSubjects } = useQuery({
@@ -142,6 +150,8 @@ export default function CreateCourseScreen() {
                     uri: courseImage,
                     name: 'course_thumb.jpg',
                     type: 'image/jpeg'
+                }, (progress) => {
+                    setUploadProgress(prev => ({ ...prev, image: progress }));
                 });
                 finalImageUrl = imgRes.data.url;
             }
@@ -155,7 +165,7 @@ export default function CreateCourseScreen() {
                     name: videoFile.name,
                     type: videoFile.type
                 }, (progress) => {
-                    console.log(`[Preview Upload] ${progress.toFixed(0)}%`);
+                    setUploadProgress(prev => ({ ...prev, video: progress }));
                 });
                 finalVideoUrl = vidRes.data.url;
                 finalVideoPublicId = vidRes.data.publicId;
@@ -182,6 +192,7 @@ export default function CreateCourseScreen() {
                 isPaid,
                 billingType,
                 attendanceWeight: parseFloat(attendanceWeight) || 0.3,
+                reminderIntervals: reminderIntervals.filter(r => r.trim() !== '').join(',') || "60,15",
             };
 
             await createCourseMutation.mutateAsync(courseData);
@@ -382,6 +393,15 @@ export default function CreateCourseScreen() {
                                     )}
                                 </View>
                             )}
+
+                            {uploading && uploadProgress.image > 0 && uploadProgress.image < 100 && (
+                                <View style={styles.progressContainer}>
+                                    <View style={[styles.progressBar, { width: `${uploadProgress.image}%` }]} />
+                                    <Text style={[styles.progressText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                        Uploading Image: {uploadProgress.image.toFixed(0)}%
+                                    </Text>
+                                </View>
+                            )}
                         </View>
 
                         <View style={styles.inputContainer}>
@@ -439,6 +459,15 @@ export default function CreateCourseScreen() {
                                         autoCapitalize="none"
                                     />
                                 </>
+                            )}
+
+                            {uploading && uploadProgress.video > 0 && uploadProgress.video < 100 && (
+                                <View style={styles.progressContainer}>
+                                    <View style={[styles.progressBar, { width: `${uploadProgress.video}%` }]} />
+                                    <Text style={[styles.progressText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                        Uploading Video: {uploadProgress.video.toFixed(0)}%
+                                    </Text>
+                                </View>
                             )}
                         </View>
 
@@ -776,6 +805,65 @@ export default function CreateCourseScreen() {
                                 />
                             </View>
                         </View>
+
+                        <View style={styles.inputContainer}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <MaterialIcons name="notifications-active" size={18} color={cskColors[500]} />
+                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15', marginBottom: 0 }]}>
+                                    Custom Lesson Reminders
+                                </Text>
+                            </View>
+                            <View style={{ gap: 10 }}>
+                                {reminderIntervals.map((interval, index) => (
+                                    <View key={index} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                                        <View style={[styles.inputWithSuffix, { flex: 1 }]}>
+                                            <TextInput
+                                                style={[styles.input, {
+                                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                                    color: isDark ? '#e1e5e9' : '#0d1b15',
+                                                }]}
+                                                placeholder="60"
+                                                placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                                value={interval}
+                                                onChangeText={(text) => {
+                                                    const newIntervals = [...reminderIntervals];
+                                                    newIntervals[index] = text.replace(/[^0-9]/g, '');
+                                                    setReminderIntervals(newIntervals);
+                                                }}
+                                                keyboardType="numeric"
+                                            />
+                                            <Text style={[styles.suffix, { color: isDark ? '#6b737c' : '#949da5' }]}>
+                                                MINS
+                                            </Text>
+                                        </View>
+                                        {reminderIntervals.length > 1 && (
+                                            <TouchableOpacity 
+                                                onPress={() => setReminderIntervals(reminderIntervals.filter((_, i) => i !== index))}
+                                                style={{ padding: 8 }}
+                                            >
+                                                <MaterialIcons name="remove-circle-outline" size={24} color="#dc2626" />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))}
+                                
+                                <TouchableOpacity 
+                                    style={[styles.uploadButton, {
+                                        height: 48,
+                                        marginTop: 4,
+                                        borderColor: cskColors[500],
+                                        borderStyle: 'dashed',
+                                    }]}
+                                    onPress={() => setReminderIntervals([...reminderIntervals, ''])}
+                                >
+                                    <MaterialIcons name="add" size={20} color={cskColors[500]} />
+                                    <Text style={{ color: cskColors[500], fontFamily: Fonts.bold }}>Add Another Reminder</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                Remind your students automatically before the lesson starts.
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Bottom padding for fixed button */}
@@ -1071,5 +1159,27 @@ const styles = StyleSheet.create({
         color: '#ffffff',
         fontSize: 18,
         fontFamily: Fonts.bold,
+    },
+    progressContainer: {
+        marginTop: 12,
+        height: 24,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    progressBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        backgroundColor: cskColors[500],
+    },
+    progressText: {
+        fontSize: 11,
+        fontFamily: Fonts.bold,
+        textAlign: 'center',
+        zIndex: 1,
     },
 });
