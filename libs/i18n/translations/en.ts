@@ -28,6 +28,8 @@ export default {
     submit: 'Submit',
     continue: 'Continue',
     skip: 'Skip',
+    backToHome: 'Back to Home',
+    tryAgain: 'Try Again',
   },
 
   // Auth
@@ -720,6 +722,7 @@ export default {
     noDescription: 'No description available.',
     buyNow: 'Buy Now',
     enrollNow: 'Enroll Now',
+    startLearning: 'Start Learning',
     newRating: 'New',
     aboutTab: 'About',
     curriculumTab: 'Curriculum',
@@ -753,6 +756,16 @@ export default {
     lessonTitle: 'Lesson Title',
     create: 'Create',
     newLessonDescription: 'New lesson created from mobile app',
+    editReview: 'Edit Review',
+    writeReview: 'Write a Review',
+    yourRating: 'Your Rating',
+    ratingPoor: 'Poor',
+    ratingFair: 'Fair',
+    ratingGood: 'Good',
+    ratingVeryGood: 'Very Good',
+    ratingExcellent: 'Excellent',
+    updateReview: 'Update Review',
+    submitReview: 'Submit Review',
   },
 
   // Checkout
@@ -778,8 +791,13 @@ export default {
     waitingConfirmation: 'Waiting for confirmation...',
     paymentError: 'Payment Error',
     paymentSuccess: 'Payment completed successfully!',
+    paymentSuccessMessage: 'Your enrollment has been successfully processed.',
     paymentFailed: 'Payment Failed',
     paymentFailedMessage: 'Transaction was not successful or was cancelled. Please try again.',
+    transactionId: 'TRANSACTION ID',
+    date: 'DATE',
+    tryAgain: 'Try Again',
+    backToHome: 'Back to Home',
   },
 
   // QR
@@ -800,6 +818,7 @@ export default {
     aiServices: 'AI Assistant Services',
     paymentHistory: 'Payment History',
     paymentMethods: 'Payment Methods',
+    subscriptions: 'My Subscriptions',
     logout: 'Logout',
     changeProfilePicture: 'Change Profile Picture',
     takePhoto: 'Take Photo',
@@ -827,6 +846,25 @@ export default {
     hoursAgo: '{{count}} hours ago',
     yesterday: 'Yesterday',
     daysAgo: '{{count}} days ago',
+  },
+
+  // Subscriptions
+  subscriptions: {
+    noSubscriptions: 'No active subscriptions found',
+    details: 'Subscription Details',
+    cancel: 'Cancel Subscription',
+    cancelConfirm: 'Are you sure you want to cancel this subscription? You will still have access until the end of the current billing period.',
+    nextBilling: 'Next: {{date}}',
+    startedOn: 'Started On',
+    billingCycle: 'Billing Cycle',
+    price: 'Price',
+    status: 'Status',
+    id: 'Subscription ID',
+    cancelledOn: 'Cancelled On',
+    active: 'Active',
+    cancelled: 'Cancelled',
+    expired: 'Expired',
+    pastDue: 'Past Due',
   },
 
   // Toast

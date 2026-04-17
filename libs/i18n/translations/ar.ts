@@ -28,6 +28,8 @@ export default {
     submit: 'إرسال',
     continue: 'متابعة',
     skip: 'تخطي',
+    backToHome: 'العودة للرئيسية',
+    tryAgain: 'حاول مرة أخرى',
   },
 
   // Auth
@@ -715,6 +717,7 @@ export default {
     noDescription: 'لا يوجد وصف متاح.',
     buyNow: 'اشتري الآن',
     enrollNow: 'سجل الآن',
+    startLearning: 'ابدأ التعلم',
     newRating: 'جديد',
     aboutTab: 'عن الدورة',
     curriculumTab: 'المنهج',
@@ -748,6 +751,16 @@ export default {
     lessonTitle: 'عنوان الدرس',
     create: 'إنشاء',
     newLessonDescription: 'درس جديد تم إنشاؤه من تطبيق الهاتف',
+    editReview: 'تعديل التقييم',
+    writeReview: 'كتابة تقييم',
+    yourRating: 'تقييمك',
+    ratingPoor: 'سيء',
+    ratingFair: 'مقبول',
+    ratingGood: 'جيد',
+    ratingVeryGood: 'جيد جداً',
+    ratingExcellent: 'ممتاز',
+    updateReview: 'تحديث التقييم',
+    submitReview: 'إرسال التقييم',
   },
 
   // Checkout
@@ -773,8 +786,13 @@ export default {
     waitingConfirmation: 'في انتظار التأكيد...',
     paymentError: 'خطأ في الدفع',
     paymentSuccess: 'تمت عملية الدفع بنجاح!',
+    paymentSuccessMessage: 'تمت معالجة تسجيلك في الدورة بنجاح.',
     paymentFailed: 'فشل الدفع',
     paymentFailedMessage: 'لم تكن المعاملة ناجحة أو تم إلغاؤها. يرجى المحاولة مرة أخرى.',
+    transactionId: 'رقم المعاملة',
+    date: 'التاريخ',
+    tryAgain: 'حاول مرة أخرى',
+    backToHome: 'العودة للرئيسية',
   },
 
   // Cart
@@ -800,12 +818,12 @@ export default {
     aiServices: 'خدمات المساعد الذكي',
     paymentHistory: 'سجل المدفوعات',
     paymentMethods: 'طرق الدفع',
+    subscriptions: 'اشتراكاتي',
     logout: 'تسجيل الخروج',
     changeProfilePicture: 'تغيير صورة الملف الشخصي',
     takePhoto: 'التقاط صورة',
     chooseFromGallery: 'اختيار من المعرض',
   },
-
   // Notifications
   notifications: {
     title: 'الإشعارات',
@@ -827,6 +845,25 @@ export default {
     hoursAgo: 'منذ {{count}} ساعات',
     yesterday: 'أمس',
     daysAgo: 'منذ {{count}} أيام',
+  },
+
+  // Subscriptions
+  subscriptions: {
+    noSubscriptions: 'لا توجد اشتراكات نشطة',
+    details: 'تفاصيل الاشتراك',
+    cancel: 'إلغاء الاشتراك',
+    cancelConfirm: 'هل أنت متأكد من إلغاء هذا الاشتراك؟ ستظل تملك صلاحية الوصول حتى نهاية فترة الفاتورة الحالية.',
+    nextBilling: 'التالي: {{date}}',
+    startedOn: 'بدأ في',
+    billingCycle: 'دورة الفوترة',
+    price: 'السعر',
+    status: 'الحالة',
+    id: 'معرف الاشتراك',
+    cancelledOn: 'تم الإلغاء في',
+    active: 'نشط',
+    cancelled: 'ملغي',
+    expired: 'منتهي',
+    pastDue: 'متأخر',
   },
 
   // Toast

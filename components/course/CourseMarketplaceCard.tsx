@@ -40,6 +40,11 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
                     <View style={[styles.badge, { backgroundColor: course.deliveryType === 'ONLINE' ? '#3b82f6' : theme.primary }]}>
                         <Text style={styles.badgeText}>{course.deliveryType === 'ONLINE' ? t('course.online') : t('course.offline')}</Text>
                     </View>
+                    <View style={[styles.badge, { backgroundColor: '#10B981' }]}>
+                        <Text style={styles.badgeText}>
+                            {course.billingType === 'MONTHLY' ? t('courses.monthly') : t('courses.oneTime')}
+                        </Text>
+                    </View>
                 </View>
             </View>
 

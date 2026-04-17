@@ -37,6 +37,12 @@ export function ReviewModal({
     const [review, setReview] = useState(initialReview);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Sync state when props change (essential for switching between add/edit or different reviews)
+    React.useEffect(() => {
+        setRating(initialRating);
+        setReview(initialReview);
+    }, [initialRating, initialReview, visible]);
+
     const handleSubmit = async () => {
         if (rating === 0) {
             return;
@@ -72,7 +78,7 @@ export function ReviewModal({
                 <View style={[styles.modal, { backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}>
                     <View style={styles.header}>
                         <Text style={[styles.title, { color: isDark ? theme.text : '#000' }]}>
-                            {isEdit ? 'Edit Review' : 'Write a Review'}
+                            {isEdit ? t('courseDetails.editReview') || 'Edit Review' : t('courseDetails.writeReview') || 'Write a Review'}
                         </Text>
                         <TouchableOpacity onPress={handleClose} disabled={isSubmitting}>
                             <Ionicons name="close" size={24} color={theme.gray[400]} />
@@ -82,7 +88,7 @@ export function ReviewModal({
                     {/* Rating Stars */}
                     <View style={styles.ratingSection}>
                         <Text style={[styles.label, { color: isDark ? theme.text : '#000' }]}>
-                            Your Rating
+                            {t('courseDetails.yourRating') || 'Your Rating'}
                         </Text>
                         <View style={styles.starsRow}>
                             {[1, 2, 3, 4, 5].map((star) => (
@@ -102,11 +108,11 @@ export function ReviewModal({
                         </View>
                         {rating > 0 && (
                             <Text style={[styles.ratingText, { color: theme.gray[500] }]}>
-                                {rating === 1 && 'Poor'}
-                                {rating === 2 && 'Fair'}
-                                {rating === 3 && 'Good'}
-                                {rating === 4 && 'Very Good'}
-                                {rating === 5 && 'Excellent'}
+                                {rating === 1 && (t('courseDetails.ratingPoor') || 'Poor')}
+                                {rating === 2 && (t('courseDetails.ratingFair') || 'Fair')}
+                                {rating === 3 && (t('courseDetails.ratingGood') || 'Good')}
+                                {rating === 4 && (t('courseDetails.ratingVeryGood') || 'Very Good')}
+                                {rating === 5 && (t('courseDetails.ratingExcellent') || 'Excellent')}
                             </Text>
                         )}
                     </View>
@@ -143,7 +149,7 @@ export function ReviewModal({
                             onPress={handleClose}
                             disabled={isSubmitting}
                         >
-                            <Text style={[styles.buttonText, { color: theme.gray[700] }]}>Cancel</Text>
+                            <Text style={[styles.buttonText, { color: theme.gray[700] }]}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[
@@ -160,7 +166,7 @@ export function ReviewModal({
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
                                 <Text style={styles.submitButtonText}>
-                                    {isEdit ? 'Update Review' : 'Submit Review'}
+                                    {isEdit ? t('courseDetails.updateReview') || 'Update Review' : t('courseDetails.submitReview') || 'Submit Review'}
                                 </Text>
                             )}
                         </TouchableOpacity>

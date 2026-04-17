@@ -138,6 +138,31 @@ export interface SubjectsResponse {
     success: boolean;
 }
 
+export interface Subscription {
+    id: string;
+    userId: string;
+    courseId: string;
+    status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED' | 'PAST_DUE';
+    priceCents: number;
+    currency: string;
+    billingCycle: 'MONTHLY' | 'WEEKLY' | 'YEARLY';
+    nextBillingDate: string;
+    startedAt: string;
+    cancelledAt?: string;
+    endedAt?: string;
+    courseTitle?: string; // Optional field for UI display convenience
+}
+
+export interface SubscriptionsResponse {
+    success: boolean;
+    data: Subscription[] | null;
+}
+
+export interface SubscriptionResponse {
+    success: boolean;
+    data: Subscription;
+}
+
 export interface ApiCourseDetails {
     course: {
         id: string;
@@ -311,12 +336,12 @@ export async function getAllCourses(params?: {
 
 export async function getTrendingCourses(): Promise<RecommendationCoursesResponse> {
     logger.log('[Courses] Fetching trending courses');
-    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/trending/');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/trending/', { silent: true });
 }
 
 export async function getRecommendedCourses(): Promise<RecommendationCoursesResponse> {
     logger.log('[Courses] Fetching recommended courses');
-    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/', { silent: true });
 }
 
 /**
@@ -1539,6 +1564,34 @@ export async function updateCourseReview(courseId: string, reviewId: string, dat
 export async function deleteCourseReview(courseId: string, reviewId: string): Promise<{ success: boolean; message: string }> {
     logger.log('[Courses] Deleting review for course:', courseId, reviewId);
     return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews/${reviewId}`);
+}
+
+// ============================================================================
+// SUBSCRIPTIONS (Billing)
+// ============================================================================
+
+/**
+ * Get user subscriptions
+ */
+export async function getSubscriptions(): Promise<SubscriptionsResponse> {
+    logger.log('[Billing] Fetching subscriptions');
+    return apiClient.get<SubscriptionsResponse>('/api/v1/subscriptions');
+}
+
+/**
+ * Get subscription details
+ */
+export async function getSubscriptionDetails(id: string): Promise<SubscriptionResponse> {
+    logger.log('[Billing] Fetching subscription details:', id);
+    return apiClient.get<SubscriptionResponse>(`/api/v1/subscriptions/${id}`);
+}
+
+/**
+ * Cancel subscription
+ */
+export async function cancelSubscription(id: string): Promise<{ success: boolean; message?: string }> {
+    logger.log('[Billing] Cancelling subscription:', id);
+    return apiClient.post<{ success: boolean; message?: string }>(`/api/v1/subscriptions/${id}/cancel`, {});
 }
 
 // ============================================================================

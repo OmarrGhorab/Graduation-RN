@@ -185,6 +185,11 @@ export default function AccountScreen() {
                         onPress={() => router.push('/(main)/payment-history')}
                     />
                     <MenuItem
+                        icon="calendar-outline"
+                        label={t('account.subscriptions') || 'My Subscriptions'}
+                        onPress={() => router.push('/(main)/subscriptions')}
+                    />
+                    <MenuItem
                         icon="card-outline"
                         label={t('account.paymentMethods') || 'Payment Methods'}
                         onPress={() => router.push('/(main)/payment-methods')}

@@ -41,6 +41,10 @@ export default function CourseDetailsScreen() {
     const { data: basicCourseData, isLoading: basicLoading } = useCourse(courseId as string);
     const { data: myCoursesData, isLoading: myCoursesLoading } = useMyCourses();
     
+    // Extract course and progress early to avoid use-before-declaration errors in hooks
+    const course = detailsData?.data?.course;
+    const progress = detailsData?.data?.progress;
+    
     const isLoading = detailsLoading || basicLoading || myCoursesLoading;
     const error = detailsError;
     const createLessonMutation = useCreateLesson();
@@ -65,10 +69,33 @@ export default function CourseDetailsScreen() {
         return myCoursesData.data.some((c: any) => c.id === courseId);
     }, [myCoursesData?.data, courseId]);
 
-    const isEnrolledForPreviewTracking =
-        !!detailsData?.data?.enrollment ||
-        !!detailsData?.data?.progress ||
-        isEnrolledInMyCourses;
+    const isEnrolled = React.useMemo(() => {
+        const enrollment = detailsData?.data?.enrollment;
+        const hasProgress = !!progress || !!detailsData?.data?.progress;
+        const isPaidCourse = course?.isPaid ?? basicCourseData?.data?.isPaid;
+        
+        // 1. If we have explicit enrollment details from the /details API, it's our ultimate source of truth.
+        // It's the only place we can verify if a paid course is PRECISELY marked as paid.
+        if (enrollment) {
+            if (isPaidCourse) {
+                return enrollment.isPaid && enrollment.isActive;
+            }
+            return enrollment.isActive;
+        }
+        
+        // 2. Fallback: If it's in the 'My Courses' list, we consider them enrolled.
+        // This handles cases where detailsData might be loading or the backend is slightly out of sync.
+        if (isEnrolledInMyCourses) {
+            // Even if details are loaded and enrollment is null, if it's in 'My Courses',
+            // we trust 'My Courses' as a fallback because it's a user-facing list they rely on.
+            return true;
+        }
+
+        // 3. Last fallback: check actual progress data
+        return hasProgress;
+    }, [detailsData?.data?.enrollment, detailsData?.data?.progress, progress, isEnrolledInMyCourses, course?.isPaid, basicCourseData?.data?.isPaid]);
+
+    const isEnrolledForPreviewTracking = isEnrolled;
     
     // Check for preview video from either details endpoint or fallback to basic course endpoint
     const previewUrl = detailsData?.data?.course?.previewVideoUrl || 
@@ -260,7 +287,7 @@ export default function CourseDetailsScreen() {
         );
     }
 
-    const { course, progress, teacher, lessons } = detailsData.data;
+    const { teacher, lessons } = detailsData.data;
     const safeLessons = lessons || [];
     
     if (!course) {
@@ -277,7 +304,7 @@ export default function CourseDetailsScreen() {
         );
     }
 
-    const isEnrolled = !!detailsData.data?.enrollment || !!progress || isEnrolledInMyCourses;
+    // isEnrolled is now calculated via useMemo above
 
     const toggleModule = (index: string) => {
         setExpandedModules(prev => ({ ...prev, [index]: !prev[index] }));
@@ -811,9 +838,14 @@ export default function CourseDetailsScreen() {
                             <Text style={[styles.priceAmount, { color: isDark ? theme.text : '#000' }]}>
                                 {course.isPaid ? course.price : '0'}
                             </Text>
-                            <Text style={[styles.priceCurrency, { color: theme.gray[500] }]}>
-                                {course.currency || 'EGP'}
-                            </Text>
+                            <View>
+                                <Text style={[styles.priceCurrency, { color: theme.gray[500] }]}>
+                                    {course.currency || 'EGP'}
+                                </Text>
+                                <Text style={{ fontSize: 9, color: theme.primary, fontFamily: Fonts.bold, marginTop: -2 }}>
+                                    {course.billingType === 'MONTHLY' ? t('courses.monthly').toUpperCase() : t('courses.oneTime').toUpperCase()}
+                                </Text>
+                            </View>
                         </View>
                     </View>
                     <View style={styles.enrollActions}>

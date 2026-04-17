@@ -70,16 +70,18 @@ export function useAllCourses(params?: {
 export function useTrendingCourses() {
     return useQuery({
         queryKey: TRENDING_COURSES_QUERY_KEY,
-        queryFn: getTrendingCourses,
+        queryFn: () => getTrendingCourses(),
         staleTime: STALE_TIMES.STANDARD,
+        retry: false,
     });
 }
 
 export function useRecommendedCourses() {
     return useQuery({
         queryKey: RECOMMENDED_COURSES_QUERY_KEY,
-        queryFn: getRecommendedCourses,
+        queryFn: () => getRecommendedCourses(),
         staleTime: STALE_TIMES.STANDARD,
+        retry: false,
     });
 }
 

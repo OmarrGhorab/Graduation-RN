@@ -82,6 +82,18 @@ export default function MainLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="subscriptions"
+                options={{
+                    href: null,
+                }}
+            />
+            <Tabs.Screen
+                name="teacher-profile"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }

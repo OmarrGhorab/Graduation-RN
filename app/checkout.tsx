@@ -15,13 +15,14 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/hooks/useCart';
 import { usePayments } from '@/hooks/usePayments';
 import { useAuthStore } from '@/libs/auth';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
-import { useCourseDetails } from '@/hooks/useCourses';
+import { useCourseDetails, COURSES_QUERY_KEY, COURSE_DETAILS_QUERY_KEY, ALL_COURSES_QUERY_KEY } from '@/hooks/useCourses';
 
 export default function CheckoutScreen() {
     const router = useRouter();
@@ -29,6 +30,7 @@ export default function CheckoutScreen() {
     const { t } = useTranslation();
     const { theme, isDark } = useTheme();
     const { user } = useAuthStore();
+    const queryClient = useQueryClient();
     const { cart, checkout, isCheckingOut } = useCart();
     const { savedMethods, isLoadingMethods, directEnroll, isEnrolling } = usePayments();
 
@@ -109,24 +111,61 @@ export default function CheckoutScreen() {
 
     const handleSuccess = () => {
         setPaymentUrl(null);
-        Alert.alert(t('common.success'), t('checkout.paymentSuccess'), [
-            { text: t('common.ok'), onPress: () => router.replace('/(main)/home') }
-        ]);
+        
+        // Invalidate all related queries to refresh enrollment data everywhere in-app
+        queryClient.invalidateQueries({ queryKey: COURSES_QUERY_KEY });
+        if (courseId) {
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        }
+        queryClient.invalidateQueries({ queryKey: ALL_COURSES_QUERY_KEY() });
+        queryClient.invalidateQueries({ queryKey: ['payment-history'] });
+
+        router.replace({ 
+            pathname: '/payment-status', 
+            params: { 
+                status: 'success', 
+                courseId: courseId 
+            } 
+        });
+    };
+
+    const handleFail = (message?: string) => {
+        router.replace({ 
+            pathname: '/payment-status', 
+            params: { 
+                status: 'fail',
+                message: message 
+            } 
+        });
     };
 
     const handleNavigationStateChange = (navState: any) => {
         const { url } = navState;
+        if (!url) return;
+        
         console.log('[Checkout] WebView Navigation:', url);
 
-        // Paymob success patterns: check for success=true or specific callback keywords
-        // We check for these keywords even if the domain is localhost and fails to load
-        if (url.includes('success=true') || url.includes('payment_success') || url.includes('txn_response_code=0') || url.includes('txn_response_code=APPROVED')) {
+        // Paymob success patterns
+        const isSuccess = url.includes('success=true') || 
+                         url.includes('txn_response_code=APPROVED') || 
+                         url.includes('data.message=Approved') ||
+                         url.includes('txn_response_code=0') ||
+                         url.includes('txn_response_code=00') ||
+                         url.includes('payment_success');
+                         
+        // Paymob failure patterns (with check to ensure it's not error_occured=false)
+        const isFailure = url.includes('success=false') || 
+                         url.includes('txn_response_code=DECLINED') || 
+                         (url.includes('error_occured=true') && !url.includes('error_occured=false')) ||
+                         url.includes('payment_failed');
+
+        if (isSuccess) {
             console.log('[Checkout] Success detected in URL');
             handleSuccess();
-        } else if (url.includes('success=false') || url.includes('payment_failed') || url.includes('error_occured=true') || url.includes('txn_response_code=DECLINED')) {
+        } else if (isFailure) {
             console.log('[Checkout] Failure detected in URL');
             setPaymentUrl(null);
-            Alert.alert(t('checkout.paymentFailed'), t('checkout.paymentFailedMessage'));
+            handleFail(t('checkout.paymentFailedMessage'));
         }
     };
 
