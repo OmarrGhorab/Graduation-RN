@@ -192,3 +192,28 @@ export interface UserPresenceEvent {
     is_online: boolean;
     timestamp: string;
 }
+
+// Discovery Types
+export const DiscoverySuggestionSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().nullable().optional(),
+    role: z.string(),
+    category: z.enum(['FAMILY', 'ACADEMIC', 'GROUPS']),
+    relation: z.string(),
+});
+
+export type DiscoverySuggestion = z.infer<typeof DiscoverySuggestionSchema>;
+
+export const GroupSuggestionSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+});
+
+export type GroupSuggestion = z.infer<typeof GroupSuggestionSchema>;
+
+export interface DiscoveryResponse {
+    contacts: DiscoverySuggestion[];
+    groups: GroupSuggestion[];
+}

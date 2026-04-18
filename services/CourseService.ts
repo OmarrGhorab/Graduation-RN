@@ -465,9 +465,20 @@ export interface CreateLessonResponse {
  */
 export async function startLesson(lessonId: string, deviceId?: string, deviceFingerprint?: string): Promise<{ success: boolean; message: string; qr_token?: any }> {
     logger.log('[Lessons] Starting lesson:', lessonId);
+
+    // Auto-fetch device info if missing
+    let finalDeviceId = deviceId;
+    let finalFingerprint = deviceFingerprint;
+
+    if (!finalDeviceId || !finalFingerprint) {
+        const deviceInfo = DeviceService.getDeviceInfo();
+        if (!finalDeviceId) finalDeviceId = `${deviceInfo.platform}-${deviceInfo.deviceModel}`;
+        if (!finalFingerprint) finalFingerprint = deviceInfo.deviceName;
+    }
+
     return apiClient.post<{ success: boolean; message: string; qr_token?: any }>(`/api/v1/lessons/${lessonId}/start`, {
-        deviceId,
-        deviceFingerprint
+        deviceId: finalDeviceId,
+        deviceFingerprint: finalFingerprint
     });
 }
 

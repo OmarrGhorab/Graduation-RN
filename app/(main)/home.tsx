@@ -18,6 +18,7 @@ import { useAuthStore } from '@/libs/auth';
 import { logger } from '@/libs/logger';
 import { ApiSchedule } from '@/services/CalendarService';
 import { ApiSubject, scanAttendance } from '@/services/CourseService';
+import { DeviceService } from '@/services/DeviceService';
 import { ApiNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -251,7 +252,13 @@ export default function MainHomeScreen() {
     const handleScan = async (data: string) => {
         setIsScannerVisible(false);
         try {
-            const result = await scanAttendance(data);
+            // Fetch current location for attendance validation
+            const location = await DeviceService.getPreciseLocation({ accuracy: 'high' });
+            
+            const result = await scanAttendance(data, {
+                latitude: location?.latitude,
+                longitude: location?.longitude
+            });
 
             if (result.success) {
                 // Refresh calendar to reflect attendance

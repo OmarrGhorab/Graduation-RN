@@ -9,6 +9,7 @@ import { useVideoTracking } from '@/hooks/useVideoTracking';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { CourseReview, removeCourseAssistant, scanAttendance } from '@/services/CourseService';
+import { DeviceService } from '@/services/DeviceService';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -364,7 +365,13 @@ export default function CourseDetailsScreen() {
     const handleScan = async (data: string) => {
         setShowScanner(false);
         try {
-            const result = await scanAttendance(data);
+            // Fetch current location for attendance validation
+            const location = await DeviceService.getPreciseLocation({ accuracy: 'high' });
+
+            const result = await scanAttendance(data, {
+                latitude: location?.latitude,
+                longitude: location?.longitude
+            });
 
             if (result.success) {
                 queryClient.invalidateQueries({ queryKey: ['course', courseId, 'details'] });
