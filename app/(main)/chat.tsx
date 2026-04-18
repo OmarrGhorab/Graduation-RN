@@ -7,15 +7,24 @@ import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
 import { Conversation } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, LayoutAnimation, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const FILTERS = ['ALL', 'INSTRUCTORS', 'STUDENTS', 'GROUPS'];
+const FILTERS = [
+    { key: 'ALL', label: 'All' },
+    { key: 'groups', label: 'My Groups' },
+    { key: 'students', label: 'Students' },
+    { key: 'teachers', label: 'Teachers' },
+    { key: 'instructors', label: 'Instructors' },
+    { key: 'parents', label: 'Parents' },
+    { key: 'DIRECT', label: 'Direct' },
+    { key: 'GROUP', label: 'All Groups' }
+];
 
 // Conversation Item Component with Presence
 function ConversationItem({ item, theme, router, t, textAlign }: {
@@ -186,32 +195,46 @@ export default function ChatScreen() {
     const currentUser = useAuthStore(state => state.user);
     const [activeFilter, setActiveFilter] = useState('ALL');
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const queryClient = useQueryClient();
 
-    const { data, isLoading, refetch, isRefetching, isError } = useQuery({
-        queryKey: ['conversations', activeFilter, searchQuery],
-        queryFn: async () => {
-            const conversations = await ChatService.getConversations({
-                type: activeFilter === 'GROUPS' ? 'GROUP' : undefined,
-                role: activeFilter === 'INSTRUCTORS' ? 'INSTRUCTOR' : activeFilter === 'STUDENTS' ? 'STUDENT' : undefined,
-                q: searchQuery || undefined
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchQuery(searchQuery);
+        }, 500);
+
+        return () => clearTimeout(handler);
+    }, [searchQuery]);
+
+    const {
+        data,
+        isLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        refetch,
+        isRefetching,
+        isError
+    } = useInfiniteQuery({
+        queryKey: ['conversations', activeFilter, debouncedSearchQuery],
+        queryFn: async ({ pageParam = 0 }) => {
+            const fetchedResults = await ChatService.getConversations({
+                type: activeFilter !== 'ALL' ? activeFilter : undefined,
+                q: debouncedSearchQuery || undefined,
+                limit: 20,
+                offset: pageParam
             });
 
-            // Debug: Log first conversation to see if peer_online exists
-            if (conversations && conversations.length > 0) {
-                console.log('[ChatScreen] First conversation from API:', {
-                    id: conversations[0].id,
-                    type: conversations[0].type,
-                    peer_online: conversations[0].peer_online,
-                    peer_profile: conversations[0].peer_profile,
-                    hasPresenceField: 'peer_online' in conversations[0]
-                });
-            }
-
-            return conversations;
+            return fetchedResults;
         },
+        getNextPageParam: (lastPage, allPages) => {
+            if (lastPage.length < 20) return undefined;
+            return allPages.length * 20;
+        },
+        initialPageParam: 0,
     });
 
+    const conversations = data?.pages.flat() || [];
     const { subscribe } = useWebSocket();
 
     useEffect(() => {
@@ -231,18 +254,31 @@ export default function ChatScreen() {
                 }
 
                 // Optimistically update the conversation list with new message structure
-                queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
-                    if (!oldData) return oldData;
+                queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
+                    if (!oldData || !oldData.pages) return oldData;
 
                     const conversationId = message.conversation_id;
                     const activeConvId = queryClient.getQueryData<string>(['active-conversation-id']);
                     const isChatOpen = activeConvId === conversationId;
 
-                    const conversations = [...oldData];
-                    const index = conversations.findIndex(c => c.id === conversationId);
+                    // Deep clone pages to avoid mutation
+                    const newPages = oldData.pages.map((page: Conversation[]) => [...page]);
+                    
+                    // 1. Find the conversation across all pages
+                    let foundIndex = -1;
+                    let foundPageIndex = -1;
 
-                    if (index !== -1) {
-                        const existingConv = conversations[index];
+                    for (let i = 0; i < newPages.length; i++) {
+                        const idx = newPages[i].findIndex((c: Conversation) => c.id === conversationId);
+                        if (idx !== -1) {
+                            foundPageIndex = i;
+                            foundIndex = idx;
+                            break;
+                        }
+                    }
+
+                    if (foundPageIndex !== -1) {
+                        const existingConv = newPages[foundPageIndex][foundIndex];
 
                         // Update existing conversation 
                         const senderName = message.sender?.name || message.sender_name || 'Someone';
@@ -250,8 +286,7 @@ export default function ChatScreen() {
 
                         const updatedConv = {
                             ...existingConv,
-                            // If chat is open, force unread to 0, otherwise use payload
-                            unread_count: isChatOpen ? 0 : (message.unread_count ? parseInt(message.unread_count, 10) : existingConv.unread_count),
+                            unread_count: isChatOpen ? 0 : (message.unread_count ? parseInt(message.unread_count, 10) : (existingConv.unread_count || 0) + 1),
                             last_message: {
                                 id: message.message_id || message.id,
                                 conversation_id: message.conversation_id,
@@ -267,16 +302,22 @@ export default function ChatScreen() {
                                 }
                             },
                             updated_at: message.created_at || new Date().toISOString(),
-                            is_typing_name: null // Clear typing status when message arrives
+                            is_typing_name: null 
                         };
 
-                        // Remove from current position and move to top
-                        conversations.splice(index, 1);
-                        conversations.unshift(updatedConv);
+                        // Remove from its current page
+                        newPages[foundPageIndex].splice(foundIndex, 1);
+                        
+                        // Always move to the top of the FIRST page
+                        newPages[0].unshift(updatedConv);
 
-                        return conversations;
+                        return {
+                            ...oldData,
+                            pages: newPages
+                        };
                     } else {
-                        // New conversation - fetch fresh data
+                        // New conversation or not in current pages - if we are on the first page, we might want to fetch
+                        // For now, just invalidate to be safe
                         queryClient.invalidateQueries({ queryKey: ['conversations'] });
                         return oldData;
                     }
@@ -290,43 +331,51 @@ export default function ChatScreen() {
 
         // 2. Typing Indicator Listener
         const unsubscribeTyping = subscribe('typing', (payload: any) => {
-            const data = payload.data || payload;
-            if (!data || !data.conversation_id) return;
+            const typingData = payload.data || payload;
+            if (!typingData || !typingData.conversation_id) return;
 
-            queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
-                if (!oldData) return oldData;
-                const conversations = [...oldData];
-                const index = conversations.findIndex(c => c.id === data.conversation_id);
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
+                if (!oldData || !oldData.pages) return oldData;
+                
+                const newPages = oldData.pages.map((page: Conversation[]) => {
+                    const index = page.findIndex(c => c.id === typingData.conversation_id);
+                    if (index !== -1) {
+                        const newPage = [...page];
+                        newPage[index] = {
+                            ...newPage[index],
+                            is_typing_name: typingData.is_typing ? (typingData.user_name || 'Someone') : null
+                        };
+                        return newPage;
+                    }
+                    return page;
+                });
 
-                if (index !== -1) {
-                    conversations[index] = {
-                        ...conversations[index],
-                        is_typing_name: data.is_typing ? (data.user_name || 'Someone') : null
-                    };
-                    return conversations;
-                }
-                return oldData;
+                return { ...oldData, pages: newPages };
             });
         });
 
         // 3. Conversation Read Listener (Multi-device sync)
         const unsubscribeRead = subscribe('conversation.read', (payload: any) => {
-            const data = payload.data || payload;
-            if (!data || !data.conversation_id) return;
+            const readData = payload.data || payload;
+            if (!readData || !readData.conversation_id) return;
 
-            queryClient.setQueryData(['conversations', 'ALL', ''], (oldData: Conversation[] | undefined) => {
-                if (!oldData) return oldData;
-                const conversations = [...oldData];
-                const index = conversations.findIndex(c => c.id === data.conversation_id);
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
+                if (!oldData || !oldData.pages) return oldData;
+                
+                const newPages = oldData.pages.map((page: Conversation[]) => {
+                    const index = page.findIndex(c => c.id === readData.conversation_id);
+                    if (index !== -1) {
+                        const newPage = [...page];
+                        newPage[index] = {
+                            ...newPage[index],
+                            unread_count: 0
+                        };
+                        return newPage;
+                    }
+                    return page;
+                });
 
-                if (index !== -1) {
-                    conversations[index] = {
-                        ...conversations[index],
-                        unread_count: 0
-                    };
-                    return conversations;
-                }
-                return oldData;
+                return { ...oldData, pages: newPages };
             });
         });
 
@@ -335,9 +384,9 @@ export default function ChatScreen() {
             unsubscribeTyping();
             unsubscribeRead();
         };
-    }, [activeFilter, searchQuery, queryClient, subscribe]);
+    }, [queryClient, subscribe]);
 
-    const conversations = data || [];
+
 
     const renderConversationItem = ({ item }: { item: Conversation }) => {
         return <ConversationItem item={item} theme={theme} router={router} t={t} textAlign={textAlign} />;
@@ -391,22 +440,25 @@ export default function ChatScreen() {
                 >
                     {FILTERS.map((filter) => (
                         <TouchableOpacity
-                            key={filter}
+                            key={filter.key}
                             style={[
                                 styles.filterChip,
-                                activeFilter === filter
+                                activeFilter === filter.key
                                     ? { backgroundColor: theme.primary }
                                     : { backgroundColor: isDark ? 'rgba(79, 191, 138, 0.2)' : 'rgba(9, 125, 70, 0.1)' }
                             ]}
-                            onPress={() => setActiveFilter(filter)}
+                            onPress={() => {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                setActiveFilter(filter.key);
+                            }}
                         >
                             <Text style={[
                                 styles.filterText,
-                                activeFilter === filter
+                                activeFilter === filter.key
                                     ? { color: '#FFFFFF' }
                                     : { color: theme.primary }
                             ]}>
-                                {filter}
+                                {filter.label}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -432,6 +484,19 @@ export default function ChatScreen() {
                             tintColor={theme.primary}
                             colors={[theme.primary]}
                         />
+                    }
+                    onEndReached={() => {
+                        if (hasNextPage && !isFetchingNextPage) {
+                            fetchNextPage();
+                        }
+                    }}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        isFetchingNextPage ? (
+                            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                                <ActivityIndicator size="small" color={theme.primary} />
+                            </View>
+                        ) : null
                     }
                     ListEmptyComponent={
                         <EmptyState
@@ -497,9 +562,13 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
     const getMessage = () => {
         if (searchQuery) return `No chats matching "${searchQuery}"`;
         switch (activeFilter) {
-            case 'INSTRUCTORS': return 'No instructor conversations';
-            case 'STUDENTS': return 'No student conversations';
-            case 'GROUPS': return 'No group conversations';
+            case 'instructors': return 'No instructor conversations';
+            case 'students': return 'No student conversations';
+            case 'teachers': return 'No teacher conversations';
+            case 'parents': return 'No parent conversations';
+            case 'groups': return 'No group conversations';
+            case 'GROUP': return 'No group conversations';
+            case 'DIRECT': return 'No direct conversations';
             default: return 'No conversations yet';
         }
     };
@@ -507,9 +576,13 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
     const getSubtitle = () => {
         if (searchQuery) return "Try adjusting your search or check your spelling";
         switch (activeFilter) {
-            case 'INSTRUCTORS': return 'Start chatting with your instructors by creating a new conversation';
-            case 'STUDENTS': return 'Connect with students by starting a new conversation';
-            case 'GROUPS': return 'Create or join a group to start collaborating';
+            case 'instructors': return 'Start chatting with your instructors';
+            case 'students': return 'Connect with students';
+            case 'teachers': return 'Reach out to teachers';
+            case 'parents': return 'Connect with parents';
+            case 'groups': return 'Browse your course groups';
+            case 'GROUP': return 'Browse all groups';
+            case 'DIRECT': return 'Start a direct chat';
             default: return 'Start a new conversation by tapping the + button below';
         }
     };
@@ -517,9 +590,13 @@ function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, 
     const getIcon = () => {
         if (searchQuery) return 'search-outline';
         switch (activeFilter) {
-            case 'INSTRUCTORS': return 'school-outline';
-            case 'STUDENTS': return 'people-outline';
-            case 'GROUPS': return 'chatbubbles-outline';
+            case 'instructors': return 'school-outline';
+            case 'teachers': return 'briefcase-outline';
+            case 'students': return 'people-outline';
+            case 'parents': return 'home-outline';
+            case 'groups':
+            case 'GROUP': return 'chatbubbles-outline';
+            case 'DIRECT': return 'person-outline';
             default: return 'chatbubble-ellipses-outline';
         }
     };

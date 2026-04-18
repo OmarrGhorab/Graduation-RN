@@ -9,10 +9,10 @@ import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
-import { ChatMember, Message } from '@/types/chat';
+import { ChatMember, Conversation, Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Audio } from 'expo-av';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
@@ -253,16 +253,20 @@ export default function ChatDetailScreen() {
         },
         enabled: !!id,
         initialData: () => {
-            // Try to find the conversation in the cache and use its last_message as initial data
-            const convs = queryClient.getQueryData<any[]>(['conversations', 'ALL', '']);
-            const conv = convs?.find(c => c.id === id);
-
-            if (conv?.last_message) {
-                console.log('[ChatDetail] Seeding initial data with last_message from cache');
-                return {
-                    pages: [[conv.last_message]],
-                    pageParams: [0]
-                };
+            // Try to find the conversation in any of the conversation query caches
+            const allQueries = queryClient.getQueriesData<InfiniteData<Conversation[]>>({ queryKey: ['conversations'] });
+            
+            for (const [_, data] of allQueries) {
+                if (data?.pages) {
+                    const conv = data.pages.flat().find((c: Conversation) => c.id === id);
+                    if (conv?.last_message) {
+                        console.log('[ChatDetail] Seeding initial data with last_message from cache');
+                        return {
+                            pages: [[conv.last_message]],
+                            pageParams: [0]
+                        };
+                    }
+                }
             }
             return undefined;
         }
@@ -632,31 +636,36 @@ export default function ChatDetailScreen() {
         });
 
         // Optimistically update conversations list cache (Last Message Preview)
-        queryClient.setQueryData(['conversations'], (old: any) => {
-            if (!old) return old;
+        queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
+            if (!old || !old.pages) return old;
 
-            // Handle both array and object responses
-            const conversations = Array.isArray(old) ? old : old.conversations;
-            if (!conversations) return old;
+            const newPages = old.pages.map((page: Conversation[]) => [...page]);
+            let foundIndex = -1;
+            let foundPageIndex = -1;
 
-            let updatedConversations = conversations.map((c: any) => {
-                if (c.id === id) {
-                    return {
-                        ...c,
-                        last_message: {
-                            ...newMessage,
-                            sent_at: new Date().toISOString()
-                        },
-                        updated_at: new Date().toISOString()
-                    };
+            for (let i = 0; i < newPages.length; i++) {
+                const idx = newPages[i].findIndex((c: Conversation) => c.id === id);
+                if (idx !== -1) {
+                    foundPageIndex = i;
+                    foundIndex = idx;
+                    break;
                 }
-                return c;
-            });
+            }
 
-            // Move updated conversation to top
-            updatedConversations.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+            if (foundPageIndex !== -1) {
+                const existingConv = newPages[foundPageIndex][foundIndex];
+                const updatedConv = {
+                    ...existingConv,
+                    last_message: newMessage,
+                    updated_at: new Date().toISOString()
+                };
 
-            return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
+                newPages[foundPageIndex].splice(foundIndex, 1);
+                newPages[0].unshift(updatedConv);
+
+                return { ...old, pages: newPages };
+            }
+            return old;
         });
 
         // Send via HTTP API
@@ -689,24 +698,36 @@ export default function ChatDetailScreen() {
             });
 
             // Update conversations list with real message
-            queryClient.setQueryData(['conversations'], (old: any) => {
-                if (!old) return old;
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
+                if (!old || !old.pages) return old;
 
-                const conversations = Array.isArray(old) ? old : old.conversations;
-                if (!conversations) return old;
+                const newPages = old.pages.map((page: Conversation[]) => [...page]);
+                let foundIndex = -1;
+                let foundPageIndex = -1;
 
-                const updatedConversations = conversations.map((c: any) => {
-                    if (c.id === id) {
-                        return {
-                            ...c,
-                            last_message: sentMessage,
-                            updated_at: sentMessage.created_at
-                        };
+                for (let i = 0; i < newPages.length; i++) {
+                    const idx = newPages[i].findIndex((c: Conversation) => c.id === id);
+                    if (idx !== -1) {
+                        foundPageIndex = i;
+                        foundIndex = idx;
+                        break;
                     }
-                    return c;
-                });
+                }
 
-                return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
+                if (foundPageIndex !== -1) {
+                    const existingConv = newPages[foundPageIndex][foundIndex];
+                    const updatedConv = {
+                        ...existingConv,
+                        last_message: sentMessage,
+                        updated_at: sentMessage.created_at
+                    };
+
+                    newPages[foundPageIndex].splice(foundIndex, 1);
+                    newPages[0].unshift(updatedConv);
+
+                    return { ...old, pages: newPages };
+                }
+                return old;
             });
 
             // Invalidate media collection if message contains media
