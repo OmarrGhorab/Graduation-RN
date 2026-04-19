@@ -3,8 +3,8 @@ import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
 import QRScannerModal from '@/components/course/QRScannerModal';
 import { ScheduleCard, SubjectCard } from '@/components/home';
-import { Fonts, cskColors } from '@/constants/theme';
-import { useStudentCalendar, useTeacherCalendar } from '@/hooks/useCalendar';
+import { Fonts, cskColors, errorColors } from '@/constants/theme';
+import { useCalendar, useStudentCalendar, useTeacherCalendar } from '@/hooks/useCalendar';
 import { useMySubjects } from '@/hooks/useCourses';
 import {
     useDeleteNotificationMutation,
@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, RefreshControl, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
@@ -59,7 +59,7 @@ export default function MainHomeScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const { theme, isDark } = useTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const user = useAuthStore((state) => state.user);
     const [showNotifications, setShowNotifications] = React.useState(false);
     const [isScannerVisible, setIsScannerVisible] = React.useState(false);
@@ -72,22 +72,37 @@ export default function MainHomeScreen() {
         return date;
     });
     const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const [rangePreset, setRangePreset] = React.useState<'upcoming_7' | 'upcoming_30' | 'prev_7' | 'manual'>('upcoming_7');
+    const [statusFilter, setStatusFilter] = React.useState<'upcoming' | 'finished' | 'CANCELED' | 'all'>('upcoming');
+    const [selectedSubject, setSelectedSubject] = React.useState<string | null>(null);
 
     const isTeacher = user?.role === 'TEACHER';
 
     // Calculate dates for calendar based on selected date range
-    const calendarRange = React.useMemo(() => {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
+    const calendarFilters = React.useMemo(() => {
+        const filters: any = {};
         
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
+        if (rangePreset !== 'manual') {
+            filters.range = rangePreset;
+        } else {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            filters.start = start.toISOString();
+            filters.end = end.toISOString();
+        }
 
-        return {
-            start: start.toISOString(),
-            end: end.toISOString()
-        };
-    }, [startDate, endDate]);
+        if (statusFilter !== 'all') {
+            filters.status = statusFilter;
+        }
+
+        if (selectedSubject) {
+            filters.subject = selectedSubject;
+        }
+
+        return filters;
+    }, [startDate, endDate, rangePreset, statusFilter, selectedSubject]);
 
     // Scroll tracking for header animation
     const scrollY = useSharedValue(0);
@@ -133,9 +148,7 @@ export default function MainHomeScreen() {
         data: calendarData, 
         isLoading: isLoadingCalendar,
         refetch: refetchCalendar
-    } = isTeacher 
-        ? useTeacherCalendar(calendarRange.start, calendarRange.end)
-        : useStudentCalendar(calendarRange.start, calendarRange.end);
+    } = useCalendar(calendarFilters);
 
     const subjects = React.useMemo(() => {
         return subjectsData?.data?.map((subject: ApiSubject) => ({
@@ -154,7 +167,7 @@ export default function MainHomeScreen() {
     );
 
     const schedule = React.useMemo(() => {
-        return calendarData?.data?.map((item: ApiSchedule) => ({
+        const mapped = calendarData?.data?.map((item: ApiSchedule) => ({
             id: item.id,
             courseId: item.courseId,
             title: item.courseTitle,
@@ -163,16 +176,34 @@ export default function MainHomeScreen() {
             status: item.status,
             location: item.location,
             attendanceStatus: item.attendanceStatus,
-            canMarkAttendance: item.canMarkAttendance
+            canMarkAttendance: item.canMarkAttendance,
+            startTime: item.startTime // keep for sorting
         })) || [];
+
+        // Smart Priority Sorting: LIVE > SCHEDULED > etc
+        return mapped.sort((a: any, b: any) => {
+            // 1. LIVE always at top
+            if (a.status === 'LIVE' && b.status !== 'LIVE') return -1;
+            if (a.status !== 'LIVE' && b.status === 'LIVE') return 1;
+
+            // 2. SCHEDULED next
+            if (a.status === 'SCHEDULED' && b.status === 'COMPLETED') return -1;
+            if (a.status === 'COMPLETED' && b.status === 'SCHEDULED') return 1;
+
+            if (a.status === 'CANCELED' && b.status !== 'CANCELED') return 1;
+            if (a.status !== 'CANCELED' && b.status === 'CANCELED') return -1;
+
+            // 3. Within same status, sort by urgency (closest first)
+            return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+        });
     }, [calendarData]);
 
     const activeLessonId = useMemo(() => {
-        const live = schedule.find(s => s.status === 'LIVE');
+        const live = schedule.find((s: any) => s.status === 'LIVE');
         if (live) return live.id;
-        const upcoming = schedule.find(s => s.status === 'SCHEDULED');
+        const upcoming = schedule.find((s: any) => s.status === 'SCHEDULED');
         if (upcoming) return upcoming.id;
-        return schedule[0]?.id;
+        return (schedule[0] as any)?.id;
     }, [schedule]);
 
     const onRefresh = React.useCallback(async () => {
@@ -413,20 +444,52 @@ export default function MainHomeScreen() {
                     </View>
 
                     {/* Date Range Selector */}
-                    <View style={styles.dateRangeContainer}>
-                        <View style={styles.dateRangeHeader}>
-                            <View style={styles.dateRangeInfo}>
-                                <Ionicons name="calendar" size={20} color={theme.primary} />
-                                <Text style={[styles.dateRangeTitle, { color: isDark ? theme.text : theme.gray[900] }]}>
-                                    {t('home.dateRange')}
-                                </Text>
-                            </View>
-                            <Text style={[styles.dateRangeDays, { color: theme.gray[500] }]}>
-                                {t('home.daysCount', { count: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) })}
-                            </Text>
-                        </View>
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('home.schedule')}</Text>
+                        <TouchableOpacity 
+                            onPress={() => router.push('/calendar')}
+                            style={{ padding: 4 }}
+                        >
+                            <Text style={{ color: theme.primary, fontFamily: Fonts.medium, fontSize: 13 }}>{t('home.viewCalendar')}</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                        <View style={styles.dateRangeSelector}>
+                    {/* Filter Presets */}
+                    <View style={{ marginBottom: 16 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                            <FilterChip 
+                                label={t('home.next7Days')} 
+                                active={rangePreset === 'upcoming_7'} 
+                                onPress={() => setRangePreset('upcoming_7')} 
+                                icon="time-outline"
+                            />
+                            <FilterChip 
+                                label={t('home.next30Days')} 
+                                active={rangePreset === 'upcoming_30'} 
+                                onPress={() => setRangePreset('upcoming_30')} 
+                                icon="calendar-outline"
+                            />
+                            <FilterChip 
+                                label={t('home.pastWeek')} 
+                                active={rangePreset === 'prev_7'} 
+                                onPress={() => setRangePreset('prev_7')} 
+                                icon="archive-outline"
+                            />
+                            <FilterChip 
+                                label={rangePreset === 'manual' ? t('home.customRange') : t('home.manualSelect')} 
+                                active={rangePreset === 'manual'} 
+                                onPress={() => {
+                                    setRangePreset('manual');
+                                    setShowDatePicker(true);
+                                }} 
+                                icon="options-outline"
+                            />
+                        </ScrollView>
+                    </View>
+
+                    {/* Manual Range UI (Only when manual preset selected) */}
+                    {rangePreset === 'manual' && (
+                        <View style={[styles.dateRangeSelector, { marginBottom: 20 }]}>
                             <TouchableOpacity
                                 onPress={() => {
                                     setDatePickerMode('start');
@@ -444,22 +507,13 @@ export default function MainHomeScreen() {
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>{t('home.startDate')}</Text>
                                     <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
-                                        {startDate.toLocaleDateString('en-US', { 
-                                            weekday: 'short',
-                                            month: 'short', 
-                                            day: 'numeric'
-                                        })}
+                                        {startDate.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                     </Text>
                                 </View>
-                                <Ionicons name="chevron-down" size={20} color={theme.gray[400]} />
                             </TouchableOpacity>
 
                             <View style={styles.dateRangeDivider}>
-                                <View style={[styles.dateRangeLine, { backgroundColor: isDark ? theme.border : theme.gray[200] }]} />
-                                <View style={[styles.dateRangeArrowContainer, { backgroundColor: theme.primary }]}>
-                                    <Ionicons name="arrow-forward" size={14} color="#ffffff" />
-                                </View>
-                                <View style={[styles.dateRangeLine, { backgroundColor: isDark ? theme.border : theme.gray[200] }]} />
+                                <Ionicons name="arrow-forward" size={14} color={theme.primary} />
                             </View>
 
                             <TouchableOpacity
@@ -479,79 +533,71 @@ export default function MainHomeScreen() {
                                 <View style={{ flex: 1 }}>
                                     <Text style={[styles.dateLabel, { color: theme.gray[500] }]}>{t('home.endDate')}</Text>
                                     <Text style={[styles.dateText, { color: isDark ? theme.text : theme.gray[900] }]}>
-                                        {endDate.toLocaleDateString('en-US', { 
-                                            weekday: 'short',
-                                            month: 'short', 
-                                            day: 'numeric'
-                                        })}
+                                        {endDate.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                     </Text>
                                 </View>
-                                <Ionicons name="chevron-down" size={20} color={theme.gray[400]} />
                             </TouchableOpacity>
                         </View>
+                    )}
 
-                        {/* Quick Date Presets */}
-                        <View style={styles.quickPresets}>
-                            <Text style={[styles.presetsLabel, { color: theme.gray[500] }]}>{t('home.quickSelect')}</Text>
-                            <View style={styles.presetsRow}>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const today = new Date();
-                                        setStartDate(today);
-                                        const nextWeek = new Date(today);
-                                        nextWeek.setDate(today.getDate() + 7);
-                                        setEndDate(nextWeek);
-                                    }}
-                                    style={[styles.presetChip, { 
-                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
-                                        borderColor: isDark ? theme.border : theme.gray[200] 
-                                    }]}
-                                >
-                                    <Ionicons name="time-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.sevenDays')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const today = new Date();
-                                        const start = new Date(today);
-                                        start.setDate(1);
-                                        setStartDate(start);
-                                        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                                        setEndDate(end);
-                                    }}
-                                    style={[styles.presetChip, { 
-                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
-                                        borderColor: isDark ? theme.border : theme.gray[200] 
-                                    }]}
-                                >
-                                    <Ionicons name="calendar-clear-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.thisMonth')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        const today = new Date();
-                                        setStartDate(today);
-                                        const nextMonth = new Date(today);
-                                        nextMonth.setDate(today.getDate() + 30);
-                                        setEndDate(nextMonth);
-                                    }}
-                                    style={[styles.presetChip, { 
-                                        backgroundColor: isDark ? theme.surface : '#ffffff', 
-                                        borderColor: isDark ? theme.border : theme.gray[200] 
-                                    }]}
-                                >
-                                    <Ionicons name="trending-up-outline" size={14} color={theme.primary} />
-                                    <Text style={[styles.presetText, { color: isDark ? theme.text : theme.gray[700] }]}>{t('home.thirtyDays')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
+                    {/* Status Filters */}
+                    <View style={{ marginBottom: 12 }}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                            <FilterChip 
+                                label={t('home.upcomingFilter')} 
+                                active={statusFilter === 'upcoming'} 
+                                onPress={() => setStatusFilter('upcoming')} 
+                                color={theme.primary}
+                            />
+                            <FilterChip 
+                                label={t('home.finishedFilter')} 
+                                active={statusFilter === 'finished'} 
+                                onPress={() => setStatusFilter('finished')} 
+                                color={theme.gray[500]}
+                            />
+                            <FilterChip 
+                                label={t('home.canceledFilter')} 
+                                active={statusFilter === 'CANCELED'} 
+                                onPress={() => setStatusFilter('CANCELED')} 
+                                color={errorColors[500]}
+                            />
+                            <FilterChip 
+                                label={t('home.allStatuses')} 
+                                active={statusFilter === 'all'} 
+                                onPress={() => setStatusFilter('all')} 
+                                variant="outline"
+                            />
+                        </ScrollView>
                     </View>
+
+                    {/* Subject Filters */}
+                    {subjects.length > 0 && (
+                        <View style={{ marginBottom: 20 }}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                                <FilterChip 
+                                    label={t('courses.all')} 
+                                    active={!selectedSubject} 
+                                    onPress={() => setSelectedSubject(null)} 
+                                    variant={!selectedSubject ? 'filled' : 'outline'}
+                                />
+                                {subjects.map((subject: any) => (
+                                    <FilterChip 
+                                        key={subject.id}
+                                        label={subject.name || subject.title} 
+                                        active={selectedSubject === subject.id} 
+                                        onPress={() => setSelectedSubject(subject.id)}
+                                        variant={selectedSubject === subject.id ? 'filled' : 'outline'}
+                                    />
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
                     <View style={{ marginTop: 8 }}>
                         {isLoadingCalendar ? (
                             <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
                         ) : schedule.length > 0 ? (
-                            schedule.map((item, index) => (
+                            schedule.map((item: any, index: number) => (
                                 <ScheduleCard
                                     key={item.id}
                                     {...item}
@@ -609,9 +655,51 @@ export default function MainHomeScreen() {
 }
 
 
+interface FilterChipProps {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+    icon?: keyof typeof Ionicons.glyphMap;
+    color?: string;
+    variant?: 'filled' | 'outline';
+}
+
+function FilterChip({ label, active, onPress, icon, color, variant = 'filled' }: FilterChipProps) {
+    const { theme, isDark } = useTheme();
+    const activeColor = color || theme.primary;
+
+    return (
+        <TouchableOpacity 
+            onPress={onPress}
+            style={[
+                styles.chip,
+                active ? { backgroundColor: activeColor, borderColor: activeColor } : { backgroundColor: 'transparent', borderColor: isDark ? theme.gray[700] : theme.gray[200] },
+                variant === 'outline' && !active && { borderWidth: 1 }
+            ]}
+        >
+            {icon && <Ionicons name={icon} size={14} color={active ? '#FFF' : theme.gray[500]} style={{ marginRight: 4 }} />}
+            <Text style={[styles.chipText, { color: active ? '#FFF' : theme.gray[500] }]}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    chipText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
     },
     scrollView: {
         flex: 1,
@@ -699,50 +787,7 @@ const styles = StyleSheet.create({
     dateRangeDivider: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        gap: 8,
-    },
-    dateRangeLine: {
-        flex: 1,
-        height: 2,
-    },
-    dateRangeArrowContainer: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    quickPresets: {
-        gap: 8,
-    },
-    presetsLabel: {
-        fontSize: 12,
-        fontFamily: Fonts.medium,
-        marginBottom: 4,
-    },
-    presetsRow: {
-        flexDirection: 'row',
-        gap: 8,
-        flexWrap: 'wrap',
-    },
-    presetChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
-        elevation: 1,
-    },
-    presetText: {
-        fontSize: 12,
-        fontFamily: Fonts.semiBold,
+        paddingHorizontal: 12,
     },
     emptySchedule: {
         alignItems: 'center',

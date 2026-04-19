@@ -596,6 +596,18 @@ export default {
     daysCount: '{{count}} days',
     attendanceSuccess: 'Attendance marked successfully!',
     classroom: 'Classroom',
+    viewCalendar: 'View Calendar',
+    schedule: 'Schedule',
+    next7Days: 'Next 7d',
+    next30Days: 'Next 30d',
+    pastWeek: 'Past Week',
+    customRange: 'Custom Range',
+    manualSelect: 'Manual Select',
+    allStatuses: 'All Statuses',
+    upcomingFilter: 'Upcoming',
+    finishedFilter: 'Finished',
+    canceledFilter: 'Canceled',
+    liveManage: 'LIVE - MANAGE',
   },
 
   // Course

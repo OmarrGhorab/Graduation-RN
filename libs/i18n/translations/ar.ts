@@ -596,6 +596,18 @@ export default {
     daysCount: '{{count}} أيام',
     attendanceSuccess: 'تم تسجيل الحضور بنجاح!',
     classroom: 'غرفة الصف',
+    viewCalendar: 'عرض التقويم',
+    schedule: 'الجدول',
+    next7Days: 'القادمة 7 أيام',
+    next30Days: 'القادمة 30 يوماً',
+    pastWeek: 'الأسبوع الماضي',
+    customRange: 'نطاق مخصص',
+    manualSelect: 'اختيار يدوي',
+    allStatuses: 'جميع الحالات',
+    upcomingFilter: 'القادمة',
+    finishedFilter: 'المنتهية',
+    canceledFilter: 'الملغاة',
+    liveManage: 'مباشر - إدارة',
   },
 
   // Course

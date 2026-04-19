@@ -20,27 +20,33 @@ export interface CalendarResponse {
     success: boolean;
 }
 
+export interface CalendarFilters {
+    range?: 'prev_7' | 'upcoming_7' | 'upcoming_30';
+    status?: 'upcoming' | 'finished' | 'CANCELED';
+    subject_name?: string;
+    subject?: string;
+    start?: string;
+    end?: string;
+    [key: string]: string | number | boolean | undefined;
+}
+
 /**
  * Fetch calendar/schedule for the current student
- * @param start - Start ISO date string
- * @param end - End ISO date string
  */
-export async function getStudentCalendar(start?: string, end?: string): Promise<CalendarResponse> {
-    logger.log('[Calendar] Fetching student calendar', { start, end });
+export async function getStudentCalendar(filters?: CalendarFilters): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching student calendar', filters);
     return apiClient.get<CalendarResponse>('/api/v1/calendar/student', {
-        params: { start, end }
+        params: filters
     });
 }
 
 
 /**
  * Fetch calendar/schedule for the current teacher
- * @param start - Start ISO date string
- * @param end - End ISO date string
  */
-export async function getTeacherCalendar(start?: string, end?: string): Promise<CalendarResponse> {
-    logger.log('[Calendar] Fetching teacher calendar', { start, end });
+export async function getTeacherCalendar(filters?: CalendarFilters): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching teacher calendar', filters);
     return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', {
-        params: { start, end }
+        params: filters
     });
 }

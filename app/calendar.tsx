@@ -1,7 +1,10 @@
 import { Fonts } from '@/constants/theme';
 import { useCalendar } from '@/hooks/useCalendar';
+import { useMySubjects } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
+import { ApiSubject } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -10,17 +13,30 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 export default function CalendarScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const { t } = useTranslation();
     const user = useAuthStore(state => state.user);
-    const isTeacher = user?.role === 'TEACHER';
+    const [rangePreset, setRangePreset] = React.useState<'upcoming_7' | 'upcoming_30' | 'prev_7' | 'all'>('upcoming_30');
+    const [statusFilter, setStatusFilter] = React.useState<'upcoming' | 'finished' | 'CANCELED' | 'all'>('all');
+    const [selectedSubject, setSelectedSubject] = React.useState<string | null>(null);
 
-    const { data, isLoading } = useCalendar();
+    const { data: subjectsData } = useMySubjects();
+    const subjects = subjectsData?.data || [];
+
+    const { data, isLoading } = useCalendar({
+        range: rangePreset === 'all' ? undefined : rangePreset,
+        status: statusFilter === 'all' ? undefined : statusFilter as any,
+        subject: selectedSubject || undefined
+    });
 
     const getStatusColor = (status: string) => {
-        switch (status) {
+        const s = (status || '').toUpperCase();
+        switch (s) {
             case 'LIVE': return theme.primary;
             case 'COMPLETED': return theme.gray[400];
+            case 'CANCELED':
             case 'CANCELLED': return '#FF4444';
-            default: return '#FFA500';
+            case 'SCHEDULED': return theme.primary;
+            default: return theme.gray[400];
         }
     };
 
@@ -50,21 +66,92 @@ export default function CalendarScreen() {
                     <Ionicons name="chevron-back" size={24} color={isDark ? theme.text : '#000'} />
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: isDark ? theme.text : '#000' }]}>
-                    {isTeacher ? 'My Schedule' : 'My Calendar'}
+                    {t('home.yourSchedule')}
                 </Text>
                 <View style={{ width: 24 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
+                <View style={styles.filtersContainer}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                        <TouchableOpacity 
+                            style={[styles.filterChip, rangePreset === 'all' && styles.filterChipActive]}
+                            onPress={() => setRangePreset('all')}
+                        >
+                            <Text style={[styles.filterText, rangePreset === 'all' && styles.filterTextActive]}>{t('courses.all')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.filterChip, rangePreset === 'upcoming_7' && styles.filterChipActive]}
+                            onPress={() => setRangePreset('upcoming_7')}
+                        >
+                            <Text style={[styles.filterText, rangePreset === 'upcoming_7' && styles.filterTextActive]}>{t('home.next7Days')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.filterChip, rangePreset === 'upcoming_30' && styles.filterChipActive]}
+                            onPress={() => setRangePreset('upcoming_30')}
+                        >
+                            <Text style={[styles.filterText, rangePreset === 'upcoming_30' && styles.filterTextActive]}>{t('home.next30Days')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.filterChip, rangePreset === 'prev_7' && styles.filterChipActive]}
+                            onPress={() => setRangePreset('prev_7')}
+                        >
+                            <Text style={[styles.filterText, rangePreset === 'prev_7' && styles.filterTextActive]}>{t('home.pastWeek')}</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                        <TouchableOpacity 
+                            style={[styles.statusChip, statusFilter === 'all' && styles.statusChipActive]}
+                            onPress={() => setStatusFilter('all')}
+                        >
+                            <Text style={[styles.statusTabText, statusFilter === 'all' && styles.statusTabTextActive]}>{t('home.allStatuses')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.statusChip, statusFilter === 'upcoming' && styles.statusChipActive]}
+                            onPress={() => setStatusFilter('upcoming')}
+                        >
+                            <Text style={[styles.statusTabText, statusFilter === 'upcoming' && styles.statusTabTextActive]}>{t('home.upcomingFilter')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.statusChip, statusFilter === 'finished' && styles.statusChipActive]}
+                            onPress={() => setStatusFilter('finished')}
+                        >
+                            <Text style={[styles.statusTabText, statusFilter === 'finished' && styles.statusTabTextActive]}>{t('home.finishedFilter')}</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+
+                    {/* Subject Filter */}
+                    {subjects.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+                            <TouchableOpacity 
+                                style={[styles.subjectChip, !selectedSubject && styles.subjectChipActive]}
+                                onPress={() => setSelectedSubject(null)}
+                            >
+                                <Text style={[styles.subjectText, !selectedSubject && styles.subjectTextActive]}>{t('courses.all')}</Text>
+                            </TouchableOpacity>
+                            {subjects.map((subject: any) => (
+                                <TouchableOpacity 
+                                    key={subject.id}
+                                    style={[styles.subjectChip, selectedSubject === subject.id && styles.subjectChipActive]}
+                                    onPress={() => setSelectedSubject(subject.id)}
+                                >
+                                    <Text style={[styles.subjectText, selectedSubject === subject.id && styles.subjectTextActive]}>{subject.name || subject.title}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+
                 {lessons.length === 0 ? (
                     <View style={styles.emptyState}>
                         <Ionicons name="calendar-outline" size={64} color={theme.gray[300]} />
                         <Text style={[styles.emptyText, { color: theme.gray[500] }]}>
-                            No upcoming lessons
+                            {t('home.noLessons')}
                         </Text>
                     </View>
                 ) : (
-                    lessons.map((lesson) => {
+                    lessons.map((lesson: any) => {
                         const statusColor = getStatusColor(lesson.status);
                         const statusIcon = getStatusIcon(lesson.status);
 
@@ -76,17 +163,17 @@ export default function CalendarScreen() {
                             >
                                 <View style={styles.lessonHeader}>
                                     <View style={styles.lessonInfo}>
-                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000' }]}>
+                                        <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={1}>
                                             {lesson.title}
                                         </Text>
-                                        <Text style={[styles.courseTitle, { color: theme.gray[500] }]}>
-                                            {lesson.course.title}
+                                        <Text style={[styles.courseTitle, { color: theme.gray[500] }]} numberOfLines={1}>
+                                            {lesson.courseTitle}
                                         </Text>
                                     </View>
                                     <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
                                         <Ionicons name={statusIcon as any} size={14} color={statusColor} />
                                         <Text style={[styles.statusText, { color: statusColor }]}>
-                                            {lesson.status}
+                                            {t(`home.${(lesson.status || '').toLowerCase()}`)}
                                         </Text>
                                     </View>
                                 </View>
@@ -95,33 +182,29 @@ export default function CalendarScreen() {
                                     <View style={styles.metaItem}>
                                         <Ionicons name="calendar-outline" size={14} color={theme.gray[400]} />
                                         <Text style={[styles.metaText, { color: theme.gray[600] }]}>
-                                            {new Date(lesson.scheduledAt).toLocaleDateString()}
+                                            {new Date(lesson.scheduledAt || lesson.startTime).toLocaleDateString()}
                                         </Text>
                                     </View>
                                     <View style={styles.metaItem}>
                                         <Ionicons name="time-outline" size={14} color={theme.gray[400]} />
                                         <Text style={[styles.metaText, { color: theme.gray[600] }]}>
-                                            {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.metaItem}>
-                                        <Ionicons name="hourglass-outline" size={14} color={theme.gray[400]} />
-                                        <Text style={[styles.metaText, { color: theme.gray[600] }]}>
-                                            {lesson.durationMinutes} min
+                                            {new Date(lesson.scheduledAt || lesson.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </Text>
                                     </View>
                                 </View>
 
-                                <View style={styles.deliveryBadge}>
-                                    <Ionicons
-                                        name={lesson.deliveryType === 'ONLINE' ? 'videocam' : 'location'}
-                                        size={12}
-                                        color={theme.primary}
-                                    />
-                                    <Text style={[styles.deliveryText, { color: theme.primary }]}>
-                                        {lesson.deliveryType}
-                                    </Text>
-                                </View>
+                                {lesson.location && (
+                                    <View style={[styles.deliveryBadge, { marginTop: 8 }]}>
+                                        <Ionicons
+                                            name="location"
+                                            size={12}
+                                            color={theme.primary}
+                                        />
+                                        <Text style={[styles.deliveryText, { color: theme.primary }]}>
+                                            {lesson.location}
+                                        </Text>
+                                    </View>
+                                )}
                             </TouchableOpacity>
                         );
                     })
@@ -229,5 +312,72 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontFamily: Fonts.medium,
         textTransform: 'uppercase',
+    },
+    filtersContainer: {
+        marginBottom: 20,
+        gap: 12,
+    },
+    filterScroll: {
+        gap: 8,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    filterChipActive: {
+        backgroundColor: '#097D46',
+        borderColor: '#097D46',
+    },
+    filterText: {
+        fontSize: 13,
+        fontFamily: Fonts.medium,
+        color: '#666',
+    },
+    filterTextActive: {
+        color: '#fff',
+    },
+    statusChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    statusChipActive: {
+        backgroundColor: '#f1f5f9',
+        borderColor: '#cbd5e1',
+    },
+    statusTabText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#64748b',
+    },
+    statusTabTextActive: {
+        color: '#0f172a',
+    },
+    subjectChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: '#f1f1f1',
+        borderWidth: 1,
+        borderColor: '#e8e8e8',
+    },
+    subjectChipActive: {
+        backgroundColor: '#e6f3ed',
+        borderColor: '#097D46',
+    },
+    subjectText: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#666',
+    },
+    subjectTextActive: {
+        color: '#097D46',
     },
 });

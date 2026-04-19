@@ -1,27 +1,29 @@
 import { useAuthStore } from '@/libs/auth';
-import { getStudentCalendar, getTeacherCalendar } from '@/services/CalendarService';
+import { getStudentCalendar, getTeacherCalendar, CalendarFilters } from '@/services/CalendarService';
 import { useQuery } from '@tanstack/react-query';
 
-export function useStudentCalendar(start?: string, end?: string) {
+export function useStudentCalendar(filters?: CalendarFilters, enabled: boolean = true) {
     return useQuery({
-        queryKey: ['calendar', 'student', start, end],
-        queryFn: () => getStudentCalendar(start, end),
+        queryKey: ['calendar', 'student', filters],
+        queryFn: () => getStudentCalendar(filters),
+        enabled: enabled
     });
 }
 
-export function useTeacherCalendar(start?: string, end?: string) {
+export function useTeacherCalendar(filters?: CalendarFilters, enabled: boolean = true) {
     return useQuery({
-        queryKey: ['calendar', 'teacher', start, end],
-        queryFn: () => getTeacherCalendar(start, end),
+        queryKey: ['calendar', 'teacher', filters],
+        queryFn: () => getTeacherCalendar(filters),
+        enabled: enabled
     });
 }
 
-export function useCalendar(start?: string, end?: string) {
+export function useCalendar(filters?: CalendarFilters) {
     const user = useAuthStore(state => state.user);
     const isTeacher = user?.role === 'TEACHER';
 
-    const studentQuery = useStudentCalendar(start, end);
-    const teacherQuery = useTeacherCalendar(start, end);
+    const studentQuery = useStudentCalendar(filters, !isTeacher);
+    const teacherQuery = useTeacherCalendar(filters, isTeacher);
 
     return isTeacher ? teacherQuery : studentQuery;
 }

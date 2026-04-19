@@ -150,25 +150,25 @@ export default function ScheduleCard({
                     {canScan && (
                         <TouchableOpacity onPress={onScanPress} style={[styles.liveBadge, { backgroundColor: 'rgba(9, 125, 70, 0.1)', borderColor: 'rgba(9, 125, 70, 0.2)' }]}>
                             <View style={[styles.liveDot, { backgroundColor: theme.primary }]} />
-                            <Text style={[styles.liveText, { color: theme.primary }]}>MARK ATTENDANCE</Text>
+                            <Text style={[styles.liveText, { color: theme.primary }]}>{t('courseDetails.markAttendance').toUpperCase()}</Text>
                         </TouchableOpacity>
                     )}
                     {(isLive && isTeacher) && (
                         <View style={[styles.liveBadge, { backgroundColor: 'rgba(18, 237, 135, 0.1)', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
                             <View style={[styles.liveDot, { backgroundColor: '#12ed87' }]} />
-                            <Text style={[styles.liveText, { color: '#12ed87' }]}>LIVE - MANAGE</Text>
+                            <Text style={[styles.liveText, { color: '#12ed87' }]}>{t('home.liveManage').toUpperCase()}</Text>
                         </View>
                     )}
                     {isCompleted && isTeacher && (
                         <View style={[styles.liveBadge, { backgroundColor: 'rgba(100, 116, 139, 0.1)', borderColor: 'rgba(100, 116, 139, 0.2)' }]}>
                             <Ionicons name="checkmark-done-circle" size={12} color={isDark ? '#94a3b8' : '#64748b'} />
-                            <Text style={[styles.liveText, { color: isDark ? '#94a3b8' : '#64748b', marginLeft: 4 }]}>COMPLETED</Text>
+                            <Text style={[styles.liveText, { color: isDark ? '#94a3b8' : '#64748b', marginLeft: 4 }]}>{t('home.completed').toUpperCase()}</Text>
                         </View>
                     )}
                     {isCanceled && (
                         <View style={[styles.liveBadge, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
                             <Ionicons name="close-circle" size={12} color="#ef4444" />
-                            <Text style={[styles.liveText, { color: '#ef4444', marginLeft: 4 }]}>CANCELLED</Text>
+                            <Text style={[styles.liveText, { color: '#ef4444', marginLeft: 4 }]}>{t('home.canceled').toUpperCase()}</Text>
                         </View>
                     )}
                 </View>
@@ -183,7 +183,7 @@ export default function ScheduleCard({
                     <View style={styles.locationContainer}>
                         <Ionicons name="location-sharp" size={14} color={isDark ? theme.gray[400] : '#4c9a75'} />
                         <Text style={[styles.locationText, { color: isDark ? theme.gray[400] : '#4c9a75' }]}>
-                            {location || 'Room 101'}
+                            {location || t('home.classroom')}
                         </Text>
                     </View>
 
