@@ -647,8 +647,11 @@ export default function CourseDetailsScreen() {
                                     const moduleKey = index.toString();
                                     const isExpanded = expandedModules[moduleKey];
                                     const isLocked = !lesson.isFree && !isEnrolled && !isTeacher;
+                                    const statusUpper = (lesson.status || '').toUpperCase();
+                                    const isLive = statusUpper === 'LIVE';
                                     const lessonIcon = isLocked ? 'lock-closed' : getLessonIcon(lesson.status, lesson.attendanceStatus);
                                     const lessonIconColor = isLocked ? theme.gray[400] : getLessonIconColor(lesson.status, lesson.attendanceStatus);
+                                    const canScanLesson = !isTeacher && !isLocked && (lesson.canMarkAttendance || (isLive && !lesson.attendanceStatus));
 
                                     return (
                                         <View key={lesson.id} style={[styles.moduleCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}>
@@ -716,12 +719,11 @@ export default function CourseDetailsScreen() {
                                                         )}
                                                     </TouchableOpacity>
 
-                                                    {!isTeacher && !isLocked && lesson.canMarkAttendance && (
+                                                    {!isTeacher && !isLocked && canScanLesson && (
                                                         <TouchableOpacity
                                                             style={[styles.actionButton, { backgroundColor: theme.primary }]}
                                                             onPress={() => setShowScanner(true)}
                                                         >
-                                                            <Ionicons name="qr-code-outline" size={18} color="#FFF" />
                                                             <Text style={styles.actionButtonText}>{t('courseDetails.markAttendance')}</Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -736,7 +738,7 @@ export default function CourseDetailsScreen() {
                                                         </TouchableOpacity>
                                                     )}
 
-                                                    {isTeacher && lesson.status === 'SCHEDULED' && (
+                                                    {isTeacher && lesson.status === 'SCHEDULED' && detailsData?.data?.course?.deliveryType === 'OFFLINE' && (
                                                         <TouchableOpacity
                                                             style={[styles.actionButton, { backgroundColor: theme.primary }]}
                                                             onPress={async () => {
@@ -753,7 +755,7 @@ export default function CourseDetailsScreen() {
                                                         </TouchableOpacity>
                                                     )}
 
-                                                    {isTeacher && lesson.status === 'LIVE' && (
+                                                    {isTeacher && lesson.status === 'LIVE' && detailsData?.data?.course?.deliveryType === 'OFFLINE' && (
                                                         <TouchableOpacity
                                                             style={[styles.actionButton, { backgroundColor: theme.primary }]}
                                                             onPress={() => router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } })}
@@ -761,6 +763,27 @@ export default function CourseDetailsScreen() {
                                                             <Ionicons name="settings-outline" size={18} color="#FFF" />
                                                             <Text style={styles.actionButtonText}>{t('courseDetails.manageLesson')}</Text>
                                                         </TouchableOpacity>
+                                                    )}
+
+                                                    {isTeacher && (lesson.status === 'COMPLETED') && (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                                            <View style={{ backgroundColor: theme.gray[100], paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}>
+                                                                <Ionicons name="checkmark-done-circle" size={16} color={theme.gray[500]} />
+                                                                <Text style={{ color: theme.gray[600], fontSize: 13, fontWeight: '600', marginLeft: 4 }}>Completed</Text>
+                                                            </View>
+                                                            <TouchableOpacity 
+                                                                onPress={() => router.push({ pathname: '/attendance-list', params: { lessonId: lesson.id } })}
+                                                                style={{ padding: 6 }}
+                                                            >
+                                                                <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600' }}>View Records</Text>
+                                                            </TouchableOpacity>
+                                                        </View>
+                                                    )}
+
+                                                    {isTeacher && lesson.status === 'CANCELED' && (
+                                                        <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', marginTop: 4 }}>
+                                                            <Text style={{ color: '#ef4444', fontSize: 13, fontWeight: '600' }}>Cancelled</Text>
+                                                        </View>
                                                     )}
                                                 </View>
                                             )}

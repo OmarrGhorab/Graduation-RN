@@ -1,4 +1,4 @@
-import { Fonts, cskColors } from '@/constants/theme';
+import { Fonts, cskColors, Colors } from '@/constants/theme';
 import { useLessonAbsences } from '@/hooks/useCourses';
 import { useLessonAttendance, useLessonDetails, useManualAttendanceOverride } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
@@ -124,9 +124,11 @@ export default function AttendanceListScreen() {
                             ]}
                         />
                     ) : (
-                        <View style={[styles.avatar, { backgroundColor: isDark ? '#2a4d3d' : '#e7f3ee', alignItems: 'center', justifyContent: 'center' }]}>
-                            <MaterialIcons name="person" size={24} color={theme.primary} />
-                        </View>
+                    <View style={[styles.avatar, { backgroundColor: isDark ? '#2a4d3d' : '#e7f3ee', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ color: theme.primary, fontFamily: Fonts?.bold || 'System', fontSize: 18 }}>
+                            {(item.studentName || 'S').charAt(0).toUpperCase()}
+                        </Text>
+                    </View>
                     )}
                     {(status === 'PRESENT' || status === 'LATE') && (
                         <View style={[styles.statusDot, { backgroundColor: cskColors[500], borderColor: isDark ? '#1a2e26' : '#ffffff' }]} />
@@ -392,7 +394,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 24,
-        fontFamily: Fonts.bold,
+        fontFamily: Fonts?.bold || 'System',
         letterSpacing: -0.5,
     },
     headerSubtitle: {

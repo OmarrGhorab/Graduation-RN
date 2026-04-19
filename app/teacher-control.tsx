@@ -56,6 +56,13 @@ export default function TeacherControlPanel() {
         );
     }, []);
 
+    // Redirect if lesson is finished
+    useEffect(() => {
+        if (lesson && (lesson.status === 'COMPLETED')) {
+            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+        }
+    }, [lesson?.status, lessonId]);
+
     // Timer logic
     useEffect(() => {
         if (!isLive || !lesson?.startsAt) return;
@@ -175,21 +182,30 @@ export default function TeacherControlPanel() {
 
                 {!isLive ? (
                     <View style={styles.startSection}>
-                        <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Ready to start the lesson?</Text>
-                        <TouchableOpacity
-                            style={[styles.startButton, { backgroundColor: theme.primary }]}
-                            onPress={handleStartLesson}
-                            disabled={startLesson.isPending}
-                        >
-                            {startLesson.isPending ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <>
-                                    <MaterialIcons name="play-arrow" size={32} color="#fff" />
-                                    <Text style={styles.startButtonText}>Start Now</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                        {isCompleted ? (
+                             <View style={{ alignItems: 'center', gap: 12 }}>
+                                <MaterialIcons name="check-circle" size={64} color="#12ed87" />
+                                <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Lesson Successfully Completed</Text>
+                             </View>
+                        ) : (
+                            <>
+                                <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Ready to start the lesson?</Text>
+                                <TouchableOpacity
+                                    style={[styles.startButton, { backgroundColor: theme.primary }]}
+                                    onPress={handleStartLesson}
+                                    disabled={startLesson.isPending}
+                                >
+                                    {startLesson.isPending ? (
+                                        <ActivityIndicator color="#fff" />
+                                    ) : (
+                                        <>
+                                            <MaterialIcons name="play-arrow" size={32} color="#fff" />
+                                            <Text style={styles.startButtonText}>Start Now</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 ) : (
                     <>
@@ -340,7 +356,22 @@ export default function TeacherControlPanel() {
                         <View style={styles.modalTextContainer}>
                             <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>End Lesson?</Text>
                             <Text style={[styles.modalSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                                This will finalize student attendance and mark all remaining students as absent. This action cannot be undone.
+                                You are about to finalize this session.
+                            </Text>
+
+                            <View style={styles.summaryStats}>
+                                <View style={styles.summaryStatItem}>
+                                    <Text style={styles.summaryStatValue}>{studentsPresent}</Text>
+                                    <Text style={styles.summaryStatLabel}>Present</Text>
+                                </View>
+                                <View style={[styles.summaryStatItem, { borderLeftWidth: 1, borderLeftColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                                    <Text style={[styles.summaryStatValue, { color: '#ef4444' }]}>{Math.max(0, totalStudents - studentsPresent)}</Text>
+                                    <Text style={styles.summaryStatLabel}>Remaining</Text>
+                                </View>
+                            </View>
+
+                            <Text style={[styles.modalWarning, { color: '#ef4444' }]}>
+                                All remaining students will be marked as ABSENT.
                             </Text>
                         </View>
 
@@ -724,6 +755,35 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.regular,
         textAlign: 'center',
         lineHeight: 22,
+    },
+    summaryStats: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        borderRadius: 16,
+        padding: 16,
+        marginVertical: 20,
+        width: '100%',
+    },
+    summaryStatItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    summaryStatValue: {
+        fontSize: 24,
+        fontFamily: Fonts.bold,
+        color: '#097d46',
+    },
+    summaryStatLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#64748b',
+        marginTop: 2,
+    },
+    modalWarning: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+        textAlign: 'center',
+        marginTop: 4,
     },
     modalActions: {
         flexDirection: 'row',

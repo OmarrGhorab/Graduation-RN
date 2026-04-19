@@ -232,6 +232,12 @@ export default function NotificationListener() {
 
         // New notifications are also handled by useNotificationSSE's cache update
         logger.log('[NotificationListener] New notification received via SSE:', notification.id);
+
+        // Auto-refresh calendar for lesson-related events
+        if (notification.type === 'lesson_started' || notification.type === 'LESSON_STARTED' || notification.type === 'ATTENDANCE_FINALIZED') {
+            logger.log('[NotificationListener] Lesson event via SSE, invalidating calendar queries');
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
+        }
     }, [queryClient]);
 
     // Connect to SSE for real-time notifications
@@ -306,6 +312,12 @@ export default function NotificationListener() {
 
                 // Add to React Query cache
                 addNotificationToCache(apiNotification);
+
+                // Auto-refresh calendar for lesson-related push notifications
+                if (data.type === 'lesson_started' || data.type === 'LESSON_STARTED' || data.type === 'ATTENDANCE_FINALIZED') {
+                    logger.log('[NotificationListener] Lesson event via Push, invalidating calendar queries');
+                    queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                }
 
                 logger.log('[NotificationListener] Added notification to cache:', apiNotification.id);
             }

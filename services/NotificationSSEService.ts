@@ -44,7 +44,10 @@ export type SSENotificationType =
     | 'unlink_request_accepted'
     | 'unlink_request_declined'
     | 'message'
-    | 'CHAT_MESSAGE';
+    | 'CHAT_MESSAGE'
+    | 'lesson_started'
+    | 'LESSON_STARTED'
+    | 'ATTENDANCE_FINALIZED';
 
 export interface SSENotification extends ApiNotification {
     type: SSENotificationType;

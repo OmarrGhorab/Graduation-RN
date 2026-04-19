@@ -22,9 +22,9 @@ import { DeviceService } from '@/services/DeviceService';
 import { ApiNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, RefreshControl, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
@@ -71,6 +71,7 @@ export default function MainHomeScreen() {
         date.setDate(date.getDate() + 7); // Default to 7 days from now
         return date;
     });
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
 
     const isTeacher = user?.role === 'TEACHER';
 
@@ -128,7 +129,11 @@ export default function MainHomeScreen() {
     const { data: subjectsData, isLoading: isLoadingSubjects } = useMySubjects();
     
     // Use appropriate calendar based on user role
-    const { data: calendarData, isLoading: isLoadingCalendar } = isTeacher 
+    const { 
+        data: calendarData, 
+        isLoading: isLoadingCalendar,
+        refetch: refetchCalendar
+    } = isTeacher 
         ? useTeacherCalendar(calendarRange.start, calendarRange.end)
         : useStudentCalendar(calendarRange.start, calendarRange.end);
 
@@ -139,6 +144,14 @@ export default function MainHomeScreen() {
             icon: getSubjectIcon(subject.icon)
         })) || [];
     }, [subjectsData]);
+
+    // Force refresh calendar data when screen comes into focus
+    // This ensures that returning from the success screen shows updated attendance status
+    useFocusEffect(
+        React.useCallback(() => {
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
+        }, [queryClient])
+    );
 
     const schedule = React.useMemo(() => {
         return calendarData?.data?.map((item: ApiSchedule) => ({
@@ -161,6 +174,20 @@ export default function MainHomeScreen() {
         if (upcoming) return upcoming.id;
         return schedule[0]?.id;
     }, [schedule]);
+
+    const onRefresh = React.useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([
+                refetchCalendar(),
+                refetch(), // notifications
+            ]);
+        } catch (error) {
+            console.error('[Home] Refresh failed:', error);
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [refetchCalendar, refetch]);
 
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
@@ -261,8 +288,27 @@ export default function MainHomeScreen() {
             });
 
             if (result.success) {
-                // Refresh calendar to reflect attendance
+                // Optimistically update all calendar query results to show 'PRESENT' 
+                // for the lesson that was just scanned (the backend knows which one)
+                // This prevents the "Mark Attendance" button from showing while refetching
+                queryClient.setQueriesData({ queryKey: ['calendar'] }, (old: any) => {
+                    if (!old || !old.data) return old;
+                    return {
+                        ...old,
+                        data: old.data.map((item: any) => {
+                            // If we could determine the lesson ID from the data payload here, we'd be more precise.
+                            // But for now, any LIVE lesson a student just scanned is likely the one.
+                            if (item.status === 'LIVE' && !item.attendanceStatus) {
+                                return { ...item, attendanceStatus: 'PRESENT' };
+                            }
+                            return item;
+                        })
+                    };
+                });
+
+                // Refresh calendar to reflect official attendance
                 queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                
                 Alert.alert(t('common.success'), result.message || t('home.attendanceSuccess'));
                 router.push({
                     pathname: '/attendance-success',
@@ -329,6 +375,15 @@ export default function MainHomeScreen() {
                 showsVerticalScrollIndicator={false}
                 onScroll={scrollHandler}
                 scrollEventThrottle={16}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={onRefresh}
+                        colors={[theme.primary]}
+                        tintColor={theme.primary}
+                        progressViewOffset={140}
+                    />
+                }
             >
                 {/* My Subjects Section */}
                 {subjects.length > 0 && (
@@ -526,32 +581,8 @@ export default function MainHomeScreen() {
                 <View style={{ height: 100 }} />
             </Animated.ScrollView>
 
-            {/* Floating QR Action Button */}
-            <View style={styles.fabContainer}>
-                <TouchableOpacity
-                    style={[styles.fab, { backgroundColor: theme.primary }]}
-                    activeOpacity={0.8}
-                    onPress={handleScanQR}
-                >
-                    <View style={[styles.fabRing, { borderColor: 'rgba(255,255,255,0.3)' }]} />
-                    <Ionicons name="scan-outline" size={32} color="#FFFFFF" />
-                </TouchableOpacity>
-                {/* Temporary Teacher Control Button */}
-                {user?.role === 'TEACHER' && (
-                    <TouchableOpacity
-                        style={[styles.fab, { backgroundColor: theme.surface, marginTop: 16, width: 48, height: 48, borderRadius: 24 }]}
-                        activeOpacity={0.8}
-                        onPress={() => router.push({
-                            pathname: '/teacher-control',
-                            params: { lessonId: activeLessonId }
-                        })}
-                    >
-                        <Ionicons name="school-outline" size={24} color={theme.primary} />
-                    </TouchableOpacity>
-                )}
-            </View>
-
             {/* Header positioned absolutely on top */}
+
             <HomeHeader
                 onNotificationPress={() => setShowNotifications(true)}
                 onCalendarPress={() => router.push('/calendar')}
@@ -721,32 +752,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderStyle: 'dashed',
         borderColor: 'rgba(0,0,0,0.05)',
-    },
-    fabContainer: {
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        zIndex: 50,
-    },
-    fab: {
-        width: 64,
-        height: 64,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        elevation: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-    },
-    fabRing: {
-        position: 'absolute',
-        width: 50,
-        height: 50,
-        borderRadius: 16,
-        borderWidth: 2,
-        opacity: 0.5,
     },
 });
 
