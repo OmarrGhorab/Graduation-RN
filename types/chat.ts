@@ -10,6 +10,7 @@ export const ChatMemberSchema = z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Professional/Global Role
     }),
     is_online: z.boolean().optional(),
 });
@@ -69,13 +70,16 @@ export const ConversationSchema = z.object({
             image: z.string(),
         }),
     }).nullable().optional(),
+    role: z.string().optional(), // Global role of the peer (for DIRECT)
     peer_profile: z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Global role
     }).optional(),
     peer_online: z.boolean().optional(),
     is_typing_name: z.string().nullable().optional(),
+    is_typing_image: z.string().nullable().optional(),
 });
 
 export type Conversation = z.infer<typeof ConversationSchema>;
@@ -95,6 +99,7 @@ export const ConversationDetailSchema = z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Global role
     }).optional(),
     peer_online: z.boolean().optional(),
 });

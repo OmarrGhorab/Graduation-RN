@@ -116,8 +116,9 @@ export default function AbsenceRequestScreen() {
     const getReasonLabel = (type: AbsenceReasonType) => {
         switch (type) {
             case 'MEDICAL': return 'Medical / Sickness';
-            case 'PARENT_EXCUSE': return 'Parent / Family Excuse';
+            case 'TECHNICAL': return 'Technical Issue (Phone/Network)';
             case 'EMERGENCY': return 'Urgent Emergency';
+            case 'PERSONAL': return 'Personal / Family Circumstances';
             default: return type;
         }
     };
@@ -130,7 +131,7 @@ export default function AbsenceRequestScreen() {
         ? new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '--:--';
 
-    const REASONS: AbsenceReasonType[] = ['MEDICAL', 'PARENT_EXCUSE', 'EMERGENCY'];
+    const REASONS: AbsenceReasonType[] = ['MEDICAL', 'TECHNICAL', 'EMERGENCY', 'PERSONAL'];
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>

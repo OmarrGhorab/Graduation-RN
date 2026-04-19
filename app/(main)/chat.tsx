@@ -7,7 +7,7 @@ import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
 import { Conversation } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -60,7 +60,7 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
             return {
                 name: displayName,
                 avatar: displayImage,
-                role: 'STUDENT',
+                role: item.role || item.peer_profile?.role || 'STUDENT',
             };
         }
         const groupName = item.name || 'Group Chat';
@@ -86,7 +86,10 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
 
     const getSubtitle = () => {
         if (item.is_typing_name) {
-            return { text: `${item.is_typing_name} is typing...` };
+            return {
+                text: `${item.is_typing_name} is typing...`,
+                senderImage: item.is_typing_image
+            };
         }
         if (item.last_message) {
             const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
@@ -120,7 +123,15 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
         <TouchableOpacity
             style={[styles.itemContainer, { borderBottomColor: theme.divider }]}
             activeOpacity={0.7}
-            onPress={() => router.push(`/conversation/${item.id}`)}
+            onPress={() => router.push({
+                pathname: `/conversation/${item.id}`,
+                params: {
+                    name: display.name,
+                    avatar: display.avatar,
+                    role: display.role,
+                    type: item.type
+                }
+            })}
         >
             <View style={styles.avatarContainer}>
                 <Image
@@ -144,7 +155,7 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
                 </View>
                 {subtitle ? (
                     <View style={styles.subtitleRow}>
-                        {item.type === 'GROUP' && subtitle.senderImage && (
+                        {(item.type === 'GROUP' || item.is_typing_name) && subtitle.senderImage && (
                             <Image
                                 source={{ uri: subtitle.senderImage }}
                                 style={styles.senderThumb}
@@ -261,10 +272,12 @@ export default function ChatScreen() {
                     const activeConvId = queryClient.getQueryData<string>(['active-conversation-id']);
                     const isChatOpen = activeConvId === conversationId;
 
-                    // Deep clone pages to avoid mutation
-                    const newPages = oldData.pages.map((page: Conversation[]) => [...page]);
+                    // Proactively resolve sender name/image from existing conversation members if missing in payload
+                    let senderName = message.sender_name || message.sender?.name;
+                    let senderImage = (message.sender_image && message.sender_image !== "") ? message.sender_image : (message.sender?.image || "");
                     
-                    // 1. Find the conversation across all pages
+                    // Update the conversation list
+                    const newPages = oldData.pages.map((page: Conversation[]) => [...page]);
                     let foundIndex = -1;
                     let foundPageIndex = -1;
 
@@ -279,45 +292,71 @@ export default function ChatScreen() {
 
                     if (foundPageIndex !== -1) {
                         const existingConv = newPages[foundPageIndex][foundIndex];
+                        
+                        // Resolve from members if still missing
+                        if (!senderName || senderName === 'Someone') {
+                            const member = existingConv.members?.find((m: any) => m.user_id === message.sender_id);
+                            if (member?.profile?.name) senderName = member.profile.name;
+                            if (!senderImage && member?.profile?.image) senderImage = member.profile.image;
+                        }
+                        
+                        // Final fallback
+                        if (!senderName) senderName = 'Someone';
+                        if (!senderImage) senderImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=random`;
 
-                        // Update existing conversation 
-                        const senderName = message.sender?.name || message.sender_name || 'Someone';
-                        const senderImage = message.sender?.image || message.sender_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}`;
+                        const fullMessageObject = {
+                            id: message.message_id || message.id,
+                            conversation_id: message.conversation_id,
+                            sender_id: message.sender_id,
+                            content: message.content || message.body || '',
+                            type: (message.type === 'chat.message' || message.type === 'text') ? 'text' : (message.type || 'text'),
+                            media_urls: message.media_urls || [],
+                            created_at: message.created_at || new Date().toISOString(),
+                            sender: {
+                                id: message.sender_id,
+                                name: senderName,
+                                image: senderImage
+                            }
+                        };
+
+                        // Proactively update the detailed message cache if it exists
+                        queryClient.setQueryData(['messages', conversationId], (oldMessages: any) => {
+                            if (!oldMessages || !oldMessages.pages) return oldMessages;
+                            
+                            const newMsgPages = [...oldMessages.pages];
+                            if (newMsgPages.length > 0) {
+                                const firstPage = newMsgPages[0];
+                                const isArray = Array.isArray(firstPage);
+                                const currentMsgs = isArray ? firstPage : (firstPage.messages || []);
+                                
+                                if (currentMsgs.some((m: any) => m.id === fullMessageObject.id)) return oldMessages;
+
+                                const updatedMsgs = [fullMessageObject, ...currentMsgs];
+                                
+                                if (isArray) {
+                                    newMsgPages[0] = updatedMsgs;
+                                } else {
+                                    newMsgPages[0] = { ...firstPage, messages: updatedMsgs };
+                                }
+                                
+                                return { ...oldMessages, pages: newMsgPages };
+                            }
+                            return oldMessages;
+                        });
 
                         const updatedConv = {
                             ...existingConv,
                             unread_count: isChatOpen ? 0 : (message.unread_count ? parseInt(message.unread_count, 10) : (existingConv.unread_count || 0) + 1),
-                            last_message: {
-                                id: message.message_id || message.id,
-                                conversation_id: message.conversation_id,
-                                sender_id: message.sender_id,
-                                content: message.content || message.body,
-                                type: (message.type === 'chat.message' || message.type === 'text') ? 'text' : message.type,
-                                media_urls: message.media_urls || [],
-                                created_at: message.created_at,
-                                sender: {
-                                    id: message.sender_id,
-                                    name: senderName,
-                                    image: senderImage
-                                }
-                            },
+                            last_message: fullMessageObject,
                             updated_at: message.created_at || new Date().toISOString(),
                             is_typing_name: null 
                         };
 
-                        // Remove from its current page
                         newPages[foundPageIndex].splice(foundIndex, 1);
-                        
-                        // Always move to the top of the FIRST page
                         newPages[0].unshift(updatedConv);
 
-                        return {
-                            ...oldData,
-                            pages: newPages
-                        };
+                        return { ...oldData, pages: newPages };
                     } else {
-                        // New conversation or not in current pages - if we are on the first page, we might want to fetch
-                        // For now, just invalidate to be safe
                         queryClient.invalidateQueries({ queryKey: ['conversations'] });
                         return oldData;
                     }
@@ -336,14 +375,15 @@ export default function ChatScreen() {
 
             queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
                 if (!oldData || !oldData.pages) return oldData;
-                
+
                 const newPages = oldData.pages.map((page: Conversation[]) => {
                     const index = page.findIndex(c => c.id === typingData.conversation_id);
                     if (index !== -1) {
                         const newPage = [...page];
                         newPage[index] = {
                             ...newPage[index],
-                            is_typing_name: typingData.is_typing ? (typingData.user_name || 'Someone') : null
+                            is_typing_name: typingData.is_typing ? (typingData.user_name || 'Someone') : null,
+                            is_typing_image: typingData.is_typing ? typingData.user_image : null
                         };
                         return newPage;
                     }
@@ -361,7 +401,7 @@ export default function ChatScreen() {
 
             queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
                 if (!oldData || !oldData.pages) return oldData;
-                
+
                 const newPages = oldData.pages.map((page: Conversation[]) => {
                     const index = page.findIndex(c => c.id === readData.conversation_id);
                     if (index !== -1) {
@@ -404,17 +444,7 @@ export default function ChatScreen() {
             >
                 <View style={styles.headerTop}>
                     <Text style={styles.headerTitle}>{t('tabs.chat')}</Text>
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <Image
-                            source={{ uri: currentUser?.profileImg || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDDri1dSkSplychwQdo55IV_v5l94pfLv5_M6ZrTANBYsXc7qv43UPcj7NTxKLyPpl_e2T4Zilxk6lZYYwcjTGZ049kSzzsWsN6JimKDAPL7UN-ly80FQlXRwgCfC9zd8viS4tVZxCyALCeebmMv_Ii4Gt6D8EyiOXLHarW2QMNXr1-PLRIvLbvaL6BufhMRqcoIZlkbaB3zjOlzuQIEVvVXjEdpn6_aoPF-_QWS9Yge6WqGFetSVUdjuxOkPwIm2XFms5NVu5ETN1y' }}
-                            style={styles.profileImage}
-                            contentFit="cover"
-                            transition={200}
-                        />
-                    </View>
+
                 </View>
 
                 <View style={styles.searchContainer}>
@@ -509,19 +539,21 @@ export default function ChatScreen() {
                 />
             )}
 
-            {/* FAB */}
-            <TouchableOpacity
-                style={[styles.fab, { bottom: insets.bottom + 20 }]}
-                activeOpacity={0.8}
-                onPress={() => router.push('/new-chat')}
-            >
-                <LinearGradient
-                    colors={primaryGradient.colors}
-                    style={styles.fabGradient}
+            {/* FAB - Restricted for students/parents as per group creation policy */}
+            {currentUser?.role !== 'STUDENT' && currentUser?.role !== 'PARENT' && (
+                <TouchableOpacity
+                    style={[styles.fab, { bottom: insets.bottom + 20 }]}
+                    activeOpacity={0.8}
+                    onPress={() => router.push('/new-chat')}
                 >
-                    <Ionicons name="add" size={30} color="#FFFFFF" />
-                </LinearGradient>
-            </TouchableOpacity>
+                    <LinearGradient
+                        colors={primaryGradient.colors}
+                        style={styles.fabGradient}
+                    >
+                        <Ionicons name="add" size={30} color="#FFFFFF" />
+                    </LinearGradient>
+                </TouchableOpacity>
+            )}
         </View>
     );
 }
@@ -529,21 +561,29 @@ export default function ChatScreen() {
 // Role Badge Component
 function RoleBadge({ role, isDark }: { role: string, isDark: boolean }) {
     let bg, color;
+    const upperRole = role?.toUpperCase();
 
-    switch (role) {
-        case 'INSTRUCTOR':
-        case 'TEACHER':
+    switch (upperRole) {
+        case 'OWNER':
+            bg = '#097D46';
+            color = '#FFFFFF';
+            break;
+        case 'ADMIN':
             bg = isDark ? 'rgba(79, 191, 138, 0.2)' : 'rgba(9, 125, 70, 0.1)';
             color = isDark ? '#4FBF8A' : '#097D46';
+            break;
+        case 'INSTRUCTOR':
+        case 'TEACHER':
+            bg = isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF';
+            color = '#3B82F6';
             break;
         case 'STUDENT':
             bg = isDark ? 'rgba(66, 153, 225, 0.2)' : '#EBF8FF';
             color = isDark ? '#63B3ED' : '#3182CE';
             break;
-        case 'TA':
-        case 'ASSISTANT':
-            bg = isDark ? 'rgba(79, 191, 138, 0.2)' : 'rgba(9, 125, 70, 0.1)';
-            color = isDark ? '#4FBF8A' : '#097D46';
+        case 'GROUP':
+            bg = isDark ? 'rgba(159, 122, 234, 0.2)' : '#FAF5FF';
+            color = '#9F7AEA';
             break;
         default:
             bg = isDark ? '#2D3748' : '#EDF2F7';
@@ -552,7 +592,7 @@ function RoleBadge({ role, isDark }: { role: string, isDark: boolean }) {
 
     return (
         <View style={[styles.roleBadge, { backgroundColor: bg }]}>
-            <Text style={[styles.roleText, { color }]}>{role}</Text>
+            <Text style={[styles.roleText, { color }]}>{upperRole || role}</Text>
         </View>
     );
 }

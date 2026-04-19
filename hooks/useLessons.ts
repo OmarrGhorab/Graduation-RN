@@ -8,6 +8,7 @@ import {
     getLessonDetails,
     getLessonQR,
     rescheduleLesson,
+    manualAttendanceOverride,
     rotateQRToken,
     scanAttendance,
     startLesson,
@@ -219,3 +220,25 @@ export function useScanAttendance() {
         },
     });
 }
+
+/**
+ * Manual attendance override mutation
+ */
+export function useManualAttendanceOverride() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ 
+            lessonId, 
+            data 
+        }: { 
+            lessonId: string; 
+            data: Parameters<typeof manualAttendanceOverride>[1] 
+        }) => manualAttendanceOverride(lessonId, data),
+        onSuccess: (_, { lessonId }) => {
+            queryClient.invalidateQueries({ queryKey: LESSON_ATTENDANCE_QUERY_KEY(lessonId) });
+            queryClient.invalidateQueries({ queryKey: ['absences', 'lesson', lessonId] });
+        },
+    });
+}
+

@@ -142,6 +142,17 @@ export default function ChatDetailScreen() {
         queryKey: ['conversation', id],
         queryFn: () => ChatService.getConversationDetails(id!),
         enabled: !!id,
+        initialData: () => {
+            // Seed from conversations list cache
+            const allConvQueries = queryClient.getQueriesData<InfiniteData<Conversation[]>>({ queryKey: ['conversations'] });
+            for (const [_, data] of allConvQueries) {
+                if (data?.pages) {
+                    const found = data.pages.flat().find((c: Conversation) => c.id === id);
+                    if (found) return found as any;
+                }
+            }
+            return undefined;
+        }
     });
 
     // Add real-time presence tracking
@@ -157,6 +168,18 @@ export default function ChatDetailScreen() {
         // Message Listener
         const unsubMessage = subscribe('message.created', (payload: any) => {
             const message = payload.data || payload;
+
+            // Ensure sender object is populated from new payload fields if needed
+            const senderName = message.sender_name || message.sender?.name || 'Someone';
+            const senderImage = (message.sender_image && message.sender_image !== "") ? message.sender_image : (message.sender?.image || "");
+            
+            if (!message.sender || !message.sender.image || message.sender.image === "") {
+                message.sender = {
+                    id: message.sender_id,
+                    name: senderName,
+                    image: senderImage !== "" ? senderImage : `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}`
+                };
+            }
 
             if (message.conversation_id === id) {
                 // If we are focused on this chat, mark it as read immediately to keep backend in sync
@@ -315,7 +338,7 @@ export default function ChatDetailScreen() {
     // Determine Permissions
     const checkPermissions = (message: Message) => {
         const user = currentUser;
-        const member = conversation?.members?.find(m => m.user_id === user?.id);
+        const member = conversation?.members?.find((m: ChatMember) => m.user_id === user?.id);
         const globalRole = user?.role;
 
         // Delete: Only own messages (for now)
@@ -327,7 +350,7 @@ export default function ChatDetailScreen() {
         // Kick: Strictly local roles. Owner can kick anyone, Admin can kick Members.
         let canKick = false;
         if (message.sender_id !== user?.id && member) {
-            const targetMember = conversation?.members?.find(m => m.user_id === message.sender_id);
+            const targetMember = conversation?.members?.find((m: ChatMember) => m.user_id === message.sender_id);
             const targetRole = targetMember?.role;
 
             if (member.role === 'OWNER') canKick = true;
@@ -510,7 +533,7 @@ export default function ChatDetailScreen() {
     // Typing indicator data (managed by useTypingIndicator hook)
     const { data: typingData } = useQuery({
         queryKey: ['typing', id],
-        queryFn: () => ({ typing_users: [] as { user_id: string; user_name: string }[] }),
+        queryFn: () => ({ typing_users: [] as { user_id: string; user_name: string; user_image?: string }[] }),
         staleTime: Infinity,
         enabled: !!id,
     });
@@ -556,7 +579,7 @@ export default function ChatDetailScreen() {
             // Try to get the actual name from conversation members if "Someone" is used
             let displayName = othersTyping[0].user_name;
             if (displayName === 'Someone' && conversation?.members) {
-                const member = conversation.members.find(m => m.user_id === othersTyping[0].user_id);
+                const member = conversation.members.find((m: ChatMember) => m.user_id === othersTyping[0].user_id);
                 if (member?.profile?.name) {
                     displayName = member.profile.name;
                 }
@@ -1159,6 +1182,18 @@ export default function ChatDetailScreen() {
                 {
                     getTypingMessage() && (
                         <View style={styles.typingIndicatorContainer}>
+                            <View style={styles.typingAvatarsRow}>
+                                {currentTypingUsers.filter(u => u.user_id !== currentUser?.id).slice(0, 3).map((u, i) => (
+                                    <Image 
+                                        key={u.user_id}
+                                        source={{ uri: u.user_image || `https://ui-avatars.com/api/?name=${u.user_name}&background=random` }} 
+                                        style={[
+                                            styles.senderThumbSmall,
+                                            i > 0 && { marginLeft: -8, borderWidth: 2, borderColor: theme.background }
+                                        ]}
+                                    />
+                                ))}
+                            </View>
                             <AnimatedTypingDots theme={theme} />
                             <Text style={[styles.typingIndicatorText, { color: theme.textSecondary }]}>{getTypingMessage()}</Text>
                         </View>
@@ -1520,9 +1555,9 @@ const MessageBubble = ({
 
     const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
 
-    // Get sender info directly from message
+    // Prepare sender metadata with robust fallback
     const senderName = message.sender?.name || '';
-    const senderImage = message.sender?.image;
+    const senderImage = (message.sender?.image && message.sender.image !== "") ? message.sender.image : `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName || 'U')}&background=random`;
 
 
     const [waveformWidth, setWaveformWidth] = useState(0);
@@ -1899,9 +1934,10 @@ const MessageBubble = ({
             {!isSender && (
                 showSenderInfo ? (
                     <Image
-                        source={{ uri: senderImage || undefined }}
+                        source={{ uri: senderImage }}
                         style={styles.messageAvatar}
                         contentFit="cover"
+                        transition={200}
                     />
                 ) : (
                     <View style={{ width: 32, height: 32, marginRight: 8 }} />  // Spacer to align grouped messages
@@ -2512,5 +2548,15 @@ const styles = StyleSheet.create({
         right: -6,
         backgroundColor: 'white',
         borderRadius: 10,
+    },
+    senderThumbSmall: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+    },
+    typingAvatarsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 4,
     },
 });

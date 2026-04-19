@@ -4,7 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, Modal, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -34,6 +34,13 @@ export default function TeacherControlPanel() {
 
     const [timer, setTimer] = useState('00:00:00');
     const [qrCountdown, setQrCountdown] = useState(30);
+    const [isEndModalVisible, setIsEndModalVisible] = useState(false);
+    const [isEnding, setIsEnding] = useState(false);
+
+
+    const qrData = qrResponse?.data;
+    const qrString = qrData ? JSON.stringify({ data: { payload: qrData.payload, signature: qrData.signature } }) : '';
+    const qrImageUrl = qrString ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}` : null;
 
     // Scan line animation
     const translateY = useSharedValue(0);
@@ -72,10 +79,10 @@ export default function TeacherControlPanel() {
 
     // QR Countdown Timer (30s validity with ±30s tolerance = 60s total)
     useEffect(() => {
-        if (!isLive || !qrData?.expiresAt) return;
+        if (!isLive || !qrData?.expires_at) return;
 
         const interval = setInterval(() => {
-            const expiresAt = new Date(qrData.expiresAt).getTime();
+            const expiresAt = new Date(qrData.expires_at).getTime();
             const now = new Date().getTime();
             const diff = Math.max(0, expiresAt - now);
             const secondsLeft = Math.ceil(diff / 1000);
@@ -89,7 +96,7 @@ export default function TeacherControlPanel() {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isLive, qrData?.expiresAt, refetchQR]);
+    }, [isLive, qrData?.expires_at, refetchQR]);
 
     const animatedScanStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
@@ -103,33 +110,21 @@ export default function TeacherControlPanel() {
         }
     };
 
-    const handleEndLesson = () => {
-        Alert.alert(
-            'End Lesson',
-            'Are you sure you want to end this lesson and finalize attendance?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'End Lesson',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await endLesson.mutateAsync();
-                            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
-                        } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to end lesson');
-                        }
-                    }
-                }
-            ]
-        );
+    const handleEndLesson = async () => {
+        try {
+            setIsEnding(true);
+            await endLesson.mutateAsync();
+            setIsEndModalVisible(false);
+            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to end lesson');
+        } finally {
+            setIsEnding(false);
+        }
     };
 
-    const qrData = qrResponse?.data;
-    const qrString = qrData ? JSON.stringify({ data: { payload: qrData.payload, signature: qrData.signature } }) : '';
-    const qrImageUrl = qrString ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}` : null;
 
-    const studentsPresent = attendanceResponse?.data?.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
+    const studentsPresent = attendanceResponse?.data?.filter((a: { status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' }) => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
     const totalStudents = lesson?.enrolledStudents || 50; // Use enrolled students if available
     const attendancePercentage = (studentsPresent / totalStudents) * 100;
 
@@ -301,7 +296,7 @@ export default function TeacherControlPanel() {
                 <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
                     <TouchableOpacity
                         style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
-                        onPress={handleEndLesson}
+                        onPress={() => setIsEndModalVisible(true)}
                         disabled={endLesson.isPending}
                         activeOpacity={0.9}
                     >
@@ -326,6 +321,52 @@ export default function TeacherControlPanel() {
                     </View>
                 </View>
             )}
+
+            {/* Custom End Lesson Modal */}
+            <Modal
+                visible={isEndModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsEndModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#142a20' : '#ffffff' }]}>
+                        <View style={styles.modalIconContainer}>
+                            <View style={[styles.modalIconBg, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                                <MaterialIcons name="report-problem" size={32} color="#ef4444" />
+                            </View>
+                        </View>
+                        
+                        <View style={styles.modalTextContainer}>
+                            <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>End Lesson?</Text>
+                            <Text style={[styles.modalSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                                This will finalize student attendance and mark all remaining students as absent. This action cannot be undone.
+                            </Text>
+                        </View>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, styles.modalSecondaryBtn, { borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}
+                                onPress={() => setIsEndModalVisible(false)}
+                                disabled={isEnding}
+                            >
+                                <Text style={[styles.modalSecondaryBtnText, { color: isDark ? '#e0e7e4' : '#64748b' }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, styles.modalPrimaryBtn, { backgroundColor: '#ef4444' }]}
+                                onPress={handleEndLesson}
+                                disabled={isEnding}
+                            >
+                                {isEnding ? (
+                                    <ActivityIndicator color="#fff" size="small" />
+                                ) : (
+                                    <Text style={styles.modalPrimaryBtnText}>End & Finalize</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -645,4 +686,75 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontFamily: Fonts.bold,
     },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 340,
+        borderRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+    },
+    modalIconContainer: {
+        marginBottom: 20,
+    },
+    modalIconBg: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalTextContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontFamily: Fonts.bold,
+        marginBottom: 8,
+    },
+    modalSubtitle: {
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    modalBtn: {
+        flex: 1,
+        height: 52,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalSecondaryBtn: {
+        borderWidth: 1,
+    },
+    modalPrimaryBtn: {
+        shadowColor: '#ef4444',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    modalSecondaryBtnText: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+    },
+    modalPrimaryBtnText: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+        color: '#ffffff',
+    },
 });
+

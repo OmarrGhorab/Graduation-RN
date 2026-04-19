@@ -27,7 +27,8 @@ export function AbsenceRequestCard({ request, onRespond, showActions = false }: 
         switch (request.reasonType) {
             case 'MEDICAL': return 'medical';
             case 'EMERGENCY': return 'alert-circle';
-            case 'PARENT_EXCUSE': return 'document-text';
+            case 'TECHNICAL': return 'build-circle';
+            case 'PERSONAL': return 'people-circle';
             default: return 'document-text';
         }
     };

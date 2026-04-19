@@ -386,7 +386,7 @@ export interface LessonAttendanceResponse {
         studentId: string;
         studentName: string;
         studentProfileImg?: string;
-        status: 'PRESENT' | 'LATE' | 'ABSENT';
+        status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
         scannedAt: string | null;
         isManualOverride?: boolean;
         createdAt?: string;
@@ -846,7 +846,7 @@ export async function scanAttendance(
  * ABSENCE / EXCUSE ENDPOINTS
  */
 
-export type AbsenceReasonType = 'PARENT_EXCUSE' | 'MEDICAL' | 'EMERGENCY';
+export type AbsenceReasonType = 'MEDICAL' | 'TECHNICAL' | 'EMERGENCY' | 'PERSONAL';
 export type AbsenceStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface CreateAbsenceRequest {
@@ -855,6 +855,24 @@ export interface CreateAbsenceRequest {
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachment?: string;
+}
+
+/**
+ * Manually override a student's attendance status (Teacher)
+ */
+export async function manualAttendanceOverride(
+    lessonId: string,
+    data: { 
+        studentId: string; 
+        status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED'; 
+        reason: string; 
+    }
+): Promise<{ success: boolean; message: string }> {
+    logger.log('[Attendance] Manually overriding attendance for student:', data.studentId);
+    return apiClient.post<{ success: boolean; message: string }>(
+        `/api/v1/attendance/lesson/${lessonId}/override`,
+        data
+    );
 }
 
 export interface ApiAbsenceRequest {
