@@ -11,6 +11,7 @@ import {
     getTrendingCourses,
     getLessonAbsenceRequests,
     getMyCourses,
+    getTeacherCourses,
     getMySubjects,
     getPendingParentAbsenceRequests,
     getStudentAbsenceRequests,
@@ -43,6 +44,14 @@ export function useMyCourses() {
     return useQuery({
         queryKey: COURSES_QUERY_KEY,
         queryFn: getMyCourses,
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useTeacherCourses() {
+    return useQuery({
+        queryKey: ['courses', 'teacher'],
+        queryFn: getTeacherCourses,
         staleTime: STALE_TIMES.STANDARD,
     });
 }

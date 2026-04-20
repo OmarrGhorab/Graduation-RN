@@ -488,11 +488,12 @@ export default function CourseDetailsScreen() {
                         style={styles.heroGradient}
                     />
                     <View style={styles.heroNav}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.heroButton}>
+                        <TouchableOpacity 
+                            onPress={() => router.back()} 
+                            style={styles.heroButton}
+                            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        >
                             <Ionicons name="chevron-back" size={24} color="#FFF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.heroButton}>
-                            <Ionicons name="share-outline" size={20} color="#FFF" />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -1084,6 +1085,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        zIndex: 50,
     },
     heroButton: {
         width: 40,

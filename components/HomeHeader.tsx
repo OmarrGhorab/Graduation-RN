@@ -10,18 +10,24 @@ import Animated, {
     interpolate,
     SharedValue,
     useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming,
+    Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HomeHeaderProps {
     onNotificationPress?: () => void;
     onCalendarPress?: () => void;
+    onRefreshPress?: () => void;
     onSearchSubmit?: (query: string) => void;
     notificationCount?: number;
     scrollY?: SharedValue<number>;
+    isRefreshing?: boolean;
 }
 
-export default function HomeHeader({ onNotificationPress, onCalendarPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
@@ -31,6 +37,24 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, notif
     const profileImage = user?.profileImg;
 
     const headerHeight = insets.top + 80;
+
+    const rotation = useSharedValue(0);
+
+    React.useEffect(() => {
+        if (isRefreshing) {
+            rotation.value = withRepeat(
+                withTiming(360, { duration: 1000, easing: Easing.linear }),
+                -1,
+                false
+            );
+        } else {
+            rotation.value = 0;
+        }
+    }, [isRefreshing]);
+
+    const refreshIconStyle = useAnimatedStyle(() => ({
+        transform: [{ rotate: `${rotation.value}deg` }],
+    }));
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
@@ -76,6 +100,16 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, notif
                             <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
 
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={onRefreshPress}
+                            activeOpacity={0.7}
+                            disabled={isRefreshing}
+                        >
+                            <Animated.View style={refreshIconStyle}>
+                                <Ionicons name="sync-outline" size={24} color="#FFFFFF" />
+                            </Animated.View>
+                        </TouchableOpacity>
 
                         <TouchableOpacity
                             style={styles.iconButton}

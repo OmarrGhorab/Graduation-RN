@@ -1,5 +1,5 @@
 import { Fonts, cskColors } from '@/constants/theme';
-import { useMyCourses } from '@/hooks/useCourses';
+import { useTeacherCourses } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/libs/auth';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +19,7 @@ export default function TeacherDashboardScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const user = useAuthStore((state) => state.user);
-    const { data: coursesData, isLoading } = useMyCourses();
+    const { data: coursesData, isLoading } = useTeacherCourses();
 
     const courses = coursesData?.data || [];
 
@@ -150,7 +150,7 @@ export default function TeacherDashboardScreen() {
                         <Text style={[styles.sectionTitle, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
                             My Courses
                         </Text>
-                        <TouchableOpacity onPress={() => router.push('/(main)/courses')}>
+                        <TouchableOpacity onPress={() => router.push('/teacher-courses')}>
                             <Text style={[styles.viewAllText, { color: cskColors[500] }]}>
                                 View All
                             </Text>
@@ -214,7 +214,7 @@ export default function TeacherDashboardScreen() {
                                 backgroundColor: isDark ? '#183327' : '#ffffff',
                                 borderColor: isDark ? '#2a4d3d' : '#e9ebed'
                             }]}
-                            onPress={() => router.push('/(main)/courses')}
+                            onPress={() => router.push('/teacher-courses')}
                         >
                             <Ionicons name="list" size={28} color={cskColors[500]} />
                             <Text style={[styles.actionText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>

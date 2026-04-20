@@ -309,6 +309,14 @@ export async function getMyCourses(): Promise<CoursesResponse> {
 }
 
 /**
+ * Fetch courses for the current teacher (owned courses)
+ */
+export async function getTeacherCourses(): Promise<CoursesResponse> {
+    logger.log('[Courses] Fetching teacher courses');
+    return apiClient.get<CoursesResponse>('/api/v1/courses/teacher');
+}
+
+/**
  * Fetch subject categories for the student
  */
 export async function getMySubjects(): Promise<SubjectsResponse> {

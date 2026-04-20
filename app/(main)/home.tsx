@@ -639,8 +639,10 @@ export default function MainHomeScreen() {
             <HomeHeader
                 onNotificationPress={() => setShowNotifications(true)}
                 onCalendarPress={() => router.push('/calendar')}
+                onRefreshPress={onRefresh}
                 notificationCount={unreadCount}
                 scrollY={scrollY}
+                isRefreshing={isRefreshing}
             />
 
             <NotificationModal
