@@ -1,5 +1,5 @@
 import { Fonts, cskColors, Colors } from '@/constants/theme';
-import { useLessonAbsences } from '@/hooks/useCourses';
+import { useLessonAbsences, useAbsenceMutations } from '@/hooks/useCourses';
 import { useLessonAttendance, useLessonDetails, useManualAttendanceOverride } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
 import { useProfile } from '@/hooks/useProfile';
@@ -48,6 +48,7 @@ export default function AttendanceListScreen() {
     const { data: absencesResponse, isLoading: isLoadingAbsences } = useLessonAbsences(lessonId!);
     const { profile } = useProfile();
     const overrideMutation = useManualAttendanceOverride();
+    const { respondToAbsence } = useAbsenceMutations();
 
     // Override State
     const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -314,6 +315,89 @@ export default function AttendanceListScreen() {
                                 value={overrideReason}
                                 onChangeText={setOverrideReason}
                             />
+
+                            {/* Absence Appeal Review Section (if exists) */}
+                            {absencesResponse?.data?.find(a => a.studentId === selectedStudent?.studentId && a.status === 'PENDING') && (
+                                <View style={[styles.appealReviewCard, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.05)' : 'rgba(59, 130, 246, 0.03)', borderColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }]}>
+                                    <View style={styles.appealHeader}>
+                                        <MaterialIcons name="description" size={20} color="#3b82f6" />
+                                        <Text style={[styles.appealTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>Pending Absence Appeal</Text>
+                                    </View>
+                                    
+                                    {(() => {
+                                        const appeal = absencesResponse?.data?.find(a => a.studentId === selectedStudent?.studentId && a.status === 'PENDING');
+                                        if (!appeal) return null;
+                                        return (
+                                            <View style={styles.appealDetails}>
+                                                <View style={styles.appealRow}>
+                                                    <Text style={[styles.appealLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Reason Type:</Text>
+                                                    <Text style={[styles.appealValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>{appeal.reasonType.replace('_', ' ')}</Text>
+                                                </View>
+                                                <View style={styles.appealBody}>
+                                                    <Text style={[styles.appealLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Parent Note:</Text>
+                                                    <Text style={[styles.appealText, { color: isDark ? '#ffffff' : '#0d1b15' }]}>"{appeal.reasonText}"</Text>
+                                                </View>
+                                                
+                                                {appeal.attachmentUrl && (
+                                                    <TouchableOpacity 
+                                                        style={styles.attachmentLink}
+                                                        onPress={() => {
+                                                            Alert.alert('Proof Attached', 'An image has been provided as proof. Opening it in browser...');
+                                                        }}
+                                                    >
+                                                        <MaterialIcons name="attach-file" size={16} color="#3b82f6" />
+                                                        <Text style={styles.attachmentLinkText}>View Proof Attachment</Text>
+                                                    </TouchableOpacity>
+                                                )}
+
+                                                <View style={styles.appealActions}>
+                                                    <TouchableOpacity 
+                                                        style={[styles.appealActionBtn, styles.rejectBtn]}
+                                                        onPress={async () => {
+                                                            try {
+                                                                setIsSubmitting(true);
+                                                                await respondToAbsence.mutateAsync({
+                                                                    requestId: appeal.id,
+                                                                    data: { approve: false, responseNote: overrideReason || 'Rejected by teacher' }
+                                                                });
+                                                                setIsOverrideModalVisible(false);
+                                                                Alert.alert('Success', 'Appeal rejected.');
+                                                            } catch (err: any) {
+                                                                Alert.alert('Error', err.message || 'Failed to reject appeal');
+                                                            } finally {
+                                                                setIsSubmitting(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.rejectBtnText}>Reject Appeal</Text>
+                                                    </TouchableOpacity>
+                                                    
+                                                    <TouchableOpacity 
+                                                        style={[styles.appealActionBtn, styles.approveBtn]}
+                                                        onPress={async () => {
+                                                            try {
+                                                                setIsSubmitting(true);
+                                                                await respondToAbsence.mutateAsync({
+                                                                    requestId: appeal.id,
+                                                                    data: { approve: true, responseNote: overrideReason || 'Approved by teacher' }
+                                                                });
+                                                                setIsOverrideModalVisible(false);
+                                                                Alert.alert('Success', 'Appeal approved and attendance updated.');
+                                                            } catch (err: any) {
+                                                                Alert.alert('Error', err.message || 'Failed to approve appeal');
+                                                            } finally {
+                                                                setIsSubmitting(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.approveBtnText}>Approve Appeal</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        );
+                                    })()}
+                                </View>
+                            )}
                         </ScrollView>
 
                         <View style={styles.modalFooter}>
@@ -654,6 +738,89 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontFamily: Fonts.semiBold,
         marginTop: 2,
+    },
+    appealReviewCard: {
+        marginTop: 24,
+        borderRadius: 20,
+        padding: 16,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+    },
+    appealHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    appealTitle: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+    },
+    appealDetails: {
+        gap: 12,
+    },
+    appealRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    appealLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
+    appealValue: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    appealBody: {
+        gap: 4,
+    },
+    appealText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        fontStyle: 'italic',
+    },
+    attachmentLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 4,
+    },
+    attachmentLinkText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#3b82f6',
+        textDecorationLine: 'underline',
+    },
+    appealActions: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 8,
+    },
+    appealActionBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rejectBtn: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.2)',
+    },
+    rejectBtnText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#ef4444',
+    },
+    approveBtn: {
+        backgroundColor: '#12ed87',
+    },
+    approveBtnText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#10221a',
     },
 });
 

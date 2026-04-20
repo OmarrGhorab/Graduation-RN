@@ -59,10 +59,16 @@ export default function NotificationModal({
     const unreadCount = notifications.filter((n) => !n.read).length;
 
     // Filter notifications based on active filter (matching backend categories)
+    // Also ensures uniqueness by ID to prevent duplicate keys in FlatList
     const filteredNotifications = useMemo(() => {
-        if (activeFilter === 'all') return notifications;
+        // Enforce uniqueness by ID
+        const uniqueNotifications = Array.from(
+            new Map(notifications.map(n => [n.id, n])).values()
+        );
 
-        return notifications.filter((n) => {
+        if (activeFilter === 'all') return uniqueNotifications;
+
+        return uniqueNotifications.filter((n) => {
             const type = n.type.toLowerCase();
             switch (activeFilter) {
                 case 'chat':

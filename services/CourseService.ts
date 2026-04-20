@@ -880,8 +880,24 @@ export interface ApiAbsenceRequest {
     id: string;
     lessonId: string;
     studentId: string;
-    studentName?: string; // Added for parent view
-    lessonTitle?: string; // Added for parent view
+    studentName?: string;
+    lessonTitle?: string;
+    courseTitle?: string;
+    lessonName?: string;
+    courseName?: string;
+    lesson_title?: string;
+    course_title?: string;
+    lesson?: {
+        id: string;
+        title: string;
+        name?: string;
+        scheduledAt?: string;
+    };
+    course?: {
+        id: string;
+        title: string;
+        name?: string;
+    };
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachmentUrl?: string;

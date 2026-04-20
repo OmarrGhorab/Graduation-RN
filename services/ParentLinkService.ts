@@ -69,6 +69,24 @@ export interface AttendanceRecord {
     id: string;
     lessonId: string;
     studentId: string;
+    lessonTitle?: string;
+    courseTitle?: string;
+    lessonName?: string;
+    courseName?: string;
+    lesson_title?: string;
+    course_title?: string;
+    scheduledAt?: string;
+    lesson?: {
+        id: string;
+        title: string;
+        name?: string;
+        scheduledAt?: string;
+    };
+    course?: {
+        id: string;
+        title: string;
+        name?: string;
+    };
     status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
     scannedAt: string | null;
     distanceFromLocation?: number;

@@ -58,11 +58,15 @@ export function AbsenceRequestCard({ request, onRespond, showActions = false }: 
                 </View>
             </View>
 
-            {request.lessonTitle && (
+            {(request.lessonTitle || request.courseTitle || request.lesson?.title || request.course?.title) && (
                 <View style={styles.lessonInfo}>
                     <Ionicons name="book-outline" size={14} color={theme.gray[400]} />
                     <Text style={[styles.lessonTitle, { color: theme.gray[500] }]}>
-                        {request.lessonTitle}
+                        {(() => {
+                            const c = request.courseTitle || request.courseName || request.course?.title || request.course?.name || request.course_title;
+                            const l = request.lessonTitle || request.lessonName || request.lesson?.title || request.lesson?.name || request.lesson_title || 'Untitled Lesson';
+                            return c ? `${c}: ${l}` : l;
+                        })()}
                     </Text>
                 </View>
             )}
@@ -82,7 +86,11 @@ export function AbsenceRequestCard({ request, onRespond, showActions = false }: 
 
             <View style={styles.meta}>
                 <Text style={[styles.metaText, { color: theme.gray[400] }]}>
-                    Submitted: {new Date(request.createdAt).toLocaleDateString()}
+                    Submitted: {(() => {
+                        const d = request.requestedAt || request.createdAt;
+                        const dateObj = new Date(d);
+                        return isNaN(dateObj.getTime()) ? 'N/A' : dateObj.toLocaleDateString();
+                    })()}
                 </Text>
             </View>
 

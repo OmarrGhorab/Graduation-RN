@@ -46,6 +46,12 @@ export default function AbsenceRequestScreen() {
     const [attachmentUri, setAttachmentUri] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showReasonPicker, setShowReasonPicker] = useState(false);
+    const [feedback, setFeedback] = useState<{ visible: boolean; type: 'success' | 'error'; title: string; message: string; onConfirm?: () => void }>({
+        visible: false,
+        type: 'success',
+        title: '',
+        message: ''
+    });
     
     // Parent specific state
     const [selectedChildId, setSelectedChildId] = useState<string | null>((paramStudentId as string) || null);
@@ -60,7 +66,7 @@ export default function AbsenceRequestScreen() {
     // Fetch attendance history for selection
     const { data: attendanceResponse, isLoading: isLoadingAttendance } = useChildAttendance(activeStudentId);
     const absentLessons = useMemo(() => {
-        return attendanceResponse?.data.filter((record: any) => record.status === 'ABSENT' || record.status === 'LATE') || [];
+        return attendanceResponse?.data.filter((record: any) => record.status === 'ABSENT') || [];
     }, [attendanceResponse]);
 
     // Fetch details for the effective lessonId
@@ -74,8 +80,13 @@ export default function AbsenceRequestScreen() {
     }, [selectedChildId, children, paramStudentName]);
 
     const selectedLessonDisplay = useMemo(() => {
-        if (lesson) return `${lesson.title} (${new Date(lesson.scheduledAt).toLocaleDateString()})`;
-        return 'Select Lesson';
+        if (!lesson) return 'Select Lesson';
+        const d = lesson.scheduledAt || lesson.startsAt || lesson.createdAt;
+        const dateStr = d ? new Date(d).toLocaleDateString() : 'N/A';
+        const cTitle = lesson.courseTitle || lesson.courseName || lesson.course?.title || lesson.course?.name || lesson.course_title || '';
+        const lTitle = lesson.lessonTitle || lesson.lessonName || lesson.title || lesson.name || lesson.lesson_title || 'Untitled Lesson';
+        const fullTitle = cTitle ? `${cTitle}: ${lTitle}` : lTitle;
+        return `${fullTitle} (${dateStr === 'Invalid Date' ? 'N/A' : dateStr})`;
     }, [lesson]);
 
     const handlePickImage = async () => {
@@ -109,12 +120,22 @@ export default function AbsenceRequestScreen() {
 
     const handleSubmit = async () => {
         if (!effectiveLessonId || !activeStudentId) {
-            Alert.alert('Error', !activeStudentId ? 'Please select a child' : 'Please select a missed lesson');
+            setFeedback({
+                visible: true,
+                type: 'error',
+                title: 'Missing Information',
+                message: !activeStudentId ? 'Please select a child to submit the request for.' : 'Please select a missed lesson from the list.'
+            });
             return;
         }
 
         if (!notes.trim()) {
-            Alert.alert('Error', 'Please provide details for the absence');
+            setFeedback({
+                visible: true,
+                type: 'error',
+                title: 'Missing Details',
+                message: 'Please provide details for the absence reason to help administrators review your request.'
+            });
             return;
         }
 
@@ -139,18 +160,31 @@ export default function AbsenceRequestScreen() {
                 reasonText: notes,
                 attachment: finalAttachmentUrl
             });
-            Alert.alert('Success', 'The absence request has been submitted successfully.');
-            router.back();
+
+            setFeedback({
+                visible: true,
+                type: 'success',
+                title: 'Success!',
+                message: 'Your absence request has been submitted successfully and is now pending review.',
+                onConfirm: () => router.back()
+            });
         } catch (error: any) {
             // Handle 409 Conflict - duplicate request
             if (error.response?.status === 409 || error.message?.includes('already submitted')) {
-                Alert.alert(
-                    'Request Already Exists',
-                    'An excuse has already been submitted for this lesson. Please wait for review.',
-                    [{ text: 'OK', onPress: () => router.back() }]
-                );
+                setFeedback({
+                    visible: true,
+                    type: 'error',
+                    title: 'Already Submitted',
+                    message: 'An excuse has already been submitted for this lesson. Please wait for review.',
+                    onConfirm: () => router.back()
+                });
             } else {
-                Alert.alert('Error', error.message || 'Failed to submit absence request');
+                setFeedback({
+                    visible: true,
+                    type: 'error',
+                    title: 'Submission Failed',
+                    message: error.message || 'Failed to submit absence request. Please check your connection and try again.'
+                });
             }
         } finally {
             setIsSubmitting(false);
@@ -488,10 +522,19 @@ export default function AbsenceRequestScreen() {
                                                 { color: isDark ? '#f0fdf7' : '#0d1b15' },
                                                 effectiveLessonId === record.lessonId && { color: cskColors[500], fontFamily: Fonts.bold }
                                             ]}>
-                                                {record.lessonTitle}
+                                                {(() => {
+                                                    const c = record.courseTitle || record.courseName || record.course?.title || record.course?.name || record.course_title;
+                                                    const l = record.lessonTitle || record.lessonName || record.title || record.name || record.lesson_title || `Lesson ${record.lessonId?.substring(0, 8).toUpperCase() || 'Unknown'}`;
+                                                    return c ? `${c}: ${l}` : l;
+                                                })()}
                                             </Text>
                                             <Text style={{ fontSize: 12, color: '#888' }}>
-                                                {new Date(record.date).toLocaleDateString()}
+                                                {(() => {
+                                                    const d = record.scheduledAt || record.lesson?.scheduledAt || record.createdAt || record.date;
+                                                    if (!d) return 'Date not available';
+                                                    const dateObj = new Date(d);
+                                                    return isNaN(dateObj.getTime()) ? 'Invalid Date Format' : dateObj.toLocaleDateString();
+                                                })()}
                                             </Text>
                                         </View>
                                         {effectiveLessonId === record.lessonId && <MaterialIcons name="check" size={20} color={cskColors[500]} />}
@@ -528,6 +571,51 @@ export default function AbsenceRequestScreen() {
                     <Text style={[styles.secureText, { color: isDark ? '#88cba8' : '#4c9a75' }]}>OFFICIAL SUBMISSION</Text>
                 </View>
             </LinearGradient>
+
+            {/* Custom Feedback Modal */}
+            <Modal
+                visible={feedback.visible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setFeedback(prev => ({ ...prev, visible: false }))}
+            >
+                <View style={styles.feedbackOverlay}>
+                    <View style={[styles.feedbackContent, { backgroundColor: isDark ? '#142a20' : '#ffffff' }]}>
+                        <View style={[
+                            styles.feedbackIconContainer, 
+                            { backgroundColor: feedback.type === 'success' ? 'rgba(18, 237, 135, 0.1)' : 'rgba(255, 82, 82, 0.1)' }
+                        ]}>
+                            <MaterialIcons 
+                                name={feedback.type === 'success' ? 'check-circle' : 'error-outline'} 
+                                size={48} 
+                                color={feedback.type === 'success' ? cskColors[500] : '#ff5252'} 
+                            />
+                        </View>
+                        
+                        <Text style={[styles.feedbackTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
+                            {feedback.title}
+                        </Text>
+                        
+                        <Text style={[styles.feedbackMessage, { color: isDark ? '#88cba8' : '#4c9a75' }]}>
+                            {feedback.message}
+                        </Text>
+                        
+                        <TouchableOpacity
+                            style={[
+                                styles.feedbackButton, 
+                                { backgroundColor: feedback.type === 'success' ? cskColors[500] : '#ff5252' }
+                            ]}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                                setFeedback(prev => ({ ...prev, visible: false }));
+                                if (feedback.onConfirm) feedback.onConfirm();
+                            }}
+                        >
+                            <Text style={styles.feedbackButtonText}>Got it</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -776,5 +864,56 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontFamily: Fonts.bold,
         letterSpacing: 0.8,
+    },
+    feedbackOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    feedbackContent: {
+        width: '100%',
+        borderRadius: 28,
+        padding: 30,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    feedbackIconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    feedbackTitle: {
+        fontSize: 22,
+        fontFamily: Fonts.bold,
+        marginBottom: 12,
+        textAlign: 'center',
+    },
+    feedbackMessage: {
+        fontSize: 15,
+        fontFamily: Fonts.medium,
+        lineHeight: 22,
+        textAlign: 'center',
+        marginBottom: 28,
+    },
+    feedbackButton: {
+        width: '100%',
+        height: 56,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    feedbackButtonText: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+        color: '#10221a',
     },
 });

@@ -7,11 +7,10 @@ import { logger } from '@/libs/logger';
 // Configure how notifications should behave when received while the app is in foreground
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
         shouldShowBanner: true,
         shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
     }),
 });
 

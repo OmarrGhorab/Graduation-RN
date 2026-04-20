@@ -162,21 +162,29 @@ export function ParentMonitoringSuite() {
                         <TouchableOpacity 
                             key={appeal.id} 
                             style={[styles.appealCard, { backgroundColor: isDark ? '#1a332a' : '#fff' }]}
+                            onPress={() => router.push('/absence-history')}
                         >
                             <View style={styles.appealHeader}>
                                 <View style={styles.appealKidInfo}>
                                     <View style={[styles.appealDot, { backgroundColor: '#FFA500' }]} />
                                     <Text style={[styles.appealKidName, { color: isDark ? '#fff' : '#0d1b15' }]}>
-                                        {appeal.student?.name || 'Child'}
+                                        Child: {appeal.studentName || appeal.student?.name || 'Unknown'}
                                     </Text>
                                 </View>
-                                <View style={styles.pendingBadge}>
-                                    <Text style={styles.pendingBadgeText}>Pending</Text>
+                                <View style={[styles.pendingBadge, { backgroundColor: appeal.status === 'APPROVED' ? 'rgba(18, 237, 135, 0.1)' : appeal.status === 'REJECTED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 165, 0, 0.1)' }]}>
+                                    <Text style={[styles.pendingBadgeText, { color: appeal.status === 'APPROVED' ? '#12ED87' : appeal.status === 'REJECTED' ? '#ef4444' : '#FFA500' }]}>
+                                        {appeal.status.charAt(0) + appeal.status.slice(1).toLowerCase()}
+                                    </Text>
                                 </View>
                             </View>
-                            <Text style={styles.appealReason} numberOfLines={1}>
-                                {appeal.reasonType}: {appeal.reason}
-                            </Text>
+                            <View style={styles.appealContentRow}>
+                                <Text style={[styles.appealReasonType, { color: theme.primary }]}>
+                                    {appeal.reasonType.charAt(0) + appeal.reasonType.slice(1).toLowerCase()}:
+                                </Text>
+                                <Text style={[styles.appealReason, { color: isDark ? '#94a3b8' : '#64748b' }]} numberOfLines={1}>
+                                    {appeal.reasonText || appeal.reason || 'No details provided'}
+                                </Text>
+                            </View>
                         </TouchableOpacity>
                     ))
                 ) : (
@@ -280,7 +288,12 @@ export function ParentMonitoringSuite() {
                                     </Text>
                                 </View>
                                 <Text style={styles.historyTime}>
-                                    {record.scannedAt ? new Date(record.scannedAt).toLocaleString() : new Date(record.createdAt).toLocaleString()}
+                                    {(() => {
+                                        const d = record.scannedAt || record.createdAt;
+                                        if (!d) return 'N/A';
+                                        const dateObj = new Date(d);
+                                        return isNaN(dateObj.getTime()) ? 'N/A' : dateObj.toLocaleString();
+                                    })()}
                                 </Text>
                             </View>
                             <View style={[styles.statusTag, { backgroundColor: getStatusColor(record.status) + '20' }]}>
@@ -494,10 +507,20 @@ const styles = StyleSheet.create({
         color: '#FFA500',
         fontFamily: Fonts.bold,
     },
+    appealContentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 4,
+    },
+    appealReasonType: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
     appealReason: {
         fontSize: 12,
-        color: '#888',
         fontFamily: Fonts.medium,
+        flex: 1,
     },
     emptyAppeals: {
         padding: 16,
