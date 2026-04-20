@@ -22,12 +22,13 @@ interface HomeHeaderProps {
     onCalendarPress?: () => void;
     onRefreshPress?: () => void;
     onSearchSubmit?: (query: string) => void;
+    onReschedulePress?: () => Promise<void>;
     notificationCount?: number;
     scrollY?: SharedValue<number>;
     isRefreshing?: boolean;
 }
 
-export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, onReschedulePress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
@@ -109,6 +110,19 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, onRef
                             <Animated.View style={refreshIconStyle}>
                                 <Ionicons name="sync-outline" size={24} color="#FFFFFF" />
                             </Animated.View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={async () => {
+                                // Background fetch as requested
+                                if (onReschedulePress) {
+                                    onReschedulePress().catch(err => console.error('Reschedule error:', err));
+                                }
+                            }}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="time-outline" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
 
                         <TouchableOpacity

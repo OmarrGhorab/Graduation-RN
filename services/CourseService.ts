@@ -5,6 +5,14 @@ import { apiClient } from './apiClient';
 import { DeviceService } from './DeviceService';
 import { Platform } from 'react-native';
 
+export interface CourseAnalytics {
+    totalRevenue: number;
+    totalStudents: number;
+    activeStudents: number;
+    averageRating: number;
+    reviewCount: number;
+}
+
 export interface ApiCourse {
     id: string;
     title: string;
@@ -37,6 +45,7 @@ export interface ApiCourse {
     preview_video_url?: string;
     preview_video_public_id?: string;
     reminderIntervals?: string;
+    analytics?: CourseAnalytics;
     createdAt: string;
     updatedAt: string;
 }
@@ -676,6 +685,14 @@ export async function updateCourse(
         `/api/v1/courses/${courseId}`,
         data
     );
+}
+
+/**
+ * Delete a course (Teacher)
+ */
+export async function deleteCourse(courseId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Deleting course:', courseId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}`);
 }
 
 /**

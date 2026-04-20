@@ -16,7 +16,9 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Alert
 } from 'react-native';
+import { deleteCourse } from '@/services/CourseService';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function TeacherCoursesScreen() {
@@ -27,8 +29,41 @@ export default function TeacherCoursesScreen() {
     const { data: coursesData, isLoading, refetch } = useTeacherCourses();
     const courses = coursesData?.success ? coursesData.data : [];
 
+
     const handleCoursePress = (courseId: string) => {
         router.push({ pathname: '/course-details', params: { id: courseId } });
+    };
+
+    const handleEditCourse = (course: ApiCourse) => {
+        // Navigate to edit course screen (which usually reuses create-course logic with initial data)
+        router.push({ pathname: '/create-course', params: { editId: course.id } });
+    };
+
+    const handleDeleteCourse = (courseId: string) => {
+        Alert.alert(
+            t('teacher.deleteCourse'),
+            t('teacher.deleteConfirm'),
+            [
+                { text: t('common.cancel') || "Cancel", style: "cancel" },
+                { 
+                    text: t('common.delete') || "Delete", 
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const response = await deleteCourse(courseId);
+                            if (response.success) {
+                                Alert.alert(t('common.success') || "Success", t('teacher.deleteSuccess'));
+                                refetch();
+                            } else {
+                                Alert.alert(t('common.error') || "Error", t('teacher.deleteError'));
+                            }
+                        } catch (error) {
+                            Alert.alert(t('common.error') || "Error", t('common.unexpectedError') || "An unexpected error occurred");
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const renderHeader = () => (
@@ -44,7 +79,7 @@ export default function TeacherCoursesScreen() {
                     <Ionicons name="arrow-back" size={24} color={isDark ? cskColors[500] : '#0d1b15'} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
-                    {t('teacher.myCourses') || 'My Courses'}
+                    {t('teacher.myCourses')}
                 </Text>
                 <TouchableOpacity
                     onPress={() => router.push('/create-course')}
@@ -57,7 +92,7 @@ export default function TeacherCoursesScreen() {
             <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: cskColors[500] }]}>{courses.length}</Text>
-                    <Text style={[styles.statLabel, { color: theme.gray[500] }]}>Total Courses</Text>
+                    <Text style={[styles.statLabel, { color: theme.gray[500] }]}>{t('course.totalCourses') || 'Total Courses'}</Text>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: theme.gray[200] }]} />
                 <View style={styles.statItem}>
@@ -93,6 +128,9 @@ export default function TeacherCoursesScreen() {
                         <CourseMarketplaceCard
                             course={item}
                             onPress={handleCoursePress}
+                            isManagement={true}
+                            onEdit={handleEditCourse}
+                            onDelete={handleDeleteCourse}
                         />
                     </Animated.View>
                 )}

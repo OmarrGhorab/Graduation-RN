@@ -640,6 +640,10 @@ export default function MainHomeScreen() {
                 onNotificationPress={() => setShowNotifications(true)}
                 onCalendarPress={() => router.push('/calendar')}
                 onRefreshPress={onRefresh}
+                onReschedulePress={async () => {
+                    logger.log('[Home] Background rescheduling fetch');
+                    await queryClient.invalidateQueries({ queryKey: isTeacher ? ['teacherCalendar'] : ['studentCalendar'] });
+                }}
                 notificationCount={unreadCount}
                 scrollY={scrollY}
                 isRefreshing={isRefreshing}

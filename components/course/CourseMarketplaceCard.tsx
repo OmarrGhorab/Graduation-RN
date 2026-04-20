@@ -9,9 +9,18 @@ import { useTranslation } from '@/hooks/useTranslation';
 interface CourseMarketplaceCardProps {
     course: ApiCourse;
     onPress: (courseId: string) => void;
+    isManagement?: boolean;
+    onEdit?: (course: ApiCourse) => void;
+    onDelete?: (courseId: string) => void;
 }
 
-export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMarketplaceCardProps) {
+export default memo(function CourseMarketplaceCard({
+    course,
+    onPress,
+    isManagement = false,
+    onEdit,
+    onDelete
+}: CourseMarketplaceCardProps) {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
 
@@ -104,6 +113,26 @@ export default memo(function CourseMarketplaceCard({ course, onPress }: CourseMa
                         </Text>
                     </View>
                 </View>
+
+                {/* Management Actions */}
+                {isManagement && (
+                    <View style={[styles.managementFooter, { borderTopColor: isDark ? theme.border : theme.gray[100] }]}>
+                        <TouchableOpacity
+                            style={[styles.manageButton, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}
+                            onPress={() => onEdit?.(course)}
+                        >
+                            <Ionicons name="create-outline" size={18} color={theme.primary} />
+                            <Text style={[styles.manageButtonText, { color: theme.primary }]}>{t('common.edit') || 'Edit'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.deleteButton, { backgroundColor: '#fee2e2' }]}
+                            onPress={() => onDelete?.(course.id)}
+                        >
+                            <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                            <Text style={[styles.deleteButtonText, { color: '#ef4444' }]}>{t('common.delete') || 'Delete'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -218,6 +247,39 @@ const styles = StyleSheet.create({
     },
     price: {
         fontSize: 16,
+        fontFamily: Fonts.bold,
+    },
+    managementFooter: {
+        flexDirection: 'row',
+        gap: 12,
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+    },
+    manageButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        borderRadius: 10,
+        gap: 8,
+    },
+    manageButtonText: {
+        fontSize: 14,
+        fontFamily: Fonts.bold,
+    },
+    deleteButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        borderRadius: 10,
+        gap: 8,
+    },
+    deleteButtonText: {
+        fontSize: 14,
         fontFamily: Fonts.bold,
     },
 });

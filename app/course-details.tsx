@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        zIndex: 50,
+        zIndex: 1000,
     },
     heroButton: {
         width: 40,

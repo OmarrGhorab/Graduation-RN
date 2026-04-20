@@ -2,12 +2,13 @@ import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
-import { getAllSubjects } from '@/services/CourseService';
+import { useTranslation } from '@/hooks/useTranslation';
+import { getAllSubjects, getCourseById } from '@/services/CourseService';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -29,8 +30,46 @@ type BillingType = 'ONE_TIME' | 'MONTHLY';
 
 export default function CreateCourseScreen() {
     const router = useRouter();
+    const { editId } = useLocalSearchParams<{ editId: string }>();
     const { theme, isDark } = useTheme();
-    const { createCourseMutation } = useCourseCreation();
+    const { t } = useTranslation();
+    const { createCourseMutation, updateCourseMutation } = useCourseCreation();
+
+    // Fetch course data if editing
+    const { data: editCourseData, isLoading: isLoadingEditCourse } = useQuery({
+        queryKey: ['course', editId],
+        queryFn: () => getCourseById(editId!),
+        enabled: !!editId,
+    });
+
+    useEffect(() => {
+        if (editCourseData?.data) {
+            const course = editCourseData.data;
+            setTitle(course.title || '');
+            setDescription(course.description || '');
+            setSubjectId(course.subjectId || '');
+            setCourseImage(course.thumbnailUrl || '');
+            setDeliveryType((course.deliveryType as DeliveryType) || 'ONLINE');
+            setLocationName(course.locationName || '');
+            setLocationLat(course.locationLat?.toString() || '');
+            setLocationLng(course.locationLng?.toString() || '');
+            setGeofenceRadius(course.geofenceRadiusM?.toString() || '50');
+            setTotalLessons(course.totalLessons?.toString() || '12');
+            setAttendanceWindow(course.attendanceWindowMinutes?.toString() || '15');
+            setPrice(course.price?.toString() || '0');
+            setCurrency(course.currency || 'EGP');
+            setIsPaid(course.isPaid ?? (course.price > 0));
+            setBillingType((course.billingType as BillingType) || 'ONE_TIME');
+            setAttendanceWeight(course.attendanceWeight?.toString() || '0.3');
+            setFreeTrialLessons(course.freeTrialLessons?.toString() || '0');
+            if (course.reminderIntervals) {
+                setReminderIntervals(course.reminderIntervals.split(','));
+            }
+            if (course.previewVideoUrl) {
+                setVideoUrl(course.previewVideoUrl);
+            }
+        }
+    }, [editCourseData]);
 
     // Form state
     const [title, setTitle] = useState('');
@@ -195,12 +234,17 @@ export default function CreateCourseScreen() {
                 reminderIntervals: reminderIntervals.filter(r => r.trim() !== '').join(',') || "60,15",
             };
 
-            await createCourseMutation.mutateAsync(courseData);
-            
-            setUploading(false);
-            Alert.alert('Success', 'Course created successfully!', [
-                { text: 'OK', onPress: () => router.back() }
-            ]);
+            if (editId) {
+                await updateCourseMutation.mutateAsync({ id: editId, data: courseData });
+                Alert.alert('Success', 'Course updated successfully!', [
+                    { text: 'OK', onPress: () => router.back() }
+                ]);
+            } else {
+                await createCourseMutation.mutateAsync(courseData);
+                Alert.alert('Success', 'Course created successfully!', [
+                    { text: 'OK', onPress: () => router.back() }
+                ]);
+            }
         } catch (error: any) {
             setUploading(false);
             Alert.alert('Error', error.message || 'Failed to create course');
@@ -223,12 +267,21 @@ export default function CreateCourseScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? cskColors[500] : '#0d1b15'} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
-                    Create New Course
+                    {editId ? t('teacher.editCourse') : t('teacher.createNewCourse')}
                 </Text>
                 <View style={{ width: 48 }} />
             </View>
 
-            <KeyboardAvoidingView
+            {isLoadingEditCourse ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={cskColors[500]} />
+                    <Text style={{ marginTop: 12, color: isDark ? '#FFF' : '#0d1b15', fontFamily: Fonts.medium }}>
+                        {t('teacher.loadingCourse')}
+                    </Text>
+                </View>
+            ) : (
+                <>
+                <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.keyboardView}
             >
@@ -891,22 +944,26 @@ export default function CreateCourseScreen() {
             }]}>
                 <TouchableOpacity
                     style={[styles.createButton, { 
-                        backgroundColor: (createCourseMutation.isPending || uploading) ? '#6b737c' : cskColors[500] 
+                        backgroundColor: (createCourseMutation.isPending || updateCourseMutation.isPending || uploading) ? '#6b737c' : cskColors[500] 
                     }]}
                     onPress={handleCreateCourse}
-                    disabled={createCourseMutation.isPending || uploading}
+                    disabled={createCourseMutation.isPending || updateCourseMutation.isPending || uploading}
                     activeOpacity={0.9}
                 >
-                    {createCourseMutation.isPending ? (
+                    {(createCourseMutation.isPending || updateCourseMutation.isPending) ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
                         <>
-                            <Text style={styles.createButtonText}>Create Course</Text>
-                            <MaterialIcons name="rocket-launch" size={24} color="#ffffff" />
+                            <Text style={styles.createButtonText}>
+                                {editId ? t('teacher.saveChanges') : t('teacher.createNewCourse')}
+                            </Text>
+                            <MaterialIcons name={editId ? 'check-circle' : 'rocket-launch'} size={24} color="#ffffff" />
                         </>
                     )}
                 </TouchableOpacity>
             </View>
+            </>
+            )}
         </View>
     );
 }
