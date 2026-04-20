@@ -3,6 +3,7 @@ import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
 import QRScannerModal from '@/components/course/QRScannerModal';
 import { ScheduleCard, SubjectCard } from '@/components/home';
+import { ParentMonitoringSuite } from '@/components/home/ParentMonitoringSuite';
 import { Fonts, cskColors, errorColors } from '@/constants/theme';
 import { useCalendar, useStudentCalendar, useTeacherCalendar } from '@/hooks/useCalendar';
 import { useMySubjects } from '@/hooks/useCourses';
@@ -400,41 +401,46 @@ export default function MainHomeScreen() {
                 translucent={true}
             />
 
-            <Animated.ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                onScroll={scrollHandler}
-                scrollEventThrottle={16}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isRefreshing}
-                        onRefresh={onRefresh}
-                        colors={[theme.primary]}
-                        tintColor={theme.primary}
-                        progressViewOffset={140}
-                    />
-                }
-            >
-                {/* My Subjects Section */}
-                {subjects.length > 0 && (
-                    <View style={[styles.section, { marginTop: 12 }]}>
-                        <View style={styles.sectionHeader}>
-                            <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                                {t('home.mySubjects') || 'My Subjects'}
-                            </Text>
-                            {/* More button could go here */}
-                        </View>
-                        <FlatList
-                            data={subjects}
-                            renderItem={renderSubjectItem}
-                            keyExtractor={subjectKeyExtractor}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={styles.horizontalList}
+            {user?.role === 'PARENT' ? (
+                <View style={{ flex: 1 }}>
+                    <ParentMonitoringSuite />
+                </View>
+            ) : (
+                <Animated.ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    onScroll={scrollHandler}
+                    scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isRefreshing}
+                            onRefresh={onRefresh}
+                            colors={[theme.primary]}
+                            tintColor={theme.primary}
+                            progressViewOffset={140}
                         />
-                    </View>
-                )}
+                    }
+                >
+                    {/* My Subjects Section */}
+                    {subjects.length > 0 && (
+                        <View style={[styles.section, { marginTop: 12 }]}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
+                                    {t('home.mySubjects') || 'My Subjects'}
+                                </Text>
+                                {/* More button could go here */}
+                            </View>
+                            <FlatList
+                                data={subjects}
+                                renderItem={renderSubjectItem}
+                                keyExtractor={subjectKeyExtractor}
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.horizontalList}
+                            />
+                        </View>
+                    )}
 
                 <View style={[styles.section, { marginBottom: 24 }]}>
                     <View style={styles.sectionHeader}>
@@ -626,6 +632,7 @@ export default function MainHomeScreen() {
                 {/* Bottom padding for tabs */}
                 <View style={{ height: 100 }} />
             </Animated.ScrollView>
+            )}
 
             {/* Header positioned absolutely on top */}
 

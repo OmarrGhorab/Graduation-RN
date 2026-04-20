@@ -40,9 +40,16 @@ export function AbsenceRequestCard({ request, onRespond, showActions = false }: 
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <Ionicons name={getReasonIcon() as any} size={20} color={theme.primary} />
-                    <Text style={[styles.reasonType, { color: isDark ? theme.text : '#000' }]}>
-                        {request.reasonType}
-                    </Text>
+                    <View>
+                        <Text style={[styles.reasonType, { color: isDark ? theme.text : '#000' }]}>
+                            {request.reasonType.replace('_', ' ')}
+                        </Text>
+                        {request.studentName && (
+                            <Text style={[styles.studentName, { color: theme.gray[500] }]}>
+                                Child: {request.studentName}
+                            </Text>
+                        )}
+                    </View>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
                     <Text style={[styles.statusText, { color: statusColor }]}>
@@ -51,9 +58,27 @@ export function AbsenceRequestCard({ request, onRespond, showActions = false }: 
                 </View>
             </View>
 
-            <Text style={[styles.reasonText, { color: theme.gray[600] }]}>
+            {request.lessonTitle && (
+                <View style={styles.lessonInfo}>
+                    <Ionicons name="book-outline" size={14} color={theme.gray[400]} />
+                    <Text style={[styles.lessonTitle, { color: theme.gray[500] }]}>
+                        {request.lessonTitle}
+                    </Text>
+                </View>
+            )}
+
+            <Text style={[styles.reasonText, { color: isDark ? theme.gray[400] : theme.gray[600] }]}>
                 {request.reasonText}
             </Text>
+
+            {request.attachmentUrl && (
+                <View style={styles.attachmentInfo}>
+                    <Ionicons name="image-outline" size={14} color={theme.primary} />
+                    <Text style={[styles.attachmentText, { color: theme.primary }]}>
+                        Attachment Included
+                    </Text>
+                </View>
+            )}
 
             <View style={styles.meta}>
                 <Text style={[styles.metaText, { color: theme.gray[400] }]}>
@@ -114,6 +139,35 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontFamily: Fonts.semiBold,
         textTransform: 'capitalize',
+    },
+    studentName: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        marginTop: -2,
+    },
+    lessonInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 10,
+    },
+    lessonTitle: {
+        fontSize: 13,
+        fontFamily: Fonts.medium,
+    },
+    attachmentInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 12,
+        backgroundColor: 'rgba(18, 237, 135, 0.05)',
+        padding: 8,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+    },
+    attachmentText: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
     },
     statusBadge: {
         paddingHorizontal: 8,

@@ -3,6 +3,7 @@ import { logger } from '@/libs/logger';
 import { getValidAccessToken } from './AuthService';
 import { apiClient } from './apiClient';
 import { DeviceService } from './DeviceService';
+import { Platform } from 'react-native';
 
 export interface ApiCourse {
     id: string;
@@ -846,12 +847,12 @@ export async function scanAttendance(
  * ABSENCE / EXCUSE ENDPOINTS
  */
 
-export type AbsenceReasonType = 'MEDICAL' | 'TECHNICAL' | 'EMERGENCY' | 'PERSONAL';
+export type AbsenceReasonType = 'MEDICAL' | 'TECHNICAL' | 'EMERGENCY' | 'PERSONAL' | 'PARENT_EXCUSE';
 export type AbsenceStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface CreateAbsenceRequest {
     lessonId: string;
-    studentId: string;
+    studentId: string; // The child's ID if parent is submitting
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachment?: string;
@@ -879,6 +880,8 @@ export interface ApiAbsenceRequest {
     id: string;
     lessonId: string;
     studentId: string;
+    studentName?: string; // Added for parent view
+    lessonTitle?: string; // Added for parent view
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachmentUrl?: string;
@@ -920,6 +923,14 @@ export async function getStudentAbsenceRequests(studentId: string): Promise<Abse
 }
 
 /**
+ * Get all absence history for all linked children (Parent)
+ */
+export async function getKidsAbsenceHistory(): Promise<AbsencesListResponse> {
+    logger.log('[Absences] Fetching kids absence history');
+    return apiClient.get<AbsencesListResponse>('/api/v1/absences/parent/kids');
+}
+
+/**
  * Get absence requests for a specific lesson (Teacher)
  */
 export async function getLessonAbsenceRequests(lessonId: string): Promise<AbsencesListResponse> {
@@ -937,6 +948,7 @@ export async function getPendingParentAbsenceRequests(): Promise<AbsencesListRes
 
 /**
  * Respond to an absence request (Approve/Reject)
+ * Parents can also call this to self-approve their child's excuse.
  */
 export async function respondToAbsenceRequest(
     requestId: string,
@@ -945,6 +957,7 @@ export async function respondToAbsenceRequest(
     logger.log('[Absences] Responding to absence request:', requestId, data.approve ? 'APPROVE' : 'REJECT');
     return apiClient.post<AbsenceResponse>(`/api/v1/absences/${requestId}/respond`, data);
 }
+
 
 /**
  * COURSE ASSISTANTS ENDPOINTS
@@ -1590,12 +1603,54 @@ export async function updateCourseReview(courseId: string, reviewId: string, dat
     return apiClient.put<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews/${reviewId}`, data);
 }
 
-/**
- * Delete a course review (Student)
- */
 export async function deleteCourseReview(courseId: string, reviewId: string): Promise<{ success: boolean; message: string }> {
     logger.log('[Courses] Deleting review for course:', courseId, reviewId);
     return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews/${reviewId}`);
+}
+
+/**
+ * Upload absence attachment to Cloudinary
+ */
+export async function uploadAbsenceAttachment(fileUri: string): Promise<string> {
+    try {
+        logger.log('[Absences] Starting attachment upload:', fileUri);
+
+        // 1. Get presigned URL
+        const folder = 'absences/attachments';
+        const presignData = await apiClient.post<any>('/api/v1/media/presign', { folder });
+
+        // 2. Prepare file
+        const fileData = {
+            uri: Platform.OS === 'ios' ? fileUri.replace('file://', '') : fileUri,
+            type: 'image/jpeg',
+            name: 'absence_proof.jpg'
+        };
+
+        // 3. Build FormData for Cloudinary
+        const formData = new FormData();
+        formData.append('file', fileData as any);
+        formData.append('api_key', presignData.api_key);
+        formData.append('timestamp', presignData.timestamp.toString());
+        formData.append('signature', presignData.signature);
+        formData.append('folder', presignData.folder);
+
+        // 4. Upload to Cloudinary
+        const uploadRes = await fetch(presignData.url, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!uploadRes.ok) {
+            throw new Error('Cloudinary upload failed');
+        }
+
+        const uploadData = await uploadRes.json();
+        return uploadData.secure_url;
+
+    } catch (error) {
+        logger.error('[Absences] Upload error:', error);
+        throw error;
+    }
 }
 
 // ============================================================================

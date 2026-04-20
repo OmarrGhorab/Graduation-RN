@@ -1,12 +1,12 @@
 import { AbsenceRequestCard } from '@/components/course/AbsenceRequestCard';
 import { Fonts } from '@/constants/theme';
-import { useRespondToAbsence, useStudentAbsences } from '@/hooks/useAbsences';
+import { useRespondToAbsence, useStudentAbsences, useKidsAbsences } from '@/hooks/useAbsences';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/libs/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function AbsenceHistoryScreen() {
@@ -14,14 +14,24 @@ export default function AbsenceHistoryScreen() {
     const { theme, isDark } = useTheme();
     const { profile } = useProfile();
     const user = useAuthStore(state => state.user);
+    
     const isTeacher = user?.role === 'TEACHER';
-    const { data, isLoading, error } = useStudentAbsences(profile?.id || '');
+    const isParent = user?.role === 'PARENT';
+    const canApprove = isTeacher || isParent;
+
+    const studentQuery = useStudentAbsences(profile?.id || '', { enabled: !isParent });
+    const parentQuery = useKidsAbsences({ enabled: isParent });
+
+    const { data: response, isLoading, error, refetch } = isParent ? parentQuery : studentQuery;
+    const requests = response?.data || [];
+
     const respondMutation = useRespondToAbsence();
 
     const handleRespond = async (requestId: string, approve: boolean) => {
         try {
             await respondMutation.mutateAsync({ requestId, approve });
             Alert.alert('Success', `Request ${approve ? 'approved' : 'rejected'} successfully`);
+            refetch(); // Refresh list
         } catch (err: any) {
             Alert.alert('Error', err.message || 'Failed to respond to request');
         }
@@ -35,7 +45,7 @@ export default function AbsenceHistoryScreen() {
         );
     }
 
-    if (error || !data) {
+    if (error || !response) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
                 <Ionicons name="alert-circle-outline" size={48} color={theme.gray[400]} />
@@ -64,19 +74,19 @@ export default function AbsenceHistoryScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-                {data.data.length === 0 ? (
+                {requests.length === 0 ? (
                     <View style={styles.emptyState}>
                         <Ionicons name="document-text-outline" size={64} color={theme.gray[300]} />
                         <Text style={[styles.emptyText, { color: theme.gray[500] }]}>
-                            No absence requests
+                            {isParent ? 'No absence history found for your children' : 'No absence requests'}
                         </Text>
                     </View>
                 ) : (
-                    data.data.map((request) => (
+                    requests.map((request) => (
                         <AbsenceRequestCard
                             key={request.id}
                             request={request}
-                            showActions={isTeacher}
+                            showActions={canApprove}
                             onRespond={(approve) => handleRespond(request.id, approve)}
                         />
                     ))

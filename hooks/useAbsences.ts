@@ -1,5 +1,6 @@
 import {
     createAbsenceRequest,
+    getKidsAbsenceHistory,
     getLessonAbsenceRequests,
     getPendingParentAbsenceRequests,
     getStudentAbsenceRequests,
@@ -7,11 +8,19 @@ import {
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-export function useStudentAbsences(studentId: string) {
+export function useStudentAbsences(studentId: string, options: { enabled?: boolean } = {}) {
     return useQuery({
         queryKey: ['absences', 'student', studentId],
         queryFn: () => getStudentAbsenceRequests(studentId),
-        enabled: !!studentId,
+        enabled: (options.enabled !== false) && !!studentId,
+    });
+}
+
+export function useKidsAbsences(options: { enabled?: boolean } = {}) {
+    return useQuery({
+        queryKey: ['absences', 'kids'],
+        queryFn: () => getKidsAbsenceHistory(),
+        enabled: options.enabled !== false,
     });
 }
 
