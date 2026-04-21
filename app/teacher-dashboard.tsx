@@ -31,6 +31,14 @@ export default function TeacherDashboardScreen() {
     const courses = coursesData?.data || [];
 
     const { totalRevenue, totalStudents, avgRating } = useMemo(() => {
+        if (coursesData?.summary) {
+            return {
+                totalRevenue: coursesData.summary.totalRevenue || 0,
+                totalStudents: coursesData.summary.totalUniqueStudents || 0,
+                avgRating: coursesData.summary.averageRating || 0,
+            };
+        }
+
         let revenue = 0;
         let students = 0;
         let ratingSum = 0;
@@ -54,7 +62,7 @@ export default function TeacherDashboardScreen() {
             totalStudents: students,
             avgRating: ratedCourses > 0 ? ratingSum / ratedCourses : 0
         };
-    }, [courses]);
+    }, [coursesData, courses]);
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7' }]}>
@@ -161,7 +169,7 @@ export default function TeacherDashboardScreen() {
                                         {t('teacher.totalRevenue')}
                                     </Text>
                                     <Text style={[styles.revenueValue, { color: cskColors[500] }]}>
-                                        {totalRevenue.toLocaleString()} <Text style={styles.currency}>EGP</Text>
+                                        {totalRevenue.toLocaleString()} <Text style={styles.currency}>{t('common.egp') || 'EGP'}</Text>
                                     </Text>
                                 </View>
                                 <View style={[styles.revenueIconContainer, { backgroundColor: `${cskColors[500]}15` }]}>
@@ -264,7 +272,7 @@ export default function TeacherDashboardScreen() {
                                         backgroundColor: isDark ? '#183327' : '#ffffff',
                                         borderColor: isDark ? '#2a4d3d' : '#e9ebed'
                                     }]}
-                                    onPress={() => router.push({ pathname: '/course-details', params: { id: course.id } })}
+                                    onPress={() => router.push({ pathname: '/teacher-course-details', params: { id: course.id } })}
                                 >
                                     <View style={styles.courseCardContent}>
                                         <View style={[styles.courseIcon, { backgroundColor: `${cskColors[500]}20` }]}>

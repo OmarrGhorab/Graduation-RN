@@ -9,8 +9,16 @@ export interface CourseAnalytics {
     totalRevenue: number;
     totalStudents: number;
     activeStudents: number;
+    completionRate: number;
     averageRating: number;
     reviewCount: number;
+}
+
+export interface TeacherSummary {
+    averageRating: number;
+    totalRatings: number;
+    totalRevenue: number;
+    totalUniqueStudents: number;
 }
 
 export interface ApiCourse {
@@ -27,6 +35,8 @@ export interface ApiCourse {
     courseRating?: number;
     totalRatings?: number;
     enrolledStudents?: number;
+    enrollmentCount?: number;
+    freeTrialLessons?: number;
     deliveryType: 'OFFLINE' | 'ONLINE';
     locationName: string;
     locationLat?: number;
@@ -64,6 +74,7 @@ export interface CoursesResponse {
         limit: number;
         totalPages?: number;
     };
+    summary?: TeacherSummary;
     success: boolean;
 }
 
@@ -371,6 +382,14 @@ export async function getCourseDetails(courseId: string, studentId?: string): Pr
     return apiClient.get<CourseDetailsResponse>(`/api/v1/courses/${courseId}/details`, {
         params: { studentId }
     });
+}
+
+/**
+ * Fetch a single course by ID (for editing)
+ */
+export async function getCourseById(courseId: string): Promise<{ success: boolean; data: ApiCourse }> {
+    logger.log('[Courses] Fetching course by ID:', courseId);
+    return apiClient.get<{ success: boolean; data: ApiCourse }>(`/api/v1/courses/${courseId}`);
 }
 
 /**

@@ -30,6 +30,9 @@ export default {
     skip: 'تخطي',
     backToHome: 'العودة للرئيسية',
     tryAgain: 'حاول مرة أخرى',
+    reschedule: 'إعادة جدولة',
+    egp: 'ج.م',
+    students: 'طلاب',
   },
 
   // Auth
@@ -636,7 +639,21 @@ export default {
     deleteSuccess: 'تم حذف الدورة بنجاح',
     deleteError: 'فشل حذف الدورة',
     saveChanges: 'حفظ التغييرات',
-    loadingCourse: 'جاري تحميل بيانات الدورة...',
+    loadingCourse: 'جاري تحميل بيانات الكورس...',
+    courseDetails: 'تفاصيل الكورس',
+    enrolledStudents: 'الطلاب المسجلين',
+    totalLessonsCount: '{{count}} دروس',
+    activeCourse: 'نشط',
+    inactiveCourse: 'غير نشط',
+    manageLesson: 'إدارة الدرس',
+    viewAttendance: 'عرض الحضور',
+    editLesson: 'تعديل الدرس',
+    lessonAnalytics: 'تحليلات الدرس',
+    presentStudents: '{{count}} حاضرين',
+    absentStudents: '{{count}} غائبين',
+    studentsEnrolled: 'الطلاب المسجلين',
+    totalLessons: 'إجمالي الدروس',
+    revenueThisCourse: 'إيرادات الكورس',
   },
 
   // Course

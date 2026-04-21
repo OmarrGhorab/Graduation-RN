@@ -47,13 +47,13 @@ export default function CreateLessonScreen() {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [showLocationPicker, setShowLocationPicker] = useState(false);
-    
+
     // Materials state
     const [videoFile, setVideoFile] = useState<{ uri: string; name: string; type: string } | null>(null);
     const [documentFile, setDocumentFile] = useState<{ uri: string; name: string; type: string } | null>(null);
     const [videoUrl, setVideoUrl] = useState('');
     const [materialsUrl, setMaterialsUrl] = useState('');
-    
+
     // Upload progress state
     const [uploadProgress, setUploadProgress] = useState<{
         video: number;
@@ -79,7 +79,7 @@ export default function CreateLessonScreen() {
 
             if (!result.canceled && result.assets && result.assets[0]) {
                 const asset = result.assets[0];
-                
+
                 // Check file size (500MB = 524,288,000 bytes)
                 const maxSizeBytes = 500 * 1024 * 1024; // 500MB
                 if (asset.size && asset.size > maxSizeBytes) {
@@ -90,11 +90,11 @@ export default function CreateLessonScreen() {
                     );
                     return;
                 }
-                
+
                 // Show file size for debugging
                 const sizeMB = asset.size ? (asset.size / (1024 * 1024)).toFixed(2) : 'unknown';
                 console.log(`[Video] Selected file: ${asset.name}, Size: ${sizeMB}MB`);
-                
+
                 setVideoFile({
                     uri: asset.uri,
                     name: asset.name,
@@ -116,7 +116,7 @@ export default function CreateLessonScreen() {
 
             if (!result.canceled && result.assets && result.assets[0]) {
                 const asset = result.assets[0];
-                
+
                 // Check file size (50MB = 52,428,800 bytes)
                 const maxSizeBytes = 50 * 1024 * 1024; // 50MB
                 if (asset.size && asset.size > maxSizeBytes) {
@@ -127,7 +127,7 @@ export default function CreateLessonScreen() {
                     );
                     return;
                 }
-                
+
                 setDocumentFile({
                     uri: asset.uri,
                     name: asset.name,
@@ -158,7 +158,7 @@ export default function CreateLessonScreen() {
             if (deliveryType === 'ONLINE') {
                 const hasVideo = !!videoFile || !!videoUrl.trim();
                 const hasLink = !!locationName.trim();
-                
+
                 if (!hasVideo && !hasLink) {
                     Alert.alert('Content Required', 'Please provide either a meeting link (Live) or upload a video (Recorded) for this online lesson.');
                     return;
@@ -194,10 +194,10 @@ export default function CreateLessonScreen() {
 
             // Step 2: Upload materials if provided
             const hasMaterials = videoFile || videoUrl || documentFile || materialsUrl;
-            
+
             if (hasMaterials) {
                 Alert.alert('Uploading Materials', 'Please wait while we upload your files...');
-                
+
                 try {
                     // Import the upload functions
                     const { uploadLessonVideo, uploadLessonDocument, updateLessonMaterials } = await import('@/services/CourseService');
@@ -241,10 +241,10 @@ export default function CreateLessonScreen() {
                 } catch (uploadError: any) {
                     console.error('Materials upload failed:', uploadError);
                     setUploadProgress({ video: 0, document: 0, isUploading: false });
-                    
+
                     let errorMessage = uploadError.message || 'Failed to upload materials. Please try again.';
                     let errorTitle = 'Upload Failed';
-                    
+
                     // Provide specific guidance for common errors
                     if (errorMessage.includes('too large') || errorMessage.includes('413')) {
                         errorTitle = 'Server Upload Limit Exceeded';
@@ -261,7 +261,7 @@ export default function CreateLessonScreen() {
                         errorTitle = 'Authentication Error';
                         errorMessage = 'Your session has expired. Please log in again.';
                     }
-                    
+
                     Alert.alert(
                         errorTitle,
                         errorMessage,
@@ -541,7 +541,7 @@ export default function CreateLessonScreen() {
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
                                 {deliveryType === 'ONLINE' ? 'Meeting Link' : 'Location'} {deliveryType === 'OFFLINE' && '(Required)'}
                             </Text>
-                            
+
                             {deliveryType === 'ONLINE' ? (
                                 <TextInput
                                     style={[styles.input, {
@@ -846,7 +846,7 @@ export default function CreateLessonScreen() {
                         <Text style={[styles.progressTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
                             Uploading Materials
                         </Text>
-                        
+
                         {videoFile && (
                             <View style={styles.progressItem}>
                                 <View style={styles.progressHeader}>
@@ -859,19 +859,19 @@ export default function CreateLessonScreen() {
                                     </Text>
                                 </View>
                                 <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
-                                    <View 
+                                    <View
                                         style={[
-                                            styles.progressBarFill, 
-                                            { 
+                                            styles.progressBarFill,
+                                            {
                                                 backgroundColor: cskColors[500],
                                                 width: `${uploadProgress.video}%`
                                             }
-                                        ]} 
+                                        ]}
                                     />
                                 </View>
                             </View>
                         )}
-                        
+
                         {documentFile && (
                             <View style={styles.progressItem}>
                                 <View style={styles.progressHeader}>
@@ -884,14 +884,14 @@ export default function CreateLessonScreen() {
                                     </Text>
                                 </View>
                                 <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
-                                    <View 
+                                    <View
                                         style={[
-                                            styles.progressBarFill, 
-                                            { 
+                                            styles.progressBarFill,
+                                            {
                                                 backgroundColor: cskColors[500],
                                                 width: `${uploadProgress.document}%`
                                             }
-                                        ]} 
+                                        ]}
                                     />
                                 </View>
                             </View>

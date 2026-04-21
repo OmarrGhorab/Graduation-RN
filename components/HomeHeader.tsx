@@ -30,6 +30,10 @@ interface HomeHeaderProps {
 
 export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, onReschedulePress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
+    const role = user?.role?.toUpperCase();
+    const isTeacher = role === 'TEACHER' || role === 'INSTRUCTOR' || role === 'ADMIN';
+    const isParent = role === 'PARENT';
+    const canApprove = isTeacher; // Only teachers/admins can approve/reject
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
 
@@ -112,18 +116,23 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, onRef
                             </Animated.View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.iconButton}
-                            onPress={async () => {
-                                // Background fetch as requested
-                                if (onReschedulePress) {
-                                    onReschedulePress().catch(err => console.error('Reschedule error:', err));
-                                }
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons name="time-outline" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
+                        {isTeacher && (
+                            <TouchableOpacity
+                                style={styles.iconButton}
+                                onPress={async () => {
+                                    // Background fetch as requested
+                                    if (onReschedulePress) {
+                                        onReschedulePress().catch(err => console.error('Reschedule error:', err));
+                                    }
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <View style={{ alignItems: 'center' }}>
+                                    <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+                                    <Text style={{ fontSize: 8, color: '#FFFFFF', fontFamily: Fonts.bold }}>{t('common.reschedule')}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
 
                         <TouchableOpacity
                             style={styles.iconButton}

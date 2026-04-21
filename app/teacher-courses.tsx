@@ -31,7 +31,7 @@ export default function TeacherCoursesScreen() {
 
 
     const handleCoursePress = (courseId: string) => {
-        router.push({ pathname: '/course-details', params: { id: courseId } });
+        router.push({ pathname: '/teacher-course-details', params: { id: courseId } });
     };
 
     const handleEditCourse = (course: ApiCourse) => {
@@ -97,9 +97,9 @@ export default function TeacherCoursesScreen() {
                 <View style={[styles.statDivider, { backgroundColor: theme.gray[200] }]} />
                 <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: cskColors[500] }]}>
-                        {courses.reduce((acc, c) => acc + (c.enrolledStudents || 0), 0)}
+                        {coursesData?.summary ? coursesData.summary.totalUniqueStudents : courses.reduce((acc, c) => acc + (c.enrollmentCount || c.enrolledStudents || 0), 0)}
                     </Text>
-                    <Text style={[styles.statLabel, { color: theme.gray[500] }]}>Total Students</Text>
+                    <Text style={[styles.statLabel, { color: theme.gray[500] }]}>{t('common.students') || 'Total Students'}</Text>
                 </View>
             </View>
         </View>

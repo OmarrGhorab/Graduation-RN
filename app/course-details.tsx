@@ -38,6 +38,13 @@ export default function CourseDetailsScreen() {
     const user = useAuthStore(state => state.user);
     const isTeacher = user?.role === 'TEACHER';
 
+    // Redirect teachers to the management view if it's their course
+    useEffect(() => {
+        if (isTeacher && course && profile && course.teacherId === profile.id) {
+            router.replace({ pathname: '/teacher-course-details', params: { id: course.id } });
+        }
+    }, [isTeacher, course, profile, id]);
+
     const { data: detailsData, isLoading: detailsLoading, error: detailsError } = useCourseDetails(courseId as string, profile?.id);
     const { data: basicCourseData, isLoading: basicLoading } = useCourse(courseId as string);
     const { data: myCoursesData, isLoading: myCoursesLoading } = useMyCourses();
@@ -487,10 +494,10 @@ export default function CourseDetailsScreen() {
                         colors={['rgba(0,0,0,0.4)', 'transparent']}
                         style={styles.heroGradient}
                     />
-                    <View style={styles.heroNav}>
+                    <View style={[styles.heroNav, { zIndex: 9999 }]}>
                         <TouchableOpacity 
                             onPress={() => router.back()} 
-                            style={styles.heroButton}
+                            style={[styles.heroButton, { zIndex: 10000 }]}
                             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         >
                             <Ionicons name="chevron-back" size={24} color="#FFF" />

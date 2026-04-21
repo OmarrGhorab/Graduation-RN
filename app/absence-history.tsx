@@ -15,8 +15,9 @@ export default function AbsenceHistoryScreen() {
     const { profile } = useProfile();
     const user = useAuthStore(state => state.user);
     
-    const isTeacher = user?.role === 'TEACHER';
-    const isParent = user?.role === 'PARENT';
+    const role = user?.role?.toUpperCase();
+    const isTeacher = role === 'TEACHER' || role === 'INSTRUCTOR' || role === 'ADMIN';
+    const isParent = role === 'PARENT';
     const canApprove = isTeacher; // Only teachers/admins can approve/reject
 
     const studentQuery = useStudentAbsences(profile?.id || '', { enabled: !isParent });

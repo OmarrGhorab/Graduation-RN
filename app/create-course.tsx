@@ -48,7 +48,7 @@ export default function CreateCourseScreen() {
             setTitle(course.title || '');
             setDescription(course.description || '');
             setSubjectId(course.subjectId || '');
-            setCourseImage(course.thumbnailUrl || '');
+            setCourseImage(course.courseImage || '');
             setDeliveryType((course.deliveryType as DeliveryType) || 'ONLINE');
             setLocationName(course.locationName || '');
             setLocationLat(course.locationLat?.toString() || '');
