@@ -256,7 +256,7 @@ export default function TeacherCourseDetailsScreen() {
                                         
                                         <TouchableOpacity 
                                             style={[styles.lessonManageBtn, { backgroundColor: isDark ? '#1f3b2e' : '#f0f2f4' }]}
-                                            onPress={() => router.push({ pathname: '/student-analytics', params: { lessonId: lesson.id, courseId: id } })}
+                                            onPress={() => router.push({ pathname: '/lesson-analytics', params: { lessonId: lesson.id, courseId: id } })}
                                         >
                                             <Ionicons name="analytics-outline" size={18} color={isDark ? '#ffffff' : '#0d1b15'} />
                                         </TouchableOpacity>

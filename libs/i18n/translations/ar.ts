@@ -653,7 +653,8 @@ export default {
     absentStudents: '{{count}} غائبين',
     studentsEnrolled: 'الطلاب المسجلين',
     totalLessons: 'إجمالي الدروس',
-    revenueThisCourse: 'إيرادات الكورس',
+    revenueThisCourse: 'إيرادات الدورة',
+    recentActivity: 'النشاط الأخير',
   },
 
   // Course

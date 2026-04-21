@@ -431,6 +431,27 @@ export interface LessonAttendanceResponse {
     }[];
 }
 
+export interface LessonAnalyticsResponse {
+    success: boolean;
+    data: {
+        lessonId: string;
+        lessonTitle: string;
+        totalStudents: number;
+        presentCount: number;
+        lateCount: number;
+        absentCount: number;
+        excusedCount: number;
+        attendanceRate: number;
+        recentActivity: Array<{
+            studentId: string;
+            studentName: string;
+            status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+            scannedAt: string | null;
+        }>;
+    };
+}
+
+
 export interface StudentAnalyticsResponse {
     success: boolean;
     data: {
@@ -551,6 +572,15 @@ export async function getStudentAnalytics(studentId: string, courseId: string): 
     logger.log('[Analytics] Fetching student analytics:', { studentId, courseId });
     return apiClient.get<StudentAnalyticsResponse>(`/api/v1/attendance/student/${studentId}/course/${courseId}/analytics`);
 }
+
+/**
+ * Get analytics for a specific lesson (Teacher)
+ */
+export async function getLessonAnalytics(lessonId: string): Promise<LessonAnalyticsResponse> {
+    logger.log('[Analytics] Fetching lesson analytics:', lessonId);
+    return apiClient.get<LessonAnalyticsResponse>(`/api/v1/attendance/lesson/${lessonId}/analytics`);
+}
+
 
 /**
  * Create a new lesson (Teacher)

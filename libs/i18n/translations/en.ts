@@ -654,6 +654,7 @@ export default {
     studentsEnrolled: 'Students Enrolled',
     totalLessons: 'Total Lessons',
     revenueThisCourse: 'Course Revenue',
+    recentActivity: 'Recent Activity',
   },
 
   // Course
