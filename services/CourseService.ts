@@ -473,6 +473,7 @@ export interface CreateLessonRequest {
     locationLat?: number;
     locationLng?: number;
     geofenceRadiusM: number;
+    isFree?: boolean;
 }
 
 export interface ApiLesson {
@@ -641,10 +642,12 @@ export interface UpdateLessonRequest {
     description?: string;
     scheduledAt?: string;
     durationMinutes?: number;
+    deliveryType?: 'ONLINE' | 'OFFLINE';
     locationName?: string;
     locationLat?: number;
     locationLng?: number;
     geofenceRadiusM?: number;
+    isFree?: boolean;
 }
 
 export async function updateLesson(

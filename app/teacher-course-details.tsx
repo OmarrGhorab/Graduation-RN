@@ -21,6 +21,7 @@ import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 export default function TeacherCourseDetailsScreen() {
     const { id } = useLocalSearchParams();
@@ -61,7 +62,22 @@ export default function TeacherCourseDetailsScreen() {
         );
     }
 
-    const completedLessons = lessons.filter(l => l.status === 'COMPLETED').length;
+    const handleLessonPress = (lesson: typeof lessons[number]) => {
+        if (lesson.status === 'LIVE') {
+            router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
+            return;
+        }
+
+        if (lesson.status === 'COMPLETED') {
+            router.push({ pathname: '/attendance-list', params: { lessonId: lesson.id } });
+            return;
+        }
+
+        const courseId = Array.isArray(id) ? id[0] : id;
+        const lessonId = String(lesson.id);
+        const encodedLesson = encodeURIComponent(JSON.stringify(lesson));
+        router.push(`/edit-lesson?courseId=${encodeURIComponent(String(courseId || ''))}&editId=${encodeURIComponent(lessonId)}&lessonId=${encodeURIComponent(lessonId)}&initialLesson=${encodedLesson}`);
+    };
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f6f8f7' }]}>
@@ -98,7 +114,7 @@ export default function TeacherCourseDetailsScreen() {
                     </View>
                     <View style={styles.headerStatDivider} />
                     <View style={styles.headerStatItem}>
-                        <Text style={styles.headerStatValue}>{completedLessons}/{stats.lessons}</Text>
+                        <Text style={styles.headerStatValue}>{stats.lessons}</Text>
                         <Text style={styles.headerStatLabel}>{t('teacher.totalLessons')}</Text>
                     </View>
                     <View style={styles.headerStatDivider} />
@@ -152,13 +168,15 @@ export default function TeacherCourseDetailsScreen() {
                     {lessons.length > 0 ? (
                         <View style={styles.lessonsList}>
                             {lessons.map((lesson, index) => (
-                                <Animated.View 
+                                <AnimatedTouchableOpacity 
                                     key={lesson.id} 
                                     entering={FadeInDown.delay(index * 100).duration(500)}
                                     style={[styles.lessonCard, { 
                                         backgroundColor: isDark ? '#183327' : '#ffffff',
                                         borderColor: isDark ? '#2a4d3d' : '#e9ebed'
                                     }]}
+                                    onPress={() => handleLessonPress(lesson)}
+                                    activeOpacity={0.9}
                                 >
                                     <View style={styles.lessonTop}>
                                         <View style={styles.lessonInfoMain}>
@@ -213,7 +231,7 @@ export default function TeacherCourseDetailsScreen() {
                                         {lesson.status === 'LIVE' ? (
                                             <TouchableOpacity 
                                                 style={[styles.lessonActionBtn, { backgroundColor: cskColors[500] }]}
-                                                onPress={() => router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } })}
+                                                onPress={() => handleLessonPress(lesson)}
                                             >
                                                 <Ionicons name="settings-outline" size={18} color="#ffffff" />
                                                 <Text style={styles.lessonActionBtnText}>{t('teacher.manageLesson')}</Text>
@@ -221,7 +239,7 @@ export default function TeacherCourseDetailsScreen() {
                                         ) : lesson.status === 'COMPLETED' ? (
                                             <TouchableOpacity 
                                                 style={[styles.lessonActionBtn, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}
-                                                onPress={() => router.push({ pathname: '/attendance-list', params: { lessonId: lesson.id } })}
+                                                onPress={() => handleLessonPress(lesson)}
                                             >
                                                 <Ionicons name="list-outline" size={18} color={cskColors[500]} />
                                                 <Text style={[styles.lessonActionBtnText, { color: cskColors[500] }]}>{t('teacher.viewAttendance')}</Text>
@@ -229,7 +247,7 @@ export default function TeacherCourseDetailsScreen() {
                                         ) : (
                                             <TouchableOpacity 
                                                 style={[styles.lessonActionBtn, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}
-                                                onPress={() => router.push({ pathname: '/create-lesson', params: { editId: lesson.id, courseId: id } })}
+                                                onPress={() => handleLessonPress(lesson)}
                                             >
                                                 <Ionicons name="create-outline" size={18} color={cskColors[500]} />
                                                 <Text style={[styles.lessonActionBtnText, { color: cskColors[500] }]}>{t('teacher.editLesson')}</Text>
@@ -243,7 +261,7 @@ export default function TeacherCourseDetailsScreen() {
                                             <Ionicons name="analytics-outline" size={18} color={isDark ? '#ffffff' : '#0d1b15'} />
                                         </TouchableOpacity>
                                     </View>
-                                </Animated.View>
+                                </AnimatedTouchableOpacity>
                             ))}
                         </View>
                     ) : (

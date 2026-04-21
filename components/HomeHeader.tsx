@@ -10,10 +10,6 @@ import Animated, {
     interpolate,
     SharedValue,
     useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withTiming,
-    Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,36 +26,12 @@ interface HomeHeaderProps {
 
 export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, onReschedulePress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
-    const role = user?.role?.toUpperCase();
-    const isTeacher = role === 'TEACHER' || role === 'INSTRUCTOR' || role === 'ADMIN';
-    const isParent = role === 'PARENT';
-    const canApprove = isTeacher; // Only teachers/admins can approve/reject
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
 
     const displayName = user?.name || user?.username || 'Student';
     // Use a high-res placeholder if no image
     const profileImage = user?.profileImg;
-
-    const headerHeight = insets.top + 80;
-
-    const rotation = useSharedValue(0);
-
-    React.useEffect(() => {
-        if (isRefreshing) {
-            rotation.value = withRepeat(
-                withTiming(360, { duration: 1000, easing: Easing.linear }),
-                -1,
-                false
-            );
-        } else {
-            rotation.value = 0;
-        }
-    }, [isRefreshing]);
-
-    const refreshIconStyle = useAnimatedStyle(() => ({
-        transform: [{ rotate: `${rotation.value}deg` }],
-    }));
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
@@ -104,35 +76,6 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, onRef
                         >
                             <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.iconButton}
-                            onPress={onRefreshPress}
-                            activeOpacity={0.7}
-                            disabled={isRefreshing}
-                        >
-                            <Animated.View style={refreshIconStyle}>
-                                <Ionicons name="sync-outline" size={24} color="#FFFFFF" />
-                            </Animated.View>
-                        </TouchableOpacity>
-
-                        {isTeacher && (
-                            <TouchableOpacity
-                                style={styles.iconButton}
-                                onPress={async () => {
-                                    // Background fetch as requested
-                                    if (onReschedulePress) {
-                                        onReschedulePress().catch(err => console.error('Reschedule error:', err));
-                                    }
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <View style={{ alignItems: 'center' }}>
-                                    <Ionicons name="time-outline" size={20} color="#FFFFFF" />
-                                    <Text style={{ fontSize: 8, color: '#FFFFFF', fontFamily: Fonts.bold }}>{t('common.reschedule')}</Text>
-                                </View>
-                            </TouchableOpacity>
-                        )}
 
                         <TouchableOpacity
                             style={styles.iconButton}

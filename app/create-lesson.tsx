@@ -1,19 +1,20 @@
 // Create Lesson Screen - Updated with Location Picker and Materials Upload
 import CalendarModal from '@/components/CalendarModal';
+import { useToast } from '@/components/toast';
 import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import TimePickerModal from '@/components/TimePickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useMyCourses } from '@/hooks/useCourses';
+import { useLessonDetails, useUpdateLesson } from '@/hooks/useLessons';
 import { useLessonCreation } from '@/hooks/useLessonCreation';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -26,12 +27,55 @@ import {
 } from 'react-native';
 
 type DeliveryType = 'ONLINE' | 'OFFLINE';
+type LessonFormPrefill = {
+    courseId?: string;
+    title?: string;
+    description?: string;
+    scheduledAt?: string;
+    durationMinutes?: number;
+    deliveryType?: DeliveryType;
+    locationName?: string;
+    locationLat?: number | string | null;
+    locationLng?: number | string | null;
+    geofenceRadiusM?: number;
+    videoUrl?: string;
+    materialsUrl?: string;
+    isFree?: boolean;
+};
+
+function getFirstParamValue(value?: string | string[]) {
+    return Array.isArray(value) ? value[0] : value;
+}
+
+function parseInitialLesson(value?: string | string[]): LessonFormPrefill | null {
+    const rawValue = getFirstParamValue(value);
+    if (!rawValue) return null;
+
+    try {
+        return JSON.parse(rawValue) as LessonFormPrefill;
+    } catch {
+        return null;
+    }
+}
 
 export default function CreateLessonScreen() {
     const router = useRouter();
-    const { courseId: paramCourseId } = useLocalSearchParams<{ courseId?: string }>();
+    const {
+        courseId: rawCourseId,
+        editId: rawEditId,
+        lessonId: rawLessonId,
+        initialLesson,
+    } = useLocalSearchParams<{ courseId?: string | string[]; editId?: string | string[]; lessonId?: string | string[]; initialLesson?: string | string[] }>();
+    const paramCourseId = getFirstParamValue(rawCourseId) || '';
+    const editId = getFirstParamValue(rawEditId) || getFirstParamValue(rawLessonId) || '';
     const { theme, isDark } = useTheme();
+    const toast = useToast();
     const { createLessonMutation } = useLessonCreation();
+    const updateLessonMutation = useUpdateLesson();
+    const isEditMode = !!editId;
+    const { data: lessonDetailsResponse, isLoading: isLoadingLessonDetails } = useLessonDetails(editId || '');
+    const lessonDetails = (lessonDetailsResponse?.data?.lesson || lessonDetailsResponse?.data) as LessonFormPrefill | undefined;
+    const initialLessonData = useMemo(() => parseInitialLesson(initialLesson), [initialLesson]);
 
     // Form state
     const [courseId, setCourseId] = useState(paramCourseId || '');
@@ -66,9 +110,37 @@ export default function CreateLessonScreen() {
     });
     const [isFree, setIsFree] = useState(false);
 
+    const showSuccessAndGoBack = (title: string, message?: string) => {
+        toast.success(title, message);
+        setTimeout(() => router.back(), 900);
+    };
+
     // Fetch courses
     const { data: coursesData, isLoading: isLoadingCourses } = useMyCourses();
     const courses = coursesData?.data || [];
+
+    useEffect(() => {
+        if (!isEditMode) return;
+
+        const prefillSource = lessonDetails || initialLessonData;
+        if (!prefillSource) return;
+
+        setCourseId(prefillSource.courseId || paramCourseId || '');
+        setTitle(prefillSource.title || '');
+        setDescription(prefillSource.description || '');
+        setScheduledAt(prefillSource.scheduledAt ? new Date(prefillSource.scheduledAt) : new Date());
+        setDurationMinutes(String(prefillSource.durationMinutes || 60));
+        setDeliveryType((prefillSource.deliveryType || 'ONLINE') as DeliveryType);
+        setLocationName(prefillSource.locationName || '');
+        setLocationLat(prefillSource.locationLat !== undefined && prefillSource.locationLat !== null ? String(prefillSource.locationLat) : '');
+        setLocationLng(prefillSource.locationLng !== undefined && prefillSource.locationLng !== null ? String(prefillSource.locationLng) : '');
+        setGeofenceRadius(String(prefillSource.geofenceRadiusM || 50));
+        setVideoUrl(prefillSource.videoUrl || '');
+        setMaterialsUrl(prefillSource.materialsUrl || '');
+        setIsFree(Boolean(prefillSource.isFree));
+        setVideoFile(null);
+        setDocumentFile(null);
+    }, [initialLessonData, isEditMode, lessonDetails, paramCourseId]);
 
     const handlePickVideo = async () => {
         try {
@@ -84,9 +156,9 @@ export default function CreateLessonScreen() {
                 const maxSizeBytes = 500 * 1024 * 1024; // 500MB
                 if (asset.size && asset.size > maxSizeBytes) {
                     const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                    Alert.alert(
+                    toast.warning(
                         'File Too Large',
-                        `The selected video is ${sizeMB}MB. Maximum allowed size is 500MB. Please select a smaller video or compress it.`
+                        `The selected video is ${sizeMB}MB. Maximum allowed size is 500MB.`
                     );
                     return;
                 }
@@ -103,7 +175,7 @@ export default function CreateLessonScreen() {
                 setVideoUrl(''); // Clear URL if file is selected
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to pick video file');
+            toast.error('Error', 'Failed to pick video file');
         }
     };
 
@@ -121,9 +193,9 @@ export default function CreateLessonScreen() {
                 const maxSizeBytes = 50 * 1024 * 1024; // 50MB
                 if (asset.size && asset.size > maxSizeBytes) {
                     const sizeMB = (asset.size / (1024 * 1024)).toFixed(2);
-                    Alert.alert(
+                    toast.warning(
                         'File Too Large',
-                        `The selected document is ${sizeMB}MB. Maximum allowed size is 50MB. Please select a smaller file.`
+                        `The selected document is ${sizeMB}MB. Maximum allowed size is 50MB.`
                     );
                     return;
                 }
@@ -136,19 +208,19 @@ export default function CreateLessonScreen() {
                 setMaterialsUrl(''); // Clear URL if file is selected
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to pick document file');
+            toast.error('Error', 'Failed to pick document file');
         }
     };
 
-    const handleCreateLesson = async () => {
+    const handleSubmitLesson = async () => {
         // Validation
         if (!courseId) {
-            Alert.alert('Validation Error', 'Please select a course');
+            toast.error('Validation Error', 'Please select a course');
             return;
         }
 
         if (!title.trim()) {
-            Alert.alert('Validation Error', 'Please enter a lesson title');
+            toast.error('Validation Error', 'Please enter a lesson title');
             return;
         }
 
@@ -160,19 +232,17 @@ export default function CreateLessonScreen() {
                 const hasLink = !!locationName.trim();
 
                 if (!hasVideo && !hasLink) {
-                    Alert.alert('Content Required', 'Please provide either a meeting link (Live) or upload a video (Recorded) for this online lesson.');
+                    toast.error('Content Required', 'Please provide either a meeting link or upload a video for this online lesson.');
                     return;
                 }
             }
 
             if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
-                Alert.alert('Validation Error', 'Please select a physical classroom location for offline lessons');
+                toast.error('Validation Error', 'Please select a physical classroom location for offline lessons');
                 return;
             }
 
-            // Step 1: Create the lesson
             const lessonData = {
-                courseId,
                 title: title.trim(),
                 description: description.trim(),
                 scheduledAt: scheduledAt.toISOString(),
@@ -185,18 +255,34 @@ export default function CreateLessonScreen() {
                 isFree: deliveryType === 'ONLINE' ? isFree : false,
             };
 
-            const result = await createLessonMutation.mutateAsync(lessonData);
-            const lessonId = result.data?.id;
+            let lessonId = editId || '';
 
-            if (!lessonId) {
-                throw new Error('Lesson created but ID not returned');
+            if (isEditMode) {
+                if (!editId) {
+                    throw new Error('Lesson ID is missing');
+                }
+
+                await updateLessonMutation.mutateAsync({
+                    lessonId: editId,
+                    data: lessonData,
+                });
+            } else {
+                const result = await createLessonMutation.mutateAsync({
+                    courseId,
+                    ...lessonData,
+                });
+                lessonId = result.data?.id || '';
+
+                if (!lessonId) {
+                    throw new Error('Lesson created but ID not returned');
+                }
             }
 
-            // Step 2: Upload materials if provided
+            // Step 2: Upload or update materials if provided
             const hasMaterials = videoFile || videoUrl || documentFile || materialsUrl;
 
             if (hasMaterials) {
-                Alert.alert('Uploading Materials', 'Please wait while we upload your files...');
+                toast.info('Uploading Materials', 'Please wait while your files are uploaded.');
 
                 try {
                     // Import the upload functions
@@ -228,15 +314,9 @@ export default function CreateLessonScreen() {
 
                     setUploadProgress({ video: 0, document: 0, isUploading: false });
 
-                    Alert.alert(
+                    showSuccessAndGoBack(
                         'Success',
-                        'Lesson and materials uploaded successfully!',
-                        [
-                            {
-                                text: 'OK',
-                                onPress: () => router.back(),
-                            },
-                        ]
+                        isEditMode ? 'Lesson updated successfully.' : 'Lesson and materials uploaded successfully.'
                     );
                 } catch (uploadError: any) {
                     console.error('Materials upload failed:', uploadError);
@@ -262,31 +342,17 @@ export default function CreateLessonScreen() {
                         errorMessage = 'Your session has expired. Please log in again.';
                     }
 
-                    Alert.alert(
-                        errorTitle,
-                        errorMessage,
-                        [
-                            {
-                                text: 'OK',
-                            },
-                        ]
-                    );
+                    toast.error(errorTitle, errorMessage);
                 }
             } else {
-                Alert.alert(
+                showSuccessAndGoBack(
                     'Success',
-                    'Lesson created successfully!',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => router.back(),
-                        },
-                    ]
+                    isEditMode ? 'Lesson updated successfully.' : 'Lesson created successfully.'
                 );
             }
         } catch (error: any) {
-            console.error('Lesson creation failed:', error);
-            Alert.alert('Error', error.message || 'Failed to create lesson');
+            console.error(isEditMode ? 'Lesson update failed:' : 'Lesson creation failed:', error);
+            toast.error('Error', error.message || (isEditMode ? 'Failed to update lesson' : 'Failed to create lesson'));
         }
     };
 
@@ -306,7 +372,7 @@ export default function CreateLessonScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? cskColors[500] : '#0d1b15'} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
-                    Create New Lesson
+                    {isEditMode ? 'Edit Lesson' : 'Create New Lesson'}
                 </Text>
                 <View style={{ width: 48 }} />
             </View>
@@ -326,7 +392,7 @@ export default function CreateLessonScreen() {
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
                                 Course
                             </Text>
-                            {isLoadingCourses ? (
+                            {(isLoadingCourses || (isEditMode && isLoadingLessonDetails)) ? (
                                 <View style={[styles.input, {
                                     backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                     justifyContent: 'center',
@@ -350,6 +416,7 @@ export default function CreateLessonScreen() {
                                                 },
                                             ]}
                                             onPress={() => setCourseId(course.id)}
+                                            disabled={isEditMode}
                                         >
                                             <Text
                                                 style={[
@@ -824,16 +891,16 @@ export default function CreateLessonScreen() {
             }]}>
                 <TouchableOpacity
                     style={[styles.createButton, { backgroundColor: cskColors[500] }]}
-                    onPress={handleCreateLesson}
-                    disabled={createLessonMutation.isPending || uploadProgress.isUploading}
+                    onPress={handleSubmitLesson}
+                    disabled={createLessonMutation.isPending || updateLessonMutation.isPending || uploadProgress.isUploading || (isEditMode && isLoadingLessonDetails)}
                     activeOpacity={0.9}
                 >
-                    {(createLessonMutation.isPending || uploadProgress.isUploading) ? (
+                    {(createLessonMutation.isPending || updateLessonMutation.isPending || uploadProgress.isUploading) ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
                         <>
-                            <Text style={styles.createButtonText}>Create Lesson</Text>
-                            <MaterialIcons name="rocket-launch" size={24} color="#ffffff" />
+                            <Text style={styles.createButtonText}>{isEditMode ? 'Save Changes' : 'Create Lesson'}</Text>
+                            <MaterialIcons name={isEditMode ? 'save' : 'rocket-launch'} size={24} color="#ffffff" />
                         </>
                     )}
                 </TouchableOpacity>
