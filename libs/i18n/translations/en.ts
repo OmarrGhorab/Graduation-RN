@@ -33,6 +33,7 @@ export default {
     reschedule: 'Reschedule',
     egp: 'EGP',
     students: 'Students',
+    unexpectedError: 'An unexpected error occurred',
   },
 
   // Auth
@@ -561,6 +562,9 @@ export default {
     minutesAgo: '{{count}}m ago',
     hoursAgo: '{{count}}h ago',
     daysAgo: '{{count}}d ago',
+    minutesLeft: '{{count}}m left',
+    hoursLeft: '{{count}}h left',
+    daysLeft: '{{count}}d left',
   },
 
   // Tabs
@@ -680,6 +684,7 @@ export default {
     searchPlaceholder: 'Search for courses, teachers...',
     noCoursesFound: 'No courses found matching your criteria.',
     all: 'All',
+    totalCourses: 'Total Courses',
   },
 
   // Cart

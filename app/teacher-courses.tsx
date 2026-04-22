@@ -141,16 +141,16 @@ export default function TeacherCoursesScreen() {
                                 <Ionicons name="book-outline" size={64} color={theme.gray[300]} />
                             </View>
                             <Text style={[styles.emptyText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                No courses found
+                                {t('teacher.noCoursesYet')}
                             </Text>
                             <Text style={[styles.emptySubtext, { color: theme.gray[500] }]}>
-                                You haven't created any courses yet. Start by creating your first course!
+                                {t('teacher.createFirstCourse')}
                             </Text>
                             <TouchableOpacity
                                 style={[styles.createBtn, { backgroundColor: cskColors[500] }]}
                                 onPress={() => router.push('/create-course')}
                             >
-                                <Text style={styles.createBtnText}>Create Course</Text>
+                                <Text style={styles.createBtnText}>{t('teacher.createNewCourse')}</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (

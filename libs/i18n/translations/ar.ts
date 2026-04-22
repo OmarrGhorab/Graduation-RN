@@ -33,6 +33,7 @@ export default {
     reschedule: 'إعادة جدولة',
     egp: 'ج.م',
     students: 'طلاب',
+    unexpectedError: 'حدث خطأ غير متوقع',
   },
 
   // Auth
@@ -561,6 +562,9 @@ export default {
     minutesAgo: 'منذ {{count}} دقيقة',
     hoursAgo: 'منذ {{count}} ساعة',
     daysAgo: 'منذ {{count}} يوم',
+    minutesLeft: 'متبقي {{count}} دقيقة',
+    hoursLeft: 'متبقي {{count}} ساعة',
+    daysLeft: 'متبقي {{count}} يوم',
   },
 
   // Tabs
@@ -680,6 +684,7 @@ export default {
     searchPlaceholder: 'ابحث عن دورات، مدرسين...',
     noCoursesFound: 'لم يتم العثور على دورات تطابق بحثك.',
     all: 'الكل',
+    totalCourses: 'إجمالي الدورات',
   },
 
   // Subject List for Filters

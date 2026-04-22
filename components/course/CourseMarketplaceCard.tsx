@@ -109,7 +109,7 @@ export default memo(function CourseMarketplaceCard({
 
                     <View style={styles.priceColumn}>
                         <Text style={[styles.price, { color: theme.primary }]}>
-                            {course.price === 0 ? t('course.free') : `${course.price} ${course.currency || 'EGP'}`}
+                            {course.price === 0 ? t('course.free') : `${course.price} ${course.currency || t('common.egp')}`}
                         </Text>
                     </View>
                 </View>

@@ -20,6 +20,8 @@ interface ScheduleCardProps {
     time: string;
     teacherName: string;
     status: LessonStatus;
+    startTime?: string;
+    endTime?: string;
     location?: string;
     isLast?: boolean; // New prop to handle timeline connecting line
     attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
@@ -34,6 +36,8 @@ export default function ScheduleCard({
     time,
     teacherName,
     status,
+    startTime,
+    endTime,
     location,
     isLast = false,
     attendanceStatus,
@@ -48,7 +52,42 @@ export default function ScheduleCard({
     // Pulse animation for LIVE status
     const pulseAnim = useSharedValue(1);
 
+    const [remainingTime, setRemainingTime] = React.useState<string | null>(null);
+    const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const calculateRemaining = () => {
+        if (!startTime || !endTime) return;
+        
+        const now = new Date();
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+
+        if (status === 'SCHEDULED' && start > now) {
+            const diff = start.getTime() - now.getTime();
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (hours > 24) {
+                setRemainingTime(t('time.daysLeft', { count: Math.floor(hours / 24) }));
+            } else if (hours > 0) {
+                setRemainingTime(t('time.hoursLeft', { count: hours }));
+            } else {
+                setRemainingTime(t('time.minutesLeft', { count: minutes }));
+            }
+        } else if (status === 'LIVE' && end > now) {
+            const diff = end.getTime() - now.getTime();
+            const minutes = Math.floor(diff / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            setRemainingTime(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+        } else {
+            setRemainingTime(null);
+        }
+    };
+
     useEffect(() => {
+        calculateRemaining();
+        timerRef.current = setInterval(calculateRemaining, 1000);
+        
         if (status === 'LIVE') {
             pulseAnim.value = withRepeat(
                 withSequence(
@@ -61,7 +100,11 @@ export default function ScheduleCard({
         } else {
             pulseAnim.value = 1;
         }
-    }, [status]);
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [status, startTime, endTime]);
 
     const pulseStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseAnim.value }],
@@ -152,6 +195,14 @@ export default function ScheduleCard({
                             <View style={[styles.liveDot, { backgroundColor: theme.primary }]} />
                             <Text style={[styles.liveText, { color: theme.primary }]}>{t('courseDetails.markAttendance').toUpperCase()}</Text>
                         </TouchableOpacity>
+                    )}
+                    {remainingTime && (
+                        <View style={[styles.remainingBadge, { backgroundColor: isLive ? `${theme.primary}15` : (isDark ? theme.gray[800] : theme.gray[100]) }]}>
+                            <Ionicons name="hourglass-outline" size={10} color={isLive ? theme.primary : theme.gray[500]} />
+                            <Text style={[styles.remainingText, { color: isLive ? theme.primary : theme.gray[500] }]}>
+                                {remainingTime}
+                            </Text>
+                        </View>
                     )}
                     {(isLive && isTeacher) && (
                         <View style={[styles.liveBadge, { backgroundColor: 'rgba(18, 237, 135, 0.1)', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
@@ -324,5 +375,18 @@ const styles = StyleSheet.create({
     teacherText: {
         fontSize: 12,
         fontFamily: Fonts.regular,
+    },
+    remainingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        marginLeft: 8,
+        gap: 4,
+    },
+    remainingText: {
+        fontSize: 10,
+        fontFamily: Fonts.bold,
     },
 });

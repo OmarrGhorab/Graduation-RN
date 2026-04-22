@@ -44,10 +44,17 @@ const getSubjectIcon = (iconName: string): keyof typeof Ionicons.glyphMap => {
     return 'school';
 };
 
+const ensureUTC = (dateStr: string) => {
+    if (!dateStr) return dateStr;
+    if (dateStr.includes('T') || dateStr.includes('Z') || dateStr.includes('+')) return dateStr;
+    return dateStr.replace(' ', 'T') + 'Z';
+};
+
 const formatTimeRange = (start: string, end: string) => {
     try {
-        const startDate = new Date(start);
-        const endDate = new Date(end);
+        const startDate = new Date(ensureUTC(start));
+        const endDate = new Date(ensureUTC(end));
+        
         return `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')} - ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
     } catch (e) {
         return 'TBD';
@@ -178,7 +185,8 @@ export default function MainHomeScreen() {
             location: item.location,
             attendanceStatus: item.attendanceStatus,
             canMarkAttendance: item.canMarkAttendance,
-            startTime: item.startTime // keep for sorting
+            startTime: ensureUTC(item.startTime),
+            endTime: ensureUTC(item.endTime)
         })) || [];
 
         // Smart Priority Sorting: LIVE > SCHEDULED > etc
