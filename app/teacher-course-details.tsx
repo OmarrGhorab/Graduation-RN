@@ -4,7 +4,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { useCourseReviews } from '@/hooks/useCourseReviews';
+import { ReviewsSection } from '@/components/course';
 import {
     ActivityIndicator,
     ScrollView,
@@ -24,7 +26,8 @@ const { width } = Dimensions.get('window');
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 export default function TeacherCourseDetailsScreen() {
-    const { id } = useLocalSearchParams();
+    const params = useLocalSearchParams();
+    const { id } = params;
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
@@ -32,6 +35,24 @@ export default function TeacherCourseDetailsScreen() {
     const { data: detailsData, isLoading, refetch } = useCourseDetails(id as string);
     const course = detailsData?.data?.course;
     const lessons = detailsData?.data?.lessons || [];
+
+    const { 
+        reviews, 
+        summary,
+        isLoading: isLoadingReviews,
+    } = useCourseReviews(id as string);
+
+    const ratingInfo = useMemo(() => {
+        if (!summary) return { average: 0, count: 0, breakdown: { oneStar: 0, twoStars: 0, threeStars: 0, fourStars: 0, fiveStars: 0 } };
+        return {
+            average: summary.averageRating || 0,
+            count: summary.totalReviews || 0,
+            breakdown: summary.ratingBreakdown || { oneStar: 0, twoStars: 0, threeStars: 0, fourStars: 0, fiveStars: 0 }
+        };
+    }, [summary]);
+
+    const scrollViewRef = useRef<ScrollView>(null);
+    const reviewsSectionRef = useRef<View>(null);
     
     const stats = useMemo(() => {
         if (!course) return { enrolled: 0, lessons: 0, revenue: 0 };
@@ -41,6 +62,26 @@ export default function TeacherCourseDetailsScreen() {
             revenue: (course.price || 0) * (course.enrollmentCount || 0)
         };
     }, [course, lessons]);
+    
+    // Handle deep linking to a specific lesson or tab
+    React.useEffect(() => {
+        const targetLessonId = params.lessonId || params.lesson_id;
+        if (targetLessonId && lessons.length > 0) {
+            const lesson = lessons.find((l: any) => l.id === targetLessonId);
+            if (lesson) {
+                handleLessonPress(lesson);
+            }
+        }
+
+        if (params.tab === 'REVIEWS') {
+            // Wait for potential layout or data load
+            setTimeout(() => {
+                reviewsSectionRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                    scrollViewRef.current?.scrollTo({ y: pageY, animated: true });
+                });
+            }, 500);
+        }
+    }, [params.lessonId, params.lesson_id, params.tab, lessons]);
 
     if (isLoading && !detailsData) {
         return (
@@ -126,6 +167,7 @@ export default function TeacherCourseDetailsScreen() {
             </LinearGradient>
 
             <ScrollView
+                ref={scrollViewRef}
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
@@ -270,6 +312,20 @@ export default function TeacherCourseDetailsScreen() {
                             <Text style={[styles.emptyText, { color: theme.gray[500] }]}>{t('teacher.noLessonsYet') || 'No lessons scheduled'}</Text>
                         </View>
                     )}
+                </View>
+
+                {/* Reviews Section */}
+                <View ref={reviewsSectionRef}>
+                    <ReviewsSection 
+                        reviews={reviews}
+                        averageRating={ratingInfo.average}
+                        totalReviews={ratingInfo.count}
+                        ratingBreakdown={ratingInfo.breakdown}
+                        canReview={false} // Teacher can't review their own course
+                        onAddReview={() => {}}
+                        onEditReview={() => {}}
+                        onDeleteReview={() => {}}
+                    />
                 </View>
 
                 <View style={{ height: 40 }} />

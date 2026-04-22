@@ -23,7 +23,7 @@ import { DeviceService } from '@/services/DeviceService';
 import { ApiNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
@@ -65,6 +65,7 @@ const formatTimeRange = (start: string, end: string) => {
 
 export default function MainHomeScreen() {
     const router = useRouter();
+    const { action } = useLocalSearchParams<{ action?: string }>();
     const queryClient = useQueryClient();
     const { theme, isDark } = useTheme();
     const { t, locale } = useTranslation();
@@ -85,6 +86,20 @@ export default function MainHomeScreen() {
     const [selectedSubject, setSelectedSubject] = React.useState<string | null>(null);
 
     const isTeacher = user?.role === 'TEACHER';
+
+    // Handle deep-linked actions (e.g., from notifications)
+    React.useEffect(() => {
+        if (action === 'scan' && !isScannerVisible) {
+            logger.log('[Home] Deep link action: scan');
+            setIsScannerVisible(true);
+            
+            // Clear the param to prevent re-triggering if user returns to this screen
+            // Use setTimeout to ensure the modal has started opening and state is updated
+            setTimeout(() => {
+                router.setParams({ action: undefined });
+            }, 500);
+        }
+    }, [action, isScannerVisible]);
 
     // Calculate dates for calendar based on selected date range
     const calendarFilters = React.useMemo(() => {
@@ -246,20 +261,85 @@ export default function MainHomeScreen() {
     }, [markAllAsReadMutation]);
 
     const handleNotificationItemPress = useCallback((notification: ApiNotification) => {
-        const { action } = notification;
+        const { action, type, data } = notification;
+        const role = user?.role;
+
+        // 0. Emergency Security Handling (Highest Priority)
+        if (type === 'security_new_device_blocked') {
+            logger.log('[Home] Security alert tapped in list, redirecting to Security Alert screen');
+            router.push({
+                pathname: '/security-alert' as any,
+                params: {
+                    deviceName: data?.newDevice?.name,
+                    platform: data?.newDevice?.platform,
+                    ipAddress: data?.newDevice?.ipAddress,
+                    timestamp: data?.timestamp,
+                    securityTip: data?.securityTip
+                }
+            });
+            setShowNotifications(false);
+            return;
+        }
+
+        // 1. Role-Based Overrides (Consistency with system tray / NotificationListener)
+        if (type === 'lesson_started' || type === 'LESSON_STARTED' || type === 'reminder') {
+            if (role === 'STUDENT') {
+                logger.log('[Home] Student tapped lesson notification in list, opening scanner');
+                setIsScannerVisible(true);
+                setShowNotifications(false);
+                return;
+            } else if (role === 'TEACHER') {
+                const lessonId = data?.lessonId || data?.lesson_id || action?.params?.lessonId;
+                if (lessonId) {
+                    logger.log('[Home] Teacher tapped lesson notification in list, going to Control');
+                    router.push({ pathname: '/teacher-control', params: { lessonId } });
+                    setShowNotifications(false);
+                    return;
+                }
+            }
+        }
 
         if (action && action.type === 'navigate') {
             logger.log('[Home] Unified Action Navigate:', action.target, action.params);
+
+            // Security Guard: Prevent students from accessing teacher screens
+            const teacherOnlyScreens = ['teacher-control', 'teacher-dashboard', 'teacher-courses', 'create-course', 'create-lesson', 'lesson-analytics'];
+            if (role === 'STUDENT' && teacherOnlyScreens.includes(action.target)) {
+                logger.warn(`[Home] Student attempted to access ${action.target}, redirecting to scan`);
+                setIsScannerVisible(true);
+                setShowNotifications(false);
+                return;
+            }
 
             if (action.target === 'chat-detail' && action.params?.conversationId) {
                 router.push(`/conversation/${action.params.conversationId}`);
             } else if (action.target === 'link-requests') {
                 router.push('/settings?section=parentLink');
+            } else if (action.target === '/security-settings' || action.target === 'security-settings') {
+                // Map generic security settings target to the specific alert screen if we have data
+                router.push({
+                    pathname: '/security-alert' as any,
+                    params: {
+                        deviceName: data?.newDevice?.name,
+                        platform: data?.newDevice?.platform,
+                        ipAddress: data?.newDevice?.ipAddress,
+                        timestamp: data?.timestamp,
+                        securityTip: data?.securityTip
+                    }
+                });
+            } else if (action.target === '/course-reviews' || action.target === 'course-reviews') {
+                const courseId = action.params?.id || action.params?.courseId;
+                if (courseId) {
+                    router.push({ pathname: '/course-details', params: { id: courseId, tab: 'REVIEWS' } });
+                } else {
+                    router.push('/(main)/courses');
+                }
             } else if (action.params) {
                 router.push({ pathname: action.target as any, params: action.params });
             } else if (action.target) {
                 router.push(action.target as any);
             }
+            setShowNotifications(false);
             return;
         }
 
@@ -275,8 +355,9 @@ export default function MainHomeScreen() {
             notification.type === 'unlink_request_declined'
         ) {
             router.push('/settings?section=parentLink');
+            setShowNotifications(false);
         }
-    }, [router]);
+    }, [router, user?.role, t]);
 
     const handleDeleteNotification = useCallback((notificationId: string) => {
         deleteNotificationMutation.mutate(notificationId);

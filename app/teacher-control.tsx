@@ -132,8 +132,8 @@ export default function TeacherControlPanel() {
 
 
     const studentsPresent = attendanceResponse?.data?.filter((a: { status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' }) => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
-    const totalStudents = lesson?.enrolledStudents || 50; // Use enrolled students if available
-    const attendancePercentage = (studentsPresent / totalStudents) * 100;
+    const totalStudents = lesson?.enrolledStudents ?? 0; 
+    const attendancePercentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
 
     if (isLoadingDetails) {
         return (

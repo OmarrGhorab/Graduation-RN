@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
+import { useAuthStore } from '@/libs/auth';
 
 /**
  * NotificationListener component
@@ -329,17 +330,84 @@ export default function NotificationListener() {
 
             const data = response.notification.request.content.data as Record<string, any>;
             const action = data?.action;
+            const user = useAuthStore.getState().user;
+            const role = user?.role;
+            const type = data?.type || data?.notification_type;
 
+            // 0. Emergency Security Handling (Highest Priority)
+            if (type === 'security_new_device_blocked') {
+                const newDevice = data.newDevice;
+                logger.log('[NotificationListener] Security alert tapped, redirecting to Security Alert screen');
+                router.push({
+                    pathname: '/security-alert' as any,
+                    params: {
+                        deviceName: newDevice?.name,
+                        platform: newDevice?.platform,
+                        ipAddress: newDevice?.ipAddress,
+                        timestamp: data.timestamp,
+                        securityTip: data.securityTip
+                    }
+                });
+                return;
+            }
+
+            // 1. High Priority Role-Based Overrides (Lesson Started/Reminder)
+            if (type === 'lesson_started' || type === 'LESSON_STARTED' || type === 'reminder') {
+                if (role === 'STUDENT') {
+                    logger.log('[NotificationListener] Student tapped lesson notification, redirecting to Scan QR');
+                    router.push('/(main)/home?action=scan');
+                    return;
+                } else if (role === 'TEACHER') {
+                    const lessonId = data.lessonId || data.lesson_id;
+                    if (lessonId) {
+                        logger.log('[NotificationListener] Teacher tapped lesson notification, going to Control');
+                        router.push({ pathname: '/teacher-control', params: { lessonId } });
+                        return;
+                    }
+                }
+            }
+
+            // 2. Handle Action-based Navigation with Role Guards
             if (action && action.type === 'navigate') {
-                logger.log('[NotificationListener] Navigating to:', action.target, 'with params:', action.params);
-                // Handle params for expo-router if needed
-                if (action.target === 'chat-detail' && action.params?.conversationId) {
+                const target = action.target;
+                
+                // Security Guard: Prevent students from accessing teacher screens
+                const teacherOnlyScreens = ['teacher-control', 'teacher-dashboard', 'teacher-courses', 'create-course', 'create-lesson', 'lesson-analytics'];
+                if (role === 'STUDENT' && teacherOnlyScreens.includes(target)) {
+                    logger.warn(`[NotificationListener] Student attempted to access ${target}, redirecting to scan`);
+                    router.push('/(main)/home?action=scan');
+                    return;
+                }
+
+                logger.log('[NotificationListener] Navigating to:', target, 'with params:', action.params);
+                
+                // Specialized navigation
+                if (target === 'chat-detail' && action.params?.conversationId) {
                     router.push(`/conversation/${action.params.conversationId}`);
+                } else if (target === '/security-settings' || target === 'security-settings') {
+                    // Map generic security settings target to the specific alert screen
+                    router.push({
+                        pathname: '/security-alert' as any,
+                        params: {
+                            deviceName: data?.newDevice?.name,
+                            platform: data?.newDevice?.platform,
+                            ipAddress: data?.newDevice?.ipAddress,
+                            timestamp: data?.timestamp,
+                            securityTip: data?.securityTip
+                        }
+                    });
+                } else if (target === '/course-reviews' || target === 'course-reviews') {
+                    const courseId = action.params?.id || action.params?.courseId;
+                    if (courseId) {
+                        router.push({ pathname: '/course-details', params: { id: courseId, tab: 'REVIEWS' } });
+                    } else {
+                        router.push('/(main)/courses');
+                    }
                 } else if (action.params) {
                     // Generic navigation fallback
-                    router.push({ pathname: action.target as any, params: action.params });
+                    router.push({ pathname: target as any, params: action.params });
                 } else {
-                    router.push(action.target as any);
+                    router.push(target as any);
                 }
             } else if (data?.type === 'parent_link_request' || data?.type === 'link-requests') {
                 // Backward compatibility fallback

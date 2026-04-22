@@ -510,6 +510,7 @@ export interface ApiLesson {
     locationLat: number;
     locationLng: number;
     geofenceRadiusM: number;
+    enrolledStudents?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -519,9 +520,6 @@ export interface CreateLessonResponse {
     success: boolean;
 }
 
-/**
- * Start a lesson (Teacher)
- */
 export async function startLesson(lessonId: string, deviceId?: string, deviceFingerprint?: string): Promise<{ success: boolean; message: string; qr_token?: any }> {
     logger.log('[Lessons] Starting lesson:', lessonId);
 

@@ -1,12 +1,13 @@
 import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, LessonDetailsModal, QRScannerModal, ReviewModal, ReviewsSection } from '@/components/course';
 import { Fonts } from '@/constants/theme';
+import { useCart } from '@/hooks/useCart';
 import { useCourseReviews } from '@/hooks/useCourseReviews';
 import { useCourse, useCourseDetails, useEnrollCourse, useMyCourses } from '@/hooks/useCourses';
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
-import { useVideoTracking } from '@/hooks/useVideoTracking';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useVideoTracking } from '@/hooks/useVideoTracking';
 import { useAuthStore } from '@/libs/auth';
 import { CourseReview, removeCourseAssistant, scanAttendance } from '@/services/CourseService';
 import { DeviceService } from '@/services/DeviceService';
@@ -14,10 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { useCart } from '@/hooks/useCart';
-import { ActivityIndicator, Alert, AppState, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 
@@ -38,21 +38,24 @@ export default function CourseDetailsScreen() {
     const user = useAuthStore(state => state.user);
     const isTeacher = user?.role === 'TEACHER';
 
-    // Redirect teachers to the management view if it's their course
-    useEffect(() => {
-        if (isTeacher && course && profile && course.teacherId === profile.id) {
-            router.replace({ pathname: '/teacher-course-details', params: { id: course.id } });
-        }
-    }, [isTeacher, course, profile, id]);
 
     const { data: detailsData, isLoading: detailsLoading, error: detailsError } = useCourseDetails(courseId as string, profile?.id);
     const { data: basicCourseData, isLoading: basicLoading } = useCourse(courseId as string);
     const { data: myCoursesData, isLoading: myCoursesLoading } = useMyCourses();
-    
+
     // Extract course and progress early to avoid use-before-declaration errors in hooks
     const course = detailsData?.data?.course;
     const progress = detailsData?.data?.progress;
-    
+    const teacher = detailsData?.data?.teacher;
+    const safeLessons = detailsData?.data?.lessons || [];
+
+    // Redirect teachers to the management view if it's their course
+    useEffect(() => {
+        if (isTeacher && course && profile && teacher && teacher.id === profile.id) {
+            router.replace({ pathname: '/teacher-course-details', params: { ...params, id: course.id } });
+        }
+    }, [isTeacher, course, profile, teacher, courseId]);
+
     const isLoading = detailsLoading || basicLoading || myCoursesLoading;
     const error = detailsError;
     const createLessonMutation = useCreateLesson();
@@ -70,7 +73,7 @@ export default function CourseDetailsScreen() {
     const [selectedLesson, setSelectedLesson] = useState<any>(null);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const scrollViewRef = React.useRef<ScrollView>(null);
-    const [activeTab, setActiveTab] = useState<'ABOUT' | 'CURRICULUM' | 'REVIEWS'>('ABOUT');
+    const [activeTab, setActiveTab] = useState<'ABOUT' | 'CURRICULUM' | 'REVIEWS'>((params.tab as any) || 'ABOUT');
 
     const isEnrolledInMyCourses = React.useMemo(() => {
         if (!myCoursesData?.data) return false;
@@ -81,7 +84,7 @@ export default function CourseDetailsScreen() {
         const enrollment = detailsData?.data?.enrollment;
         const hasProgress = !!progress || !!detailsData?.data?.progress;
         const isPaidCourse = course?.isPaid ?? basicCourseData?.data?.isPaid;
-        
+
         // 1. If we have explicit enrollment details from the /details API, it's our ultimate source of truth.
         // It's the only place we can verify if a paid course is PRECISELY marked as paid.
         if (enrollment) {
@@ -90,7 +93,7 @@ export default function CourseDetailsScreen() {
             }
             return enrollment.isActive;
         }
-        
+
         // 2. Fallback: If it's in the 'My Courses' list, we consider them enrolled.
         // This handles cases where detailsData might be loading or the backend is slightly out of sync.
         if (isEnrolledInMyCourses) {
@@ -104,15 +107,15 @@ export default function CourseDetailsScreen() {
     }, [detailsData?.data?.enrollment, detailsData?.data?.progress, progress, isEnrolledInMyCourses, course?.isPaid, basicCourseData?.data?.isPaid]);
 
     const isEnrolledForPreviewTracking = isEnrolled;
-    
+
     // Check for preview video from either details endpoint or fallback to basic course endpoint
-    const previewUrl = detailsData?.data?.course?.previewVideoUrl || 
-                       (detailsData?.data as any)?.previewVideoUrl || 
-                       detailsData?.data?.course?.preview_video_url || 
-                       (detailsData?.data as any)?.preview_video_url ||
-                       basicCourseData?.data?.previewVideoUrl ||
-                       (basicCourseData?.data as any)?.preview_video_url;
-    
+    const previewUrl = detailsData?.data?.course?.previewVideoUrl ||
+        (detailsData?.data as any)?.previewVideoUrl ||
+        detailsData?.data?.course?.preview_video_url ||
+        (detailsData?.data as any)?.preview_video_url ||
+        basicCourseData?.data?.previewVideoUrl ||
+        (basicCourseData?.data as any)?.preview_video_url;
+
     const player = useVideoPlayer(previewUrl, player => {
         player.loop = false;
         player.timeUpdateEventInterval = 1;
@@ -139,7 +142,7 @@ export default function CourseDetailsScreen() {
         const subscription = player.addListener('playToEnd', () => {
             console.log('[VideoTracking] Video ended, sending final heartbeat');
             setIsPlayingVideo(false);
-            
+
             // Send final heartbeat
             const currentPosition = Math.floor(player.currentTime);
             const duration = Math.floor(player.duration);
@@ -180,11 +183,11 @@ export default function CourseDetailsScreen() {
 
     useEffect(() => {
         const isTrackingEnabled = !!previewUrl && !isTeacher && !isEnrolledForPreviewTracking && !!courseId;
-        
-        console.log('[VideoTracking] Preview effect trigger', { 
-            isPlayingVideo, 
+
+        console.log('[VideoTracking] Preview effect trigger', {
+            isPlayingVideo,
             isTrackingEnabled,
-            courseId 
+            courseId
         });
 
         if (!isPlayingVideo || !isTrackingEnabled) {
@@ -273,6 +276,18 @@ export default function CourseDetailsScreen() {
         }
     }, [params.action]);
 
+    // Handle deep linking to a specific lesson
+    useEffect(() => {
+        const targetLessonId = params.lessonId || params.lesson_id;
+        if (targetLessonId && safeLessons.length > 0) {
+            const lesson = safeLessons.find((l: any) => l.id === targetLessonId);
+            if (lesson) {
+                setSelectedLesson(lesson);
+                setActiveTab('CURRICULUM');
+            }
+        }
+    }, [params.lessonId, params.lesson_id, safeLessons]);
+
     if (isLoading) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center' }]}>
@@ -295,9 +310,7 @@ export default function CourseDetailsScreen() {
         );
     }
 
-    const { teacher, lessons } = detailsData.data;
-    const safeLessons = lessons || [];
-    
+
     if (!course) {
         return (
             <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7', justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
@@ -438,34 +451,34 @@ export default function CourseDetailsScreen() {
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            <ScrollView 
+            <ScrollView
                 ref={scrollViewRef}
-                contentContainerStyle={styles.scrollContent} 
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Hero Image Section */}
                 <View style={styles.heroImageContainer}>
                     {isPlayingVideo && previewUrl ? (
-                            <View style={{ flex: 1, position: 'relative' }}>
-                                <VideoView
-                                    player={player}
-                                    style={styles.heroVideo}
-                                    fullscreenOptions={{ enable: true }}
-                                    allowsPictureInPicture
-                                    startsPictureInPictureAutomatically
-                                    onFullscreenEnter={() => setIsFullscreen(true)}
-                                    onFullscreenExit={() => setIsFullscreen(false)}
-                                    onPictureInPictureStart={() => setIsPiP(true)}
-                                    onPictureInPictureStop={() => setIsPiP(false)}
-                                />
-                                <TouchableOpacity 
-                                    style={styles.speedButton}
-                                    onPress={togglePlaybackRate}
-                                >
-                                    <Ionicons name="speedometer-outline" size={14} color="#FFF" />
-                                    <Text style={styles.speedButtonText}>{playbackRate}x</Text>
-                                </TouchableOpacity>
-                            </View>
+                        <View style={{ flex: 1, position: 'relative' }}>
+                            <VideoView
+                                player={player}
+                                style={styles.heroVideo}
+                                fullscreenOptions={{ enable: true }}
+                                allowsPictureInPicture
+                                startsPictureInPictureAutomatically
+                                onFullscreenEnter={() => setIsFullscreen(true)}
+                                onFullscreenExit={() => setIsFullscreen(false)}
+                                onPictureInPictureStart={() => setIsPiP(true)}
+                                onPictureInPictureStop={() => setIsPiP(false)}
+                            />
+                            <TouchableOpacity
+                                style={styles.speedButton}
+                                onPress={togglePlaybackRate}
+                            >
+                                <Ionicons name="speedometer-outline" size={14} color="#FFF" />
+                                <Text style={styles.speedButtonText}>{playbackRate}x</Text>
+                            </TouchableOpacity>
+                        </View>
                     ) : (
                         <>
                             <Image
@@ -473,7 +486,7 @@ export default function CourseDetailsScreen() {
                                 style={styles.heroImage}
                             />
                             {previewUrl && (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.playButtonOverlay}
                                     onPress={() => {
                                         setIsPlayingVideo(true);
@@ -489,14 +502,14 @@ export default function CourseDetailsScreen() {
                             )}
                         </>
                     )}
-                    
+
                     <LinearGradient
                         colors={['rgba(0,0,0,0.4)', 'transparent']}
                         style={styles.heroGradient}
                     />
                     <View style={[styles.heroNav, { zIndex: 9999 }]}>
-                        <TouchableOpacity 
-                            onPress={() => router.back()} 
+                        <TouchableOpacity
+                            onPress={() => router.back()}
                             style={[styles.heroButton, { zIndex: 10000 }]}
                             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         >
@@ -533,21 +546,23 @@ export default function CourseDetailsScreen() {
 
                     <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#0d1b15' }]}>{course.title}</Text>
 
-                    <View style={[styles.instructorCard, { backgroundColor: isDark ? theme.background : '#F6F8F7', borderColor: `${theme.primary}10` }]}>
-                        <View style={styles.instructorInfo}>
-                            <Image
-                                source={{ uri: teacher.profileImg || 'https://ui-avatars.com/api/?name=' + teacher.name }}
-                                style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
-                            />
-                            <View>
-                                <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>{t('courseDetails.instructor')}</Text>
-                                <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacher.name}</Text>
+                    {teacher && (
+                        <View style={[styles.instructorCard, { backgroundColor: isDark ? theme.background : '#F6F8F7', borderColor: `${theme.primary}10` }]}>
+                            <View style={styles.instructorInfo}>
+                                <Image
+                                    source={{ uri: teacher.profileImg || 'https://ui-avatars.com/api/?name=' + teacher.name }}
+                                    style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
+                                />
+                                <View>
+                                    <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>{t('courseDetails.instructor')}</Text>
+                                    <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacher.name}</Text>
+                                </View>
                             </View>
+                            <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
+                                <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
-                            <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    )}
 
                     {course.enrollmentCount !== undefined && (
                         <View style={{ marginTop: 12 }}>
@@ -558,24 +573,24 @@ export default function CourseDetailsScreen() {
 
                 {/* Tabs Selector */}
                 <View style={[styles.tabsContainer, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderBottomColor: isDark ? theme.border : theme.gray[100] }]}>
-                    <TouchableOpacity 
-                        style={[styles.tabButton, activeTab === 'ABOUT' && { borderBottomColor: theme.primary }]} 
+                    <TouchableOpacity
+                        style={[styles.tabButton, activeTab === 'ABOUT' && { borderBottomColor: theme.primary }]}
                         onPress={() => setActiveTab('ABOUT')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'ABOUT' ? theme.primary : theme.gray[500] }, activeTab === 'ABOUT' && { fontFamily: Fonts.bold }]}>
                             {t('courseDetails.aboutTab')}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.tabButton, activeTab === 'CURRICULUM' && { borderBottomColor: theme.primary }]} 
+                    <TouchableOpacity
+                        style={[styles.tabButton, activeTab === 'CURRICULUM' && { borderBottomColor: theme.primary }]}
                         onPress={() => setActiveTab('CURRICULUM')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'CURRICULUM' ? theme.primary : theme.gray[500] }, activeTab === 'CURRICULUM' && { fontFamily: Fonts.bold }]}>
                             {t('courseDetails.curriculumTab')}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.tabButton, activeTab === 'REVIEWS' && { borderBottomColor: theme.primary }]} 
+                    <TouchableOpacity
+                        style={[styles.tabButton, activeTab === 'REVIEWS' && { borderBottomColor: theme.primary }]}
                         onPress={() => setActiveTab('REVIEWS')}
                     >
                         <Text style={[styles.tabText, { color: activeTab === 'REVIEWS' ? theme.primary : theme.gray[500] }, activeTab === 'REVIEWS' && { fontFamily: Fonts.bold }]}>
@@ -628,7 +643,7 @@ export default function CourseDetailsScreen() {
                                 <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>{t('courseDetails.curriculum')}</Text>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                                     {previewUrl && (
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={styles.previewButtonInline}
                                             onPress={() => {
                                                 setIsPlayingVideo(true);
@@ -684,7 +699,7 @@ export default function CourseDetailsScreen() {
 
                                             {isExpanded && (
                                                 <View style={styles.lessonDetails}>
-                                                    <TouchableOpacity 
+                                                    <TouchableOpacity
                                                         activeOpacity={0.7}
                                                         onPress={() => !isLocked && setSelectedLesson(lesson)}
                                                         style={[styles.lessonItem, { backgroundColor: `${theme.primary}08` }]}
@@ -697,14 +712,14 @@ export default function CourseDetailsScreen() {
                                                                 <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
                                                                     {lesson.title}
                                                                 </Text>
-                                                                    {lesson.isFree && <FreeTrialBadge variant="compact" />}
-                                                                    {lesson.videoUrl && !isLocked && (
-                                                                        <View style={{ backgroundColor: `${theme.primary}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                                            <Ionicons name="play-circle" size={12} color={theme.primary} />
-                                                                            <Text style={{ fontSize: 10, color: theme.primary, fontFamily: Fonts.bold }}>WATCH</Text>
-                                                                        </View>
-                                                                    )}
-                                                                </View>
+                                                                {lesson.isFree && <FreeTrialBadge variant="compact" />}
+                                                                {lesson.videoUrl && !isLocked && (
+                                                                    <View style={{ backgroundColor: `${theme.primary}20`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                                        <Ionicons name="play-circle" size={12} color={theme.primary} />
+                                                                        <Text style={{ fontSize: 10, color: theme.primary, fontFamily: Fonts.bold }}>WATCH</Text>
+                                                                    </View>
+                                                                )}
+                                                            </View>
                                                             <Text style={[styles.lessonMeta, { color: theme.gray[500] }]}>
                                                                 {new Date(lesson.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} | {new Date(lesson.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                             </Text>
@@ -779,7 +794,7 @@ export default function CourseDetailsScreen() {
                                                                 <Ionicons name="checkmark-done-circle" size={16} color={theme.gray[500]} />
                                                                 <Text style={{ color: theme.gray[600], fontSize: 13, fontWeight: '600', marginLeft: 4 }}>Completed</Text>
                                                             </View>
-                                                            <TouchableOpacity 
+                                                            <TouchableOpacity
                                                                 onPress={() => router.push({ pathname: '/attendance-list', params: { lessonId: lesson.id } })}
                                                                 style={{ padding: 6 }}
                                                             >
@@ -806,45 +821,45 @@ export default function CourseDetailsScreen() {
                 {activeTab === 'REVIEWS' && (
                     <Animated.View entering={FadeIn.duration(400)}>
                         <ReviewsSection
-                                reviews={reviews}
-                                averageRating={summary?.averageRating || 0}
-                                totalReviews={summary?.totalReviews || 0}
-                                ratingBreakdown={summary?.ratingBreakdown || { fiveStars: 0, fourStars: 0, threeStars: 0, twoStars: 0, oneStar: 0 }}
-                                canReview={isEnrolled && !isTeacher}
-                                userReview={reviews.find(r => r.studentId === profile?.id)}
-                                onAddReview={() => {
-                                    setEditingReview(null);
-                                    setShowReviewModal(true);
-                                }}
-                                onEditReview={(review) => {
-                                    setEditingReview(review);
-                                    setShowReviewModal(true);
-                                }}
-                                onDeleteReview={async () => {
-                                    Alert.alert(
-                                        'Delete Review',
-                                        'Are you sure you want to delete your review?',
-                                        [
-                                            { text: 'Cancel', style: 'cancel' },
-                                            {
-                                                text: 'Delete',
-                                                style: 'destructive',
-                                                onPress: async () => {
-                                                    try {
-                                                        const userReview = reviews.find(r => r.studentId === profile?.id);
-                                                        if (userReview) {
-                                                            await deleteReview(userReview.id);
-                                                            Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
-                                                        }
-                                                    } catch (error: any) {
-                                                        Alert.alert(t('common.error'), error.message || t('common.error'));
+                            reviews={reviews}
+                            averageRating={summary?.averageRating || 0}
+                            totalReviews={summary?.totalReviews || 0}
+                            ratingBreakdown={summary?.ratingBreakdown || { fiveStars: 0, fourStars: 0, threeStars: 0, twoStars: 0, oneStar: 0 }}
+                            canReview={isEnrolled && !isTeacher}
+                            userReview={reviews.find(r => r.studentId === profile?.id)}
+                            onAddReview={() => {
+                                setEditingReview(null);
+                                setShowReviewModal(true);
+                            }}
+                            onEditReview={(review) => {
+                                setEditingReview(review);
+                                setShowReviewModal(true);
+                            }}
+                            onDeleteReview={async () => {
+                                Alert.alert(
+                                    'Delete Review',
+                                    'Are you sure you want to delete your review?',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        {
+                                            text: 'Delete',
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    const userReview = reviews.find(r => r.studentId === profile?.id);
+                                                    if (userReview) {
+                                                        await deleteReview(userReview.id);
+                                                        Alert.alert(t('common.success'), t('courseDetails.reviewDeleted'));
                                                     }
-                                                },
+                                                } catch (error: any) {
+                                                    Alert.alert(t('common.error'), error.message || t('common.error'));
+                                                }
                                             },
-                                        ]
-                                    );
-                                }}
-                            />
+                                        },
+                                    ]
+                                );
+                            }}
+                        />
                         {reviews.length === 0 && !reviewsLoading && (
                             <View style={[styles.emptyState, { backgroundColor: isDark ? theme.surface : '#FFFFFF', marginTop: 0 }]}>
                                 <Ionicons name="chatbubbles-outline" size={48} color={theme.gray[300]} />
@@ -861,8 +876,8 @@ export default function CourseDetailsScreen() {
             </ScrollView>
 
             {!isEnrolled && !isTeacher && (
-                <View style={[styles.bottomBar, { 
-                    backgroundColor: isDark ? theme.surface : '#FFFFFF', 
+                <View style={[styles.bottomBar, {
+                    backgroundColor: isDark ? theme.surface : '#FFFFFF',
                     borderTopColor: isDark ? theme.border : theme.gray[200],
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: -4 },
@@ -974,9 +989,9 @@ export default function CourseDetailsScreen() {
                 onSubmit={async (rating, review) => {
                     try {
                         if (editingReview) {
-                            await updateReview({ 
-                                reviewId: editingReview.id, 
-                                data: { rating, review } 
+                            await updateReview({
+                                reviewId: editingReview.id,
+                                data: { rating, review }
                             });
                             Alert.alert(t('common.success'), t('courseDetails.reviewUpdated'));
                         } else {

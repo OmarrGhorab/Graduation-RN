@@ -321,6 +321,19 @@ export default {
     headerAccount: 'Account',
   },
 
+  // Security
+  security: {
+    alertTitle: 'Security Alert',
+    loginAttempt: 'New Login Attempt Blocked',
+    description: 'A login attempt from an unrecognized device was detected and blocked for your safety.',
+    device: 'Device',
+    ipAddress: 'IP Address',
+    time: 'Time',
+    recommendation: 'Security Recommendation',
+    changePassword: 'Change Password',
+    itWasMe: 'It was me, ignore',
+  },
+
   // Profile
   profile: {
     title: 'Profile',

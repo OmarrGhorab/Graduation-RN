@@ -321,6 +321,19 @@ export default {
     headerAccount: 'الحساب',
   },
 
+  // Security
+  security: {
+    alertTitle: 'تنبيه أمني',
+    loginAttempt: 'تم حظر محاولة دخول جديدة',
+    description: 'تم اكتشاف محاولة تسجيل دخول من جهاز غير معروف وتم حظرها من أجل سلامتك.',
+    device: 'الجهاز',
+    ipAddress: 'عنوان IP',
+    time: 'الوقت',
+    recommendation: 'توصية أمنية',
+    changePassword: 'تغيير كلمة المرور',
+    itWasMe: 'هذا أنا، تجاهل',
+  },
+
   // Profile
   profile: {
     title: 'الملف الشخصي',
