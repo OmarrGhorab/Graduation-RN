@@ -160,6 +160,13 @@ export default function AccountScreen() {
                             onPress={() => router.push('/teacher-dashboard')}
                         />
                     )}
+                    {user?.role === 'PARENT' && (
+                        <MenuItem 
+                            icon="analytics-outline" 
+                            label={t('reports.title') || 'AI Progress Reports'} 
+                            onPress={() => router.push('/progress-report')}
+                        />
+                    )}
                     
                     <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
                     <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />

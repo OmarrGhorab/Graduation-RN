@@ -142,19 +142,31 @@ export function ParentMonitoringSuite() {
             <View style={styles.appealsSection}>
                 <View style={styles.sectionHeaderRow}>
                     <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Absence Appeals</Text>
-                    <TouchableOpacity 
-                        style={styles.actionButton}
-                        onPress={() => router.push({
-                            pathname: '/absence-request',
-                            params: { 
-                                studentId: selectedKidId,
-                                studentName: kids.find(k => k.id === selectedKidId)?.name
-                            }
-                        })}
-                    >
-                        <Ionicons name="add-circle" size={18} color={theme.primary} />
-                        <Text style={[styles.actionButtonText, { color: theme.primary }]}>Submit</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity 
+                            style={[styles.actionButton, { backgroundColor: 'rgba(74, 144, 226, 0.1)' }]}
+                            onPress={() => router.push({
+                                pathname: '/progress-report',
+                                params: { studentId: selectedKidId }
+                            })}
+                        >
+                            <Ionicons name="analytics" size={18} color="#4A90E2" />
+                            <Text style={[styles.actionButtonText, { color: '#4A90E2' }]}>AI Reports</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.actionButton}
+                            onPress={() => router.push({
+                                pathname: '/absence-request',
+                                params: { 
+                                    studentId: selectedKidId,
+                                    studentName: kids.find(k => k.id === selectedKidId)?.name
+                                }
+                            })}
+                        >
+                            <Ionicons name="add-circle" size={18} color={theme.primary} />
+                            <Text style={[styles.actionButtonText, { color: theme.primary }]}>Submit</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {appeals.length > 0 ? (

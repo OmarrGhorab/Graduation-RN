@@ -13,7 +13,7 @@ import { ChatMember, Conversation, Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
@@ -118,7 +118,8 @@ export default function ChatDetailScreen() {
     // const scrollViewRef = useRef<ScrollView>(null);
     const [isAttachmentMenuVisible, setIsAttachmentMenuVisible] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const recorderState = useAudioRecorderState(recorder, 500);
     const [uploadingMedia, setUploadingMedia] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const toast = useToast();
@@ -904,21 +905,19 @@ export default function ChatDetailScreen() {
 
     const startRecording = async () => {
         try {
-            const { status } = await Audio.requestPermissionsAsync();
+            const { status } = await requestRecordingPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert("Permission Required", "Microphone access is needed to record voice messages");
                 return;
             }
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
             });
 
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            setRecording(recording);
+            await recorder.prepareToRecordAsync();
+            recorder.record();
             setIsRecording(true);
         } catch (err) {
             console.error('Failed to start recording', err);
@@ -926,15 +925,13 @@ export default function ChatDetailScreen() {
     };
 
     const stopRecording = async () => {
-        if (!recording) return;
+        if (!recorder.isRecording) return;
         setIsRecording(false);
         try {
-            const status = await recording.getStatusAsync();
-            const duration = Math.floor((status as any).durationMillis / 1000);
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            console.log(`[ChatDetail] Recording stopped. Status:`, status, 'Final URI:', uri);
-            setRecording(null);
+            const duration = Math.floor(recorderState.durationMillis / 1000);
+            await recorder.stop();
+            const uri = recorder.uri;
+            console.log(`[ChatDetail] Recording stopped. Duration:`, duration, 'Final URI:', uri);
             if (uri) {
                 uploadAndSendMessage(uri, 'voice', duration);
             }
@@ -1521,8 +1518,13 @@ const MessageBubble = ({
     };
 
     const isSender = message.sender_id === currentUserId;
+    
+    // Playback Logic with expo-audio
+    const audioUri = message.media_urls?.[0] || message.content;
+    const player = useAudioPlayer(message.type === 'voice' ? { uri: audioUri } : null);
+    const playerStatus = useAudioPlayerStatus(player);
+    
     const [isPlaying, setIsPlaying] = useState(false);
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [progress, setProgress] = useState(0);
 
     // Delete animation
@@ -1559,60 +1561,38 @@ const MessageBubble = ({
     const senderName = message.sender?.name || '';
     const senderImage = (message.sender?.image && message.sender.image !== "") ? message.sender.image : `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName || 'U')}&background=random`;
 
-
     const [waveformWidth, setWaveformWidth] = useState(0);
 
+    // Sync player state with UI
     useEffect(() => {
-        return () => {
-            if (sound) {
-                sound.unloadAsync();
+        if (message.type === 'voice') {
+            setIsPlaying(player.playing);
+            
+            // Sync duration if player has it
+            if (player.duration > 0) {
+                setDuration(player.duration * 1000);
             }
-        };
-    }, [sound]);
 
-    const handlePlaybackStatusUpdate = (status: any) => {
-        if (status.isLoaded) {
-            setDuration(status.durationMillis || ((message.media_metadata?.duration || 0) * 1000));
-            // Only update progress from player if we are NOT dragging
+            // Sync progress if not dragging
             if (!isDragging.current) {
-                setProgress(status.positionMillis);
+                setProgress(player.currentTime * 1000);
             }
-            if (status.didJustFinish) {
+
+            if (playerStatus.didJustFinish) {
                 setIsPlaying(false);
-                sound?.setPositionAsync(0);
+                player.seekTo(0);
                 setProgress(0);
             }
         }
-    };
+    }, [player.playing, player.currentTime, player.duration, playerStatus.didJustFinish]);
 
     const playAudio = async () => {
         try {
-            if (sound) {
-                if (isPlaying) {
-                    await sound.pauseAsync();
-                    setIsPlaying(false);
-                } else {
-                    await sound.playAsync();
-                    setIsPlaying(true);
-                }
-                return;
+            if (player.playing) {
+                player.pause();
+            } else {
+                player.play();
             }
-
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-            });
-
-            // Get audio URL from media_urls or fallback to content
-            const audioUri = message.media_urls?.[0] || message.content;
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: audioUri },
-                { shouldPlay: true },
-                handlePlaybackStatusUpdate
-            );
-            setSound(newSound);
-            setIsPlaying(true);
         } catch (error) {
             console.error('Error playing sound', error);
         }
@@ -1650,15 +1630,15 @@ const MessageBubble = ({
                 setProgress(newPos);
             },
 
-            onPanResponderRelease: async () => {
-                // Commit the seek
-                if (sound) {
-                    await sound.setPositionAsync(progress);
-                    if (!isPlaying) {
-                        await sound.playAsync();
-                        setIsPlaying(true);
-                    }
-                }
+            onPanResponderRelease: (evt, gestureState) => {
+                if (!waveformWidth || !duration) return;
+
+                const percentChange = gestureState.dx / waveformWidth;
+                const timeChange = percentChange * duration;
+                let newPos = startDragProgress.current + timeChange;
+                newPos = Math.max(0, Math.min(newPos, duration));
+
+                player.seekTo(newPos / 1000);
                 isDragging.current = false;
             },
 
@@ -1672,13 +1652,10 @@ const MessageBubble = ({
         const x = event.nativeEvent.locationX;
         const seekPosition = (x / waveformWidth) * duration;
 
-        if (sound) {
-            await sound.setPositionAsync(seekPosition);
-            setProgress(seekPosition);
-            if (!isPlaying) {
-                await sound.playAsync();
-                setIsPlaying(true);
-            }
+        player.seekTo(seekPosition / 1000);
+        setProgress(seekPosition);
+        if (!player.playing) {
+            player.play();
         }
     };
 

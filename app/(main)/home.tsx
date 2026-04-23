@@ -12,6 +12,7 @@ import {
     useMarkAllAsReadMutation,
     useMarkAsReadMutation,
     useNotifications,
+    NOTIFICATIONS_QUERY_KEY,
 } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -253,8 +254,24 @@ export default function MainHomeScreen() {
     }, []);
 
     const handleMarkAsRead = useCallback((id: string) => {
+        if (id.startsWith('push-')) {
+            // Local-only notification, just update cache
+            queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, (old: any) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((n: ApiNotification) =>
+                            n.id === id ? { ...n, read: true } : n
+                        ),
+                    })),
+                };
+            });
+            return;
+        }
         markAsReadMutation.mutate(id);
-    }, [markAsReadMutation]);
+    }, [markAsReadMutation, queryClient]);
 
     const handleMarkAllAsRead = useCallback(() => {
         markAllAsReadMutation.mutate();
@@ -356,6 +373,18 @@ export default function MainHomeScreen() {
         ) {
             router.push('/settings?section=parentLink');
             setShowNotifications(false);
+            return;
+        }
+
+        if (notification.type === 'parent_report_ready') {
+            const studentId = data?.studentId || data?.student_id;
+            const period = data?.period;
+            router.push({
+                pathname: '/progress-report' as any,
+                params: { studentId, period }
+            });
+            setShowNotifications(false);
+            return;
         }
     }, [router, user?.role, t]);
 

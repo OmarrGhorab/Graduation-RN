@@ -300,7 +300,7 @@ export default function NotificationListener() {
 
                 // Create notification object for cache in Unified Format
                 const apiNotification: ApiNotification = {
-                    id: `push-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    id: data.id || data.notification_id || `push-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     type: data.type || 'info',
                     title: notification.request.content.title || data.title || 'Notification',
                     body: notification.request.content.body || data.body || '',
@@ -318,6 +318,12 @@ export default function NotificationListener() {
                 if (data.type === 'lesson_started' || data.type === 'LESSON_STARTED' || data.type === 'ATTENDANCE_FINALIZED') {
                     logger.log('[NotificationListener] Lesson event via Push, invalidating calendar queries');
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                }
+
+                // Auto-refresh reports for parent report ready events
+                if (data.type === 'parent_report_ready') {
+                    logger.log('[NotificationListener] Parent report ready, invalidating report queries');
+                    queryClient.invalidateQueries({ queryKey: ['report-summary'] });
                 }
 
                 logger.log('[NotificationListener] Added notification to cache:', apiNotification.id);
@@ -409,6 +415,13 @@ export default function NotificationListener() {
                 } else {
                     router.push(target as any);
                 }
+            } else if (data?.type === 'parent_report_ready') {
+                const studentId = data.studentId || data.student_id;
+                const period = data.period;
+                router.push({
+                    pathname: '/progress-report' as any,
+                    params: { studentId, period }
+                });
             } else if (data?.type === 'parent_link_request' || data?.type === 'link-requests') {
                 // Backward compatibility fallback
                 router.push('/link-requests' as any);

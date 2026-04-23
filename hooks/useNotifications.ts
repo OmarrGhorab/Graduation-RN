@@ -58,8 +58,14 @@ export function useMarkAsReadMutation() {
 
             return { previousData };
         },
-        onError: (_err, _notificationId, context) => {
-            // Rollback on error
+        onError: (err: any, _notificationId, context) => {
+            // Don't rollback if it was already read or not found
+            const errorMsg = err?.message || '';
+            if (errorMsg.includes('already read') || errorMsg.includes('not found')) {
+                return;
+            }
+
+            // Rollback on other errors
             if (context?.previousData) {
                 queryClient.setQueryData(NOTIFICATIONS_QUERY_KEY, context.previousData);
             }

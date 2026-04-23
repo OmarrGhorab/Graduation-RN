@@ -94,6 +94,12 @@ export default function MainLayout() {
                     href: null,
                 }}
             />
+            <Tabs.Screen
+                name="progress-report"
+                options={{
+                    href: null,
+                }}
+            />
         </Tabs>
     );
 }
