@@ -324,6 +324,7 @@ export default function NotificationListener() {
                 if (data.type === 'parent_report_ready') {
                     logger.log('[NotificationListener] Parent report ready, invalidating report queries');
                     queryClient.invalidateQueries({ queryKey: ['report-summary'] });
+                    queryClient.invalidateQueries({ queryKey: ['report-history'] });
                 }
 
                 logger.log('[NotificationListener] Added notification to cache:', apiNotification.id);
@@ -417,10 +418,10 @@ export default function NotificationListener() {
                 }
             } else if (data?.type === 'parent_report_ready') {
                 const studentId = data.studentId || data.student_id;
-                const period = data.period;
+                const studentName = data.studentName || data.student_name;
                 router.push({
-                    pathname: '/progress-report' as any,
-                    params: { studentId, period }
+                    pathname: '/report-history' as any,
+                    params: { studentId, studentName }
                 });
             } else if (data?.type === 'parent_link_request' || data?.type === 'link-requests') {
                 // Backward compatibility fallback

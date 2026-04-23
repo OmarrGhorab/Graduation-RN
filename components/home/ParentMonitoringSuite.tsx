@@ -94,7 +94,10 @@ export function ParentMonitoringSuite() {
 
     const renderKidSelector = () => (
         <View style={styles.kidSelectorContainer}>
-            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Linked Children</Text>
+            <View>
+                <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15', marginBottom: 2 }]}>Linked Children</Text>
+                <Text style={styles.sectionSubtitleSmall}>Select a child to view their analytics</Text>
+            </View>
             <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false} 
@@ -141,32 +144,59 @@ export function ParentMonitoringSuite() {
         return (
             <View style={styles.appealsSection}>
                 <View style={styles.sectionHeaderRow}>
-                    <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Absence Appeals</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity 
-                            style={[styles.actionButton, { backgroundColor: 'rgba(74, 144, 226, 0.1)' }]}
-                            onPress={() => router.push({
-                                pathname: '/progress-report',
-                                params: { studentId: selectedKidId }
-                            })}
-                        >
-                            <Ionicons name="analytics" size={18} color="#4A90E2" />
-                            <Text style={[styles.actionButtonText, { color: '#4A90E2' }]}>AI Reports</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={styles.actionButton}
-                            onPress={() => router.push({
-                                pathname: '/absence-request',
-                                params: { 
-                                    studentId: selectedKidId,
-                                    studentName: kids.find(k => k.id === selectedKidId)?.name
-                                }
-                            })}
-                        >
-                            <Ionicons name="add-circle" size={18} color={theme.primary} />
-                            <Text style={[styles.actionButtonText, { color: theme.primary }]}>Submit</Text>
-                        </TouchableOpacity>
+                    <View>
+                        <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15', marginBottom: 2 }]}>Absence Appeals</Text>
+                        <Text style={styles.sectionSubtitleSmall}>Monitor and request absence excuses</Text>
                     </View>
+                </View>
+
+                <View style={styles.quickActionsRow}>
+                    <TouchableOpacity 
+                        style={[styles.quickActionCard, { backgroundColor: isDark ? 'rgba(74, 144, 226, 0.1)' : '#E3F2FD' }]}
+                        onPress={() => router.push({
+                            pathname: '/progress-report',
+                            params: { studentId: selectedKidId }
+                        })}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#4A90E2' }]}>
+                            <Ionicons name="analytics" size={20} color="#fff" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text 
+                                style={[styles.quickActionLabel, { color: isDark ? '#fff' : '#0d1b15', fontSize: 12 }]} 
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                AI Reports
+                            </Text>
+                            <Text style={[styles.quickActionSub, { fontSize: 9 }]} numberOfLines={1}>Insights</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={[styles.quickActionCard, { backgroundColor: isDark ? 'rgba(18, 237, 135, 0.1)' : '#E8F5E9' }]}
+                        onPress={() => router.push({
+                            pathname: '/absence-request',
+                            params: { 
+                                studentId: selectedKidId,
+                                studentName: kids.find(k => k.id === selectedKidId)?.name
+                            }
+                        })}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: theme.primary }]}>
+                            <Ionicons name="add-circle" size={20} color="#fff" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text 
+                                style={[styles.quickActionLabel, { color: isDark ? '#fff' : '#0d1b15', fontSize: 12 }]} 
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                Request Appeal
+                            </Text>
+                            <Text style={[styles.quickActionSub, { fontSize: 9 }]} numberOfLines={1}>Submit Excuse</Text>
+                        </View>
+                    </TouchableOpacity>
                 </View>
 
                 {appeals.length > 0 ? (
@@ -400,7 +430,12 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontFamily: Fonts.bold,
         marginHorizontal: 16,
-        marginBottom: 16,
+    },
+    sectionSubtitleSmall: {
+        fontSize: 12,
+        color: '#88cba8',
+        marginHorizontal: 16,
+        fontFamily: Fonts.medium,
     },
     kidSelectorContainer: {
         marginBottom: 24,
@@ -477,6 +512,37 @@ const styles = StyleSheet.create({
     actionButtonText: {
         fontSize: 12,
         fontFamily: Fonts.bold,
+    },
+    quickActionsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 0,
+        marginBottom: 20,
+    },
+    quickActionCard: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        borderRadius: 16,
+        gap: 8,
+        minHeight: 60,
+    },
+    quickActionIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quickActionLabel: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+    },
+    quickActionSub: {
+        fontSize: 10,
+        color: '#88cba8',
+        fontFamily: Fonts.medium,
     },
     appealCard: {
         padding: 12,

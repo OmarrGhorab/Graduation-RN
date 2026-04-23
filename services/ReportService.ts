@@ -14,6 +14,14 @@ export interface ReportSummary {
     studentId: string;
 }
 
+export interface HistoryReport {
+    id: string;
+    studentName: string;
+    period: string;
+    createdAt: string;
+    summary: string;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
@@ -72,4 +80,30 @@ export async function getReportSummary(studentId: string, period: 'weekly' | 'mo
     });
 
     return parseResponse<ReportSummary>(response);
+}
+
+/**
+ * Fetch report history for a student
+ */
+export async function getReportHistory(studentId: string): Promise<HistoryReport[]> {
+    const token = await getValidAccessToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${BASE_URL}/api/v1/reports/parent/student/${studentId}/history`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    const result = await parseResponse<{ success: boolean; data: HistoryReport[] }>(response);
+    return result.data || [];
+}
+
+/**
+ * Get download URL for a specific historical report
+ */
+export function getHistoryDownloadUrl(reportId: string): string {
+    return `${BASE_URL}/api/v1/reports/history/${reportId}/download`;
 }

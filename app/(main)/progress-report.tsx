@@ -161,7 +161,18 @@ export default function ProgressReportScreen() {
                 <Text style={[styles.navTitle, { color: theme.text }]}>
                     {t('reports.title') || 'AI Progress Report'}
                 </Text>
-                <View style={{ width: 40 }} />
+                <TouchableOpacity 
+                    onPress={() => router.push({
+                        pathname: '/report-history' as any,
+                        params: { 
+                            studentId: selectedKidId, 
+                            studentName: selectedKid?.name 
+                        }
+                    })} 
+                    style={[styles.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
+                >
+                    <MaterialCommunityIcons name="history" size={22} color={theme.text} />
+                </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

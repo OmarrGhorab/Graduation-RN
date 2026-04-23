@@ -1,4 +1,4 @@
-import { triggerReport, getReportSummary } from '@/services/ReportService';
+import { triggerReport, getReportSummary, getReportHistory } from '@/services/ReportService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert } from 'react-native';
 import { useTranslation } from './useTranslation';
@@ -32,5 +32,14 @@ export function useReportSummaryQuery(studentId: string | null, period: 'weekly'
         queryFn: () => studentId ? getReportSummary(studentId, period) : null,
         enabled: !!studentId,
         staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+}
+
+export function useReportHistoryQuery(studentId: string | null) {
+    return useQuery({
+        queryKey: ['report-history', studentId],
+        queryFn: () => studentId ? getReportHistory(studentId) : null,
+        enabled: !!studentId,
+        staleTime: 2 * 60 * 1000, // 2 minutes
     });
 }
