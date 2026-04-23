@@ -10,6 +10,7 @@ import { useLessonDetails, useUpdateLesson } from '@/hooks/useLessons';
 import { useLessonCreation } from '@/hooks/useLessonCreation';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -70,7 +71,16 @@ export default function CreateLessonScreen() {
     const editId = getFirstParamValue(rawEditId) || getFirstParamValue(rawLessonId) || '';
     const { theme, isDark } = useTheme();
     const toast = useToast();
+    const user = useAuthStore(state => state.user);
     const { createLessonMutation } = useLessonCreation();
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
     const updateLessonMutation = useUpdateLesson();
     const isEditMode = !!editId;
     const { data: lessonDetailsResponse, isLoading: isLoadingLessonDetails } = useLessonDetails(editId || '');

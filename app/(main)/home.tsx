@@ -2,7 +2,7 @@ import CalendarModal from '@/components/CalendarModal';
 import HomeHeader from '@/components/HomeHeader';
 import NotificationModal from '@/components/NotificationModal';
 import QRScannerModal from '@/components/course/QRScannerModal';
-import { ScheduleCard, SubjectCard } from '@/components/home';
+import { ScheduleCard, SubjectCard, TeacherDashboardSummary } from '@/components/home';
 import { ParentMonitoringSuite } from '@/components/home/ParentMonitoringSuite';
 import { Fonts, cskColors, errorColors } from '@/constants/theme';
 import { useCalendar, useStudentCalendar, useTeacherCalendar } from '@/hooks/useCalendar';
@@ -511,6 +511,8 @@ export default function MainHomeScreen() {
                         />
                     }
                 >
+                    {user?.role === 'TEACHER' && <TeacherDashboardSummary />}
+
                     {/* My Subjects Section */}
                     {subjects.length > 0 && (
                         <View style={[styles.section, { marginTop: 12 }]}>

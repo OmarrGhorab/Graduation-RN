@@ -153,11 +153,13 @@ export default function AccountScreen() {
                 <View style={styles.menuContainer}>
                     <MenuItem icon="person-outline" label={t('account.profile')} />
                     <MenuItem icon="create-outline" label={t('account.editProfile')} onPress={handleEditProfile} />
-                    <MenuItem 
-                        icon="grid-outline" 
-                        label={t('account.dashboard')} 
-                        onPress={() => router.push('/teacher-dashboard')}
-                    />
+                    {user?.role === 'TEACHER' && (
+                        <MenuItem 
+                            icon="grid-outline" 
+                            label={t('account.dashboard')} 
+                            onPress={() => router.push('/teacher-dashboard')}
+                        />
+                    )}
                     
                     <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
                     <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />

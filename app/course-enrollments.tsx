@@ -3,15 +3,26 @@ import { Fonts } from '@/constants/theme';
 import { useCourseEnrollments } from '@/hooks/useEnrollments';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function CourseEnrollmentsScreen() {
     const { id: courseId } = useLocalSearchParams();
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
     const { data, isLoading, error } = useCourseEnrollments(courseId as string);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     if (isLoading) {
         return (

@@ -1,5 +1,6 @@
 import { Fonts, cskColors, errorColors } from '@/constants/theme';
 import { useLessonAttendance, useLessonControl, useLessonDetails, useLessonQR } from '@/hooks/useLessons';
+import { useAuthStore } from '@/libs/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -21,6 +22,15 @@ export default function TeacherControlPanel() {
     const router = useRouter();
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const { data: lessonResponse, isLoading: isLoadingDetails } = useLessonDetails(lessonId!);
     const lesson = lessonResponse?.data;

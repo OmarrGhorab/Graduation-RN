@@ -194,6 +194,13 @@ export default {
     themeLight: 'Light',
     themeDark: 'Dark',
     themeSystem: 'System',
+    // ParentLinkCard
+    parentLinkCard: {
+      title: 'Parent Link',
+      subtitle: 'Manage your links with parents or children',
+      linkWithParent: 'Link with Parent',
+      linkWithChild: 'Link with Child',
+    },
     // ConfirmModal
     typeToConfirm: 'Type',
     toConfirm: 'to confirm',
@@ -432,6 +439,7 @@ export default {
     requestLocation: 'Request Location',
   },
 
+
   // Onboarding
   onboarding: {
     welcome: 'Welcome',
@@ -632,7 +640,7 @@ export default {
   },
 
   teacher: {
-    dashboardTitle: 'Teacher Dashboard',
+    dashboardTitle: 'Management Overview',
     welcomeBack: 'Welcome back, {{name}}!',
     manageCourses: 'Manage your courses and lessons',
     createNewCourse: 'Create New Course',
@@ -640,9 +648,9 @@ export default {
     createNewLesson: 'Create New Lesson',
     createNewLessonSub: 'Schedule a new lesson for your courses',
     analyticsOverview: 'Analytics Overview',
-    totalRevenue: 'Total Revenue',
-    totalStudents: 'Total Students',
-    avgRating: 'Avg Rating',
+    totalRevenue: 'Revenue',
+    totalStudents: 'Students',
+    avgRating: 'Rating',
     myCourses: 'My Courses',
     viewAll: 'View All',
     noCoursesYet: 'No courses yet',
@@ -655,6 +663,11 @@ export default {
     deleteConfirm: 'Are you sure you want to delete this course? This action cannot be undone.',
     deleteSuccess: 'Course deleted successfully',
     deleteError: 'Failed to delete course',
+    activeLessons: 'Active Lessons',
+    courseProgress: 'Course Progress',
+    studentAnalytics: 'Student Analytics',
+    enrollments: 'Enrollments',
+    lessonAnalytics: 'Lesson Analytics',
     saveChanges: 'Save Changes',
     loadingCourse: 'Loading Course Data...',
     courseDetails: 'Course Details',
@@ -665,7 +678,6 @@ export default {
     manageLesson: 'Manage Lesson',
     viewAttendance: 'View Attendance',
     editLesson: 'Edit Lesson',
-    lessonAnalytics: 'Lesson Analytics',
     presentStudents: '{{count}} Present',
     absentStudents: '{{count}} Absent',
     studentsEnrolled: 'Students Enrolled',

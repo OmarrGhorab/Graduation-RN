@@ -432,6 +432,7 @@ export default {
     requestLocation: 'طلب الموقع',
   },
 
+
   // Onboarding
   onboarding: {
     welcome: 'مرحباً',
@@ -632,7 +633,7 @@ export default {
   },
 
   teacher: {
-    dashboardTitle: 'لوحة تحكم المعلم',
+    dashboardTitle: 'نظرة عامة على الإدارة',
     welcomeBack: 'مرحباً بعودتك، {{name}}!',
     manageCourses: 'إدارة دوراتك ودروسك',
     createNewCourse: 'إنشاء دورة جديدة',
@@ -640,9 +641,9 @@ export default {
     createNewLesson: 'إنشاء درس جديد',
     createNewLessonSub: 'حدد موعداً لدرس جديد لدوراتك',
     analyticsOverview: 'نظرة عامة على التحليلات',
-    totalRevenue: 'إجمالي الإيرادات',
-    totalStudents: 'إجمالي الطلاب',
-    avgRating: 'متوسط التقييم',
+    totalRevenue: 'الإيرادات',
+    totalStudents: 'الطلاب',
+    avgRating: 'التقييم',
     myCourses: 'دوراتي',
     viewAll: 'عرض الكل',
     noCoursesYet: 'لا توجد دورات بعد',
@@ -655,6 +656,11 @@ export default {
     deleteConfirm: 'هل أنت متأكد من رغبتك في حذف هذه الدورة؟ لا يمكن التراجع عن هذا الإجراء.',
     deleteSuccess: 'تم حذف الدورة بنجاح',
     deleteError: 'فشل حذف الدورة',
+    activeLessons: 'الدروس النشطة',
+    courseProgress: 'تقدم الكورس',
+    studentAnalytics: 'تحليلات الطلاب',
+    enrollments: 'التسجيلات',
+    lessonAnalytics: 'تحليلات الدرس',
     saveChanges: 'حفظ التغييرات',
     loadingCourse: 'جاري تحميل بيانات الكورس...',
     courseDetails: 'تفاصيل الكورس',
@@ -665,7 +671,6 @@ export default {
     manageLesson: 'إدارة الدرس',
     viewAttendance: 'عرض الحضور',
     editLesson: 'تعديل الدرس',
-    lessonAnalytics: 'تحليلات الدرس',
     presentStudents: '{{count}} حاضرين',
     absentStudents: '{{count}} غائبين',
     studentsEnrolled: 'الطلاب المسجلين',

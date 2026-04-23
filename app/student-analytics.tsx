@@ -2,15 +2,26 @@ import { Fonts } from '@/constants/theme';
 import { useStudentAnalytics } from '@/hooks/useAnalytics';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function StudentAnalyticsScreen() {
     const { studentId, courseId } = useLocalSearchParams();
     const router = useRouter();
     const { theme, isDark } = useTheme();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
     const { data, isLoading, error } = useStudentAnalytics(studentId as string, courseId as string);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     if (isLoading) {
         return (

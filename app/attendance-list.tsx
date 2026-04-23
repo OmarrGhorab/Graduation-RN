@@ -1,4 +1,5 @@
 import { Fonts, cskColors, Colors } from '@/constants/theme';
+import { useAuthStore } from '@/libs/auth';
 import { useLessonAbsences, useAbsenceMutations } from '@/hooks/useCourses';
 import { useLessonAttendance, useLessonDetails, useManualAttendanceOverride } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
@@ -8,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, ScrollView, Platform } from 'react-native';
+import { useEffect } from 'react';
 
 const STATUS_COLORS = {
     PRESENT: '#12ed87',
@@ -42,6 +44,15 @@ export default function AttendanceListScreen() {
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
     const [searchQuery, setSearchQuery] = useState('');
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const { data: attendanceResponse, isLoading: isLoadingAttendance } = useLessonAttendance(lessonId!);
     const { data: lessonResponse, isLoading: isLoadingLesson } = useLessonDetails(lessonId!);

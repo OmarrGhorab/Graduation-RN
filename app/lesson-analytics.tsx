@@ -3,8 +3,9 @@ import { useLessonAnalytics } from '@/hooks/useAnalytics';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -29,7 +30,16 @@ export default function LessonAnalyticsScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const user = useAuthStore(state => state.user);
     const { data, isLoading, error } = useLessonAnalytics(lessonId as string);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     if (isLoading) {
         return (

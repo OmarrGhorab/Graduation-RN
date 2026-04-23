@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/libs/auth';
 import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
@@ -33,7 +34,16 @@ export default function CreateCourseScreen() {
     const { editId } = useLocalSearchParams<{ editId: string }>();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const user = useAuthStore(state => state.user);
     const { createCourseMutation, updateCourseMutation } = useCourseCreation();
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     // Fetch course data if editing
     const { data: editCourseData, isLoading: isLoadingEditCourse } = useQuery({

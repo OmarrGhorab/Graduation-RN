@@ -5,8 +5,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ApiCourse } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -25,6 +26,15 @@ export default function TeacherCoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const { data: coursesData, isLoading, refetch } = useTeacherCourses();
     const courses = coursesData?.success ? coursesData.data : [];

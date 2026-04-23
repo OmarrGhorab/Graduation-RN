@@ -3,6 +3,7 @@ import { useCourseDetails } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuthStore } from '@/libs/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useRef, useEffect } from 'react';
 import { useCourseReviews } from '@/hooks/useCourseReviews';
@@ -31,6 +32,15 @@ export default function TeacherCourseDetailsScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
     
     const { data: detailsData, isLoading, refetch } = useCourseDetails(id as string);
     const course = detailsData?.data?.course;

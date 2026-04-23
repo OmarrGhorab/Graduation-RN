@@ -27,6 +27,15 @@ export default function TeacherDashboardScreen() {
     const { t } = useTranslation();
     const user = useAuthStore((state) => state.user);
     const { data: coursesData, isLoading } = useTeacherCourses();
+    const isTeacher = user?.role === 'TEACHER';
+
+    React.useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const courses = coursesData?.data || [];
 
