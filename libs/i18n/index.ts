@@ -82,7 +82,11 @@ export const isRTL = (): boolean => {
 
 // Translation function
 export const t = (key: string, options?: Record<string, any>): string => {
-  return i18n.t(key, options);
+  const translation = i18n.t(key, options);
+  if (translation.includes('[missing') && !__DEV__) {
+      console.warn(`[i18n] Missing translation for: ${key} in ${i18n.locale}`);
+  }
+  return translation;
 };
 
 // Get text alignment based on locale (for TextInput)

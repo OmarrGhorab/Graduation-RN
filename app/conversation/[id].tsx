@@ -9,11 +9,11 @@ import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAuthStore } from '@/libs/auth';
 import { ChatService } from '@/services/ChatService';
-import { ChatMember, Message } from '@/types/chat';
+import { ChatMember, Conversation, Message } from '@/types/chat';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Audio } from 'expo-av';
+import { InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
@@ -118,7 +118,8 @@ export default function ChatDetailScreen() {
     // const scrollViewRef = useRef<ScrollView>(null);
     const [isAttachmentMenuVisible, setIsAttachmentMenuVisible] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const recorderState = useAudioRecorderState(recorder, 500);
     const [uploadingMedia, setUploadingMedia] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const toast = useToast();
@@ -142,6 +143,17 @@ export default function ChatDetailScreen() {
         queryKey: ['conversation', id],
         queryFn: () => ChatService.getConversationDetails(id!),
         enabled: !!id,
+        initialData: () => {
+            // Seed from conversations list cache
+            const allConvQueries = queryClient.getQueriesData<InfiniteData<Conversation[]>>({ queryKey: ['conversations'] });
+            for (const [_, data] of allConvQueries) {
+                if (data?.pages) {
+                    const found = data.pages.flat().find((c: Conversation) => c.id === id);
+                    if (found) return found as any;
+                }
+            }
+            return undefined;
+        }
     });
 
     // Add real-time presence tracking
@@ -157,6 +169,18 @@ export default function ChatDetailScreen() {
         // Message Listener
         const unsubMessage = subscribe('message.created', (payload: any) => {
             const message = payload.data || payload;
+
+            // Ensure sender object is populated from new payload fields if needed
+            const senderName = message.sender_name || message.sender?.name || 'Someone';
+            const senderImage = (message.sender_image && message.sender_image !== "") ? message.sender_image : (message.sender?.image || "");
+            
+            if (!message.sender || !message.sender.image || message.sender.image === "") {
+                message.sender = {
+                    id: message.sender_id,
+                    name: senderName,
+                    image: senderImage !== "" ? senderImage : `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}`
+                };
+            }
 
             if (message.conversation_id === id) {
                 // If we are focused on this chat, mark it as read immediately to keep backend in sync
@@ -253,16 +277,20 @@ export default function ChatDetailScreen() {
         },
         enabled: !!id,
         initialData: () => {
-            // Try to find the conversation in the cache and use its last_message as initial data
-            const convs = queryClient.getQueryData<any[]>(['conversations', 'ALL', '']);
-            const conv = convs?.find(c => c.id === id);
-
-            if (conv?.last_message) {
-                console.log('[ChatDetail] Seeding initial data with last_message from cache');
-                return {
-                    pages: [[conv.last_message]],
-                    pageParams: [0]
-                };
+            // Try to find the conversation in any of the conversation query caches
+            const allQueries = queryClient.getQueriesData<InfiniteData<Conversation[]>>({ queryKey: ['conversations'] });
+            
+            for (const [_, data] of allQueries) {
+                if (data?.pages) {
+                    const conv = data.pages.flat().find((c: Conversation) => c.id === id);
+                    if (conv?.last_message) {
+                        console.log('[ChatDetail] Seeding initial data with last_message from cache');
+                        return {
+                            pages: [[conv.last_message]],
+                            pageParams: [0]
+                        };
+                    }
+                }
             }
             return undefined;
         }
@@ -311,7 +339,7 @@ export default function ChatDetailScreen() {
     // Determine Permissions
     const checkPermissions = (message: Message) => {
         const user = currentUser;
-        const member = conversation?.members?.find(m => m.user_id === user?.id);
+        const member = conversation?.members?.find((m: ChatMember) => m.user_id === user?.id);
         const globalRole = user?.role;
 
         // Delete: Only own messages (for now)
@@ -323,7 +351,7 @@ export default function ChatDetailScreen() {
         // Kick: Strictly local roles. Owner can kick anyone, Admin can kick Members.
         let canKick = false;
         if (message.sender_id !== user?.id && member) {
-            const targetMember = conversation?.members?.find(m => m.user_id === message.sender_id);
+            const targetMember = conversation?.members?.find((m: ChatMember) => m.user_id === message.sender_id);
             const targetRole = targetMember?.role;
 
             if (member.role === 'OWNER') canKick = true;
@@ -506,7 +534,7 @@ export default function ChatDetailScreen() {
     // Typing indicator data (managed by useTypingIndicator hook)
     const { data: typingData } = useQuery({
         queryKey: ['typing', id],
-        queryFn: () => ({ typing_users: [] as { user_id: string; user_name: string }[] }),
+        queryFn: () => ({ typing_users: [] as { user_id: string; user_name: string; user_image?: string }[] }),
         staleTime: Infinity,
         enabled: !!id,
     });
@@ -552,7 +580,7 @@ export default function ChatDetailScreen() {
             // Try to get the actual name from conversation members if "Someone" is used
             let displayName = othersTyping[0].user_name;
             if (displayName === 'Someone' && conversation?.members) {
-                const member = conversation.members.find(m => m.user_id === othersTyping[0].user_id);
+                const member = conversation.members.find((m: ChatMember) => m.user_id === othersTyping[0].user_id);
                 if (member?.profile?.name) {
                     displayName = member.profile.name;
                 }
@@ -632,31 +660,36 @@ export default function ChatDetailScreen() {
         });
 
         // Optimistically update conversations list cache (Last Message Preview)
-        queryClient.setQueryData(['conversations'], (old: any) => {
-            if (!old) return old;
+        queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
+            if (!old || !old.pages) return old;
 
-            // Handle both array and object responses
-            const conversations = Array.isArray(old) ? old : old.conversations;
-            if (!conversations) return old;
+            const newPages = old.pages.map((page: Conversation[]) => [...page]);
+            let foundIndex = -1;
+            let foundPageIndex = -1;
 
-            let updatedConversations = conversations.map((c: any) => {
-                if (c.id === id) {
-                    return {
-                        ...c,
-                        last_message: {
-                            ...newMessage,
-                            sent_at: new Date().toISOString()
-                        },
-                        updated_at: new Date().toISOString()
-                    };
+            for (let i = 0; i < newPages.length; i++) {
+                const idx = newPages[i].findIndex((c: Conversation) => c.id === id);
+                if (idx !== -1) {
+                    foundPageIndex = i;
+                    foundIndex = idx;
+                    break;
                 }
-                return c;
-            });
+            }
 
-            // Move updated conversation to top
-            updatedConversations.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+            if (foundPageIndex !== -1) {
+                const existingConv = newPages[foundPageIndex][foundIndex];
+                const updatedConv = {
+                    ...existingConv,
+                    last_message: newMessage,
+                    updated_at: new Date().toISOString()
+                };
 
-            return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
+                newPages[foundPageIndex].splice(foundIndex, 1);
+                newPages[0].unshift(updatedConv);
+
+                return { ...old, pages: newPages };
+            }
+            return old;
         });
 
         // Send via HTTP API
@@ -689,24 +722,36 @@ export default function ChatDetailScreen() {
             });
 
             // Update conversations list with real message
-            queryClient.setQueryData(['conversations'], (old: any) => {
-                if (!old) return old;
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (old: any) => {
+                if (!old || !old.pages) return old;
 
-                const conversations = Array.isArray(old) ? old : old.conversations;
-                if (!conversations) return old;
+                const newPages = old.pages.map((page: Conversation[]) => [...page]);
+                let foundIndex = -1;
+                let foundPageIndex = -1;
 
-                const updatedConversations = conversations.map((c: any) => {
-                    if (c.id === id) {
-                        return {
-                            ...c,
-                            last_message: sentMessage,
-                            updated_at: sentMessage.created_at
-                        };
+                for (let i = 0; i < newPages.length; i++) {
+                    const idx = newPages[i].findIndex((c: Conversation) => c.id === id);
+                    if (idx !== -1) {
+                        foundPageIndex = i;
+                        foundIndex = idx;
+                        break;
                     }
-                    return c;
-                });
+                }
 
-                return Array.isArray(old) ? updatedConversations : { ...old, conversations: updatedConversations };
+                if (foundPageIndex !== -1) {
+                    const existingConv = newPages[foundPageIndex][foundIndex];
+                    const updatedConv = {
+                        ...existingConv,
+                        last_message: sentMessage,
+                        updated_at: sentMessage.created_at
+                    };
+
+                    newPages[foundPageIndex].splice(foundIndex, 1);
+                    newPages[0].unshift(updatedConv);
+
+                    return { ...old, pages: newPages };
+                }
+                return old;
             });
 
             // Invalidate media collection if message contains media
@@ -860,21 +905,19 @@ export default function ChatDetailScreen() {
 
     const startRecording = async () => {
         try {
-            const { status } = await Audio.requestPermissionsAsync();
+            const { status } = await requestRecordingPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert("Permission Required", "Microphone access is needed to record voice messages");
                 return;
             }
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
             });
 
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            setRecording(recording);
+            await recorder.prepareToRecordAsync();
+            recorder.record();
             setIsRecording(true);
         } catch (err) {
             console.error('Failed to start recording', err);
@@ -882,15 +925,13 @@ export default function ChatDetailScreen() {
     };
 
     const stopRecording = async () => {
-        if (!recording) return;
+        if (!recorder.isRecording) return;
         setIsRecording(false);
         try {
-            const status = await recording.getStatusAsync();
-            const duration = Math.floor((status as any).durationMillis / 1000);
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            console.log(`[ChatDetail] Recording stopped. Status:`, status, 'Final URI:', uri);
-            setRecording(null);
+            const duration = Math.floor(recorderState.durationMillis / 1000);
+            await recorder.stop();
+            const uri = recorder.uri;
+            console.log(`[ChatDetail] Recording stopped. Duration:`, duration, 'Final URI:', uri);
             if (uri) {
                 uploadAndSendMessage(uri, 'voice', duration);
             }
@@ -1138,6 +1179,18 @@ export default function ChatDetailScreen() {
                 {
                     getTypingMessage() && (
                         <View style={styles.typingIndicatorContainer}>
+                            <View style={styles.typingAvatarsRow}>
+                                {currentTypingUsers.filter(u => u.user_id !== currentUser?.id).slice(0, 3).map((u, i) => (
+                                    <Image 
+                                        key={u.user_id}
+                                        source={{ uri: u.user_image || `https://ui-avatars.com/api/?name=${u.user_name}&background=random` }} 
+                                        style={[
+                                            styles.senderThumbSmall,
+                                            i > 0 && { marginLeft: -8, borderWidth: 2, borderColor: theme.background }
+                                        ]}
+                                    />
+                                ))}
+                            </View>
                             <AnimatedTypingDots theme={theme} />
                             <Text style={[styles.typingIndicatorText, { color: theme.textSecondary }]}>{getTypingMessage()}</Text>
                         </View>
@@ -1465,8 +1518,13 @@ const MessageBubble = ({
     };
 
     const isSender = message.sender_id === currentUserId;
+    
+    // Playback Logic with expo-audio
+    const audioUri = message.media_urls?.[0] || message.content;
+    const player = useAudioPlayer(message.type === 'voice' ? { uri: audioUri } : null);
+    const playerStatus = useAudioPlayerStatus(player);
+    
     const [isPlaying, setIsPlaying] = useState(false);
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [progress, setProgress] = useState(0);
 
     // Delete animation
@@ -1499,64 +1557,42 @@ const MessageBubble = ({
 
     const [duration, setDuration] = useState((message.media_metadata?.duration || 0) * 1000);
 
-    // Get sender info directly from message
+    // Prepare sender metadata with robust fallback
     const senderName = message.sender?.name || '';
-    const senderImage = message.sender?.image;
-
+    const senderImage = (message.sender?.image && message.sender.image !== "") ? message.sender.image : `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName || 'U')}&background=random`;
 
     const [waveformWidth, setWaveformWidth] = useState(0);
 
+    // Sync player state with UI
     useEffect(() => {
-        return () => {
-            if (sound) {
-                sound.unloadAsync();
+        if (message.type === 'voice') {
+            setIsPlaying(player.playing);
+            
+            // Sync duration if player has it
+            if (player.duration > 0) {
+                setDuration(player.duration * 1000);
             }
-        };
-    }, [sound]);
 
-    const handlePlaybackStatusUpdate = (status: any) => {
-        if (status.isLoaded) {
-            setDuration(status.durationMillis || ((message.media_metadata?.duration || 0) * 1000));
-            // Only update progress from player if we are NOT dragging
+            // Sync progress if not dragging
             if (!isDragging.current) {
-                setProgress(status.positionMillis);
+                setProgress(player.currentTime * 1000);
             }
-            if (status.didJustFinish) {
+
+            if (playerStatus.didJustFinish) {
                 setIsPlaying(false);
-                sound?.setPositionAsync(0);
+                player.seekTo(0);
                 setProgress(0);
             }
         }
-    };
+    }, [player.playing, player.currentTime, player.duration, playerStatus.didJustFinish]);
 
     const playAudio = async () => {
         try {
-            if (sound) {
-                if (isPlaying) {
-                    await sound.pauseAsync();
-                    setIsPlaying(false);
-                } else {
-                    await sound.playAsync();
-                    setIsPlaying(true);
-                }
-                return;
+            if (player.playing) {
+                player.pause();
+            } else {
+                player.play();
             }
-
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-            });
-
-            // Get audio URL from media_urls or fallback to content
-            const audioUri = message.media_urls?.[0] || message.content;
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: audioUri },
-                { shouldPlay: true },
-                handlePlaybackStatusUpdate
-            );
-            setSound(newSound);
-            setIsPlaying(true);
         } catch (error) {
             console.error('Error playing sound', error);
         }
@@ -1594,15 +1630,15 @@ const MessageBubble = ({
                 setProgress(newPos);
             },
 
-            onPanResponderRelease: async () => {
-                // Commit the seek
-                if (sound) {
-                    await sound.setPositionAsync(progress);
-                    if (!isPlaying) {
-                        await sound.playAsync();
-                        setIsPlaying(true);
-                    }
-                }
+            onPanResponderRelease: (evt, gestureState) => {
+                if (!waveformWidth || !duration) return;
+
+                const percentChange = gestureState.dx / waveformWidth;
+                const timeChange = percentChange * duration;
+                let newPos = startDragProgress.current + timeChange;
+                newPos = Math.max(0, Math.min(newPos, duration));
+
+                player.seekTo(newPos / 1000);
                 isDragging.current = false;
             },
 
@@ -1616,13 +1652,10 @@ const MessageBubble = ({
         const x = event.nativeEvent.locationX;
         const seekPosition = (x / waveformWidth) * duration;
 
-        if (sound) {
-            await sound.setPositionAsync(seekPosition);
-            setProgress(seekPosition);
-            if (!isPlaying) {
-                await sound.playAsync();
-                setIsPlaying(true);
-            }
+        player.seekTo(seekPosition / 1000);
+        setProgress(seekPosition);
+        if (!player.playing) {
+            player.play();
         }
     };
 
@@ -1878,9 +1911,10 @@ const MessageBubble = ({
             {!isSender && (
                 showSenderInfo ? (
                     <Image
-                        source={{ uri: senderImage || undefined }}
+                        source={{ uri: senderImage }}
                         style={styles.messageAvatar}
                         contentFit="cover"
+                        transition={200}
                     />
                 ) : (
                     <View style={{ width: 32, height: 32, marginRight: 8 }} />  // Spacer to align grouped messages
@@ -2491,5 +2525,15 @@ const styles = StyleSheet.create({
         right: -6,
         backgroundColor: 'white',
         borderRadius: 10,
+    },
+    senderThumbSmall: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+    },
+    typingAvatarsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 4,
     },
 });

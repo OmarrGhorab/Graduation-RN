@@ -15,12 +15,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HomeHeaderProps {
     onNotificationPress?: () => void;
+    onCalendarPress?: () => void;
+    onRefreshPress?: () => void;
     onSearchSubmit?: (query: string) => void;
+    onReschedulePress?: () => Promise<void>;
     notificationCount?: number;
     scrollY?: SharedValue<number>;
+    isRefreshing?: boolean;
 }
 
-export default function HomeHeader({ onNotificationPress, notificationCount = 0, scrollY }: HomeHeaderProps) {
+export default function HomeHeader({ onNotificationPress, onCalendarPress, onRefreshPress, onReschedulePress, notificationCount = 0, scrollY, isRefreshing }: HomeHeaderProps) {
     const user = useAuthStore((state) => state.user);
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
@@ -28,8 +32,6 @@ export default function HomeHeader({ onNotificationPress, notificationCount = 0,
     const displayName = user?.name || user?.username || 'Student';
     // Use a high-res placeholder if no image
     const profileImage = user?.profileImg;
-
-    const headerHeight = insets.top + 80;
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!scrollY) return {};
@@ -67,6 +69,14 @@ export default function HomeHeader({ onNotificationPress, notificationCount = 0,
 
                     {/* Actions Section (Right) */}
                     <View style={styles.actionsContainer}>
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={onCalendarPress}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="calendar-outline" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={styles.iconButton}
                             onPress={onNotificationPress}

@@ -4,6 +4,7 @@ import {
     Conversation,
     ConversationDetail,
     CreateGroupRequest,
+    DiscoveryResponse,
     MediaCollection,
     MediaPresignResponse,
     Message,
@@ -38,6 +39,11 @@ export const ChatService = {
         return apiClient.get<Conversation[]>(`${PREFIX}/conversations`, {
             params: filters
         });
+    },
+
+    // Discover related contacts and groups
+    async discoverContacts(): Promise<DiscoveryResponse> {
+        return apiClient.get<DiscoveryResponse>(`${PREFIX}/conversations/discover`);
     },
 
     // Get Conversation Details
@@ -235,20 +241,20 @@ export const ChatService = {
     async uploadMedia(fileUri: string, type: 'image' | 'voice'): Promise<string> {
         try {
             console.log(`[ChatService] Starting media upload - Type: ${type}, URI: ${fileUri}`);
-            
+
             // 1. Get presigned URL from backend
             const folder = type === 'image' ? 'chat/images' : 'chat/voice';
             console.log(`[ChatService] Requesting presigned URL for folder: ${folder}`);
-            
+
             const presignData = await this.getPresignedUrl(folder);
-            
+
             // Fix: Backend might return image/upload URL for voice, but Cloudinary needs video/upload for audio
             let uploadUrl = presignData.url;
             if (type === 'voice' && uploadUrl.includes('/image/upload')) {
                 uploadUrl = uploadUrl.replace('/image/upload', '/video/upload');
                 console.log(`[ChatService] Fixed URL for voice upload: ${uploadUrl}`);
             }
-            
+
             console.log(`[ChatService] Received presign data:`, {
                 url: uploadUrl,
                 folder: presignData.folder,
@@ -269,14 +275,14 @@ export const ChatService = {
             formData.append('timestamp', presignData.timestamp.toString());
             formData.append('signature', presignData.signature);
             formData.append('folder', presignData.folder);
-            
+
             // For voice, add resource_type parameter
             if (type === 'voice') {
                 formData.append('resource_type', 'video');
             }
 
             console.log(`[ChatService] Uploading to Cloudinary...`);
-            
+
             // 4. Upload to Cloudinary (don't set Content-Type header - FormData handles it)
             const uploadRes = await fetch(uploadUrl, {
                 method: 'POST',
@@ -292,21 +298,21 @@ export const ChatService = {
                 } catch {
                     errorData = { message: errorText };
                 }
-                
+
                 console.error(`[ChatService] Cloudinary upload failed:`, {
                     status: uploadRes.status,
                     statusText: uploadRes.statusText,
                     error: errorData
                 });
-                
-                const errorMessage = errorData?.error?.message || 
-                                   errorData?.message || 
-                                   `Upload failed with status ${uploadRes.status}`;
+
+                const errorMessage = errorData?.error?.message ||
+                    errorData?.message ||
+                    `Upload failed with status ${uploadRes.status}`;
                 throw new Error(`Media upload failed: ${errorMessage}`);
             }
 
             const uploadData = await uploadRes.json();
-            
+
             if (!uploadData.secure_url) {
                 console.error(`[ChatService] No secure_url in response:`, uploadData);
                 throw new Error('Upload succeeded but no URL returned from Cloudinary');
@@ -314,10 +320,10 @@ export const ChatService = {
 
             console.log(`[ChatService] Upload successful - URL: ${uploadData.secure_url}`);
             return uploadData.secure_url;
-            
+
         } catch (error) {
             console.error(`[ChatService] Media upload error:`, error);
-            
+
             // Provide user-friendly error messages
             if (error instanceof Error) {
                 if (error.message.includes('Network request failed')) {
@@ -328,7 +334,7 @@ export const ChatService = {
                 }
                 throw error;
             }
-            
+
             throw new Error('Failed to upload media. Please try again.');
         }
     },

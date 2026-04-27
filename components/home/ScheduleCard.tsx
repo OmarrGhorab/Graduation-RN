@@ -20,10 +20,13 @@ interface ScheduleCardProps {
     time: string;
     teacherName: string;
     status: LessonStatus;
+    startTime?: string;
+    endTime?: string;
     location?: string;
     isLast?: boolean; // New prop to handle timeline connecting line
     attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
     isTeacher?: boolean;
+    canMarkAttendance?: boolean;
     onPress?: () => void;
     onScanPress?: () => void;
 }
@@ -33,10 +36,13 @@ export default function ScheduleCard({
     time,
     teacherName,
     status,
+    startTime,
+    endTime,
     location,
     isLast = false,
     attendanceStatus,
     isTeacher,
+    canMarkAttendance,
     onPress,
     onScanPress,
 }: ScheduleCardProps) {
@@ -46,7 +52,42 @@ export default function ScheduleCard({
     // Pulse animation for LIVE status
     const pulseAnim = useSharedValue(1);
 
+    const [remainingTime, setRemainingTime] = React.useState<string | null>(null);
+    const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const calculateRemaining = () => {
+        if (!startTime || !endTime) return;
+        
+        const now = new Date();
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+
+        if (status === 'SCHEDULED' && start > now) {
+            const diff = start.getTime() - now.getTime();
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (hours > 24) {
+                setRemainingTime(t('time.daysLeft', { count: Math.floor(hours / 24) }));
+            } else if (hours > 0) {
+                setRemainingTime(t('time.hoursLeft', { count: hours }));
+            } else {
+                setRemainingTime(t('time.minutesLeft', { count: minutes }));
+            }
+        } else if (status === 'LIVE' && end > now) {
+            const diff = end.getTime() - now.getTime();
+            const minutes = Math.floor(diff / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            setRemainingTime(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+        } else {
+            setRemainingTime(null);
+        }
+    };
+
     useEffect(() => {
+        calculateRemaining();
+        timerRef.current = setInterval(calculateRemaining, 1000);
+        
         if (status === 'LIVE') {
             pulseAnim.value = withRepeat(
                 withSequence(
@@ -59,18 +100,24 @@ export default function ScheduleCard({
         } else {
             pulseAnim.value = 1;
         }
-    }, [status]);
+
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, [status, startTime, endTime]);
 
     const pulseStyle = useAnimatedStyle(() => ({
         transform: [{ scale: pulseAnim.value }],
         opacity: status === 'LIVE' ? withSequence(withTiming(0.6, { duration: 1000 }), withTiming(1, { duration: 1000 })) : 1,
     }));
 
-    const isLive = status === 'LIVE';
-    const isCompleted = status === 'COMPLETED';
-    const isCanceled = status === 'CANCELED';
-    const isFuture = status === 'SCHEDULED';
+    const statusUpper = (status || '').toUpperCase();
+    const isLive = statusUpper === 'LIVE';
+    const isCompleted = statusUpper === 'COMPLETED';
+    const isCanceled = statusUpper === 'CANCELED';
+    const isFuture = statusUpper === 'SCHEDULED';
     const hasAttended = attendanceStatus === 'PRESENT' || attendanceStatus === 'LATE';
+    const canScan = (isLive || canMarkAttendance === true) && !hasAttended && !isTeacher;
 
     // Timeline Icon Logic
     const renderTimelineIcon = () => {
@@ -143,22 +190,36 @@ export default function ScheduleCard({
                     <Text style={[styles.timeText, { color: isLive ? theme.primary : (isDark ? theme.gray[400] : theme.gray[500]) }]}>
                         {time}
                     </Text>
-                    {isLive && !hasAttended && !isTeacher && (
+                    {canScan && (
                         <TouchableOpacity onPress={onScanPress} style={[styles.liveBadge, { backgroundColor: 'rgba(9, 125, 70, 0.1)', borderColor: 'rgba(9, 125, 70, 0.2)' }]}>
                             <View style={[styles.liveDot, { backgroundColor: theme.primary }]} />
-                            <Text style={[styles.liveText, { color: theme.primary }]}>LIVE - SCAN</Text>
+                            <Text style={[styles.liveText, { color: theme.primary }]}>{t('courseDetails.markAttendance').toUpperCase()}</Text>
                         </TouchableOpacity>
+                    )}
+                    {remainingTime && (
+                        <View style={[styles.remainingBadge, { backgroundColor: isLive ? `${theme.primary}15` : (isDark ? theme.gray[800] : theme.gray[100]) }]}>
+                            <Ionicons name="hourglass-outline" size={10} color={isLive ? theme.primary : theme.gray[500]} />
+                            <Text style={[styles.remainingText, { color: isLive ? theme.primary : theme.gray[500] }]}>
+                                {remainingTime}
+                            </Text>
+                        </View>
                     )}
                     {(isLive && isTeacher) && (
                         <View style={[styles.liveBadge, { backgroundColor: 'rgba(18, 237, 135, 0.1)', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
                             <View style={[styles.liveDot, { backgroundColor: '#12ed87' }]} />
-                            <Text style={[styles.liveText, { color: '#12ed87' }]}>LIVE - MANAGE</Text>
+                            <Text style={[styles.liveText, { color: '#12ed87' }]}>{t('home.liveManage').toUpperCase()}</Text>
                         </View>
                     )}
-                    {hasAttended && !isTeacher && (
-                        <View style={[styles.liveBadge, { backgroundColor: 'rgba(9, 125, 70, 0.1)', borderColor: 'rgba(9, 125, 70, 0.2)' }]}>
-                            <Ionicons name="checkmark-circle" size={12} color={theme.primary} />
-                            <Text style={[styles.liveText, { color: theme.primary, marginLeft: 4 }]}>ATTENDED</Text>
+                    {isCompleted && isTeacher && (
+                        <View style={[styles.liveBadge, { backgroundColor: 'rgba(100, 116, 139, 0.1)', borderColor: 'rgba(100, 116, 139, 0.2)' }]}>
+                            <Ionicons name="checkmark-done-circle" size={12} color={isDark ? '#94a3b8' : '#64748b'} />
+                            <Text style={[styles.liveText, { color: isDark ? '#94a3b8' : '#64748b', marginLeft: 4 }]}>{t('home.completed').toUpperCase()}</Text>
+                        </View>
+                    )}
+                    {isCanceled && (
+                        <View style={[styles.liveBadge, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                            <Ionicons name="close-circle" size={12} color="#ef4444" />
+                            <Text style={[styles.liveText, { color: '#ef4444', marginLeft: 4 }]}>{t('home.canceled').toUpperCase()}</Text>
                         </View>
                     )}
                 </View>
@@ -173,25 +234,11 @@ export default function ScheduleCard({
                     <View style={styles.locationContainer}>
                         <Ionicons name="location-sharp" size={14} color={isDark ? theme.gray[400] : '#4c9a75'} />
                         <Text style={[styles.locationText, { color: isDark ? theme.gray[400] : '#4c9a75' }]}>
-                            {location || 'Room 101'}
+                            {location || t('home.classroom')}
                         </Text>
                     </View>
 
-                    {/* Only show "Scan" button if LIVE, otherwise show Teacher name */}
-                    {isLive ? (
-                        /* We don't necessarily need the button IN the card if there's a FAB, 
-                           but the requested design has a FAB. The user asked to "take only your schedule from that code".
-                           In the snippet, the FAB is separate. 
-                           However, for better UX in this specific list item, adding a mini-action or strict compliance?
-                           The prompt says "Features ... Scan QR button". The updated snippet has a FAB.
-                           I will keep a small action button inside for "Scan" just in case, or relying on component props.
-                           The previous version had it. I'll keep it subtle or remove if relying on FAB. 
-                           The snippet has avatars. I'll use simple teacher name for now to match props.
-                           */
-                        null
-                    ) : (
-                        <Text style={[styles.teacherText, { color: theme.gray[500] }]}>{teacherName}</Text>
-                    )}
+                    <Text style={[styles.teacherText, { color: theme.gray[500] }]}>{teacherName}</Text>
                 </View>
             </TouchableOpacity>
         </View>
@@ -328,5 +375,18 @@ const styles = StyleSheet.create({
     teacherText: {
         fontSize: 12,
         fontFamily: Fonts.regular,
+    },
+    remainingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        marginLeft: 8,
+        gap: 4,
+    },
+    remainingText: {
+        fontSize: 10,
+        fontFamily: Fonts.bold,
     },
 });

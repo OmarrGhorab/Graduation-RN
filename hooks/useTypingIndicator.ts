@@ -6,6 +6,7 @@ import { useWebSocket } from './useWebSocket';
 interface TypingUser {
     user_id: string;
     user_name: string;
+    user_image?: string;
 }
 
 const TYPING_THROTTLE_MS = 3000; // Send typing indicator at most once every 3 seconds
@@ -62,9 +63,10 @@ export function useTypingIndicator(conversationId: string) {
                 if (isTyping) {
                     // Add user if not already typing
                     if (!users.find((u: TypingUser) => u.user_id === userId)) {
-                        const newUser = {
+                        const newUser: TypingUser = {
                             user_id: userId,
                             user_name: userName,
+                            user_image: data.user_image || data.image
                         };
                         console.log('[useTypingIndicator] Adding typing user:', newUser);
                         return { typing_users: [...users, newUser] };
@@ -113,7 +115,11 @@ export function useTypingIndicator(conversationId: string) {
                 
                 if (isTyping) {
                     if (!users.find((u: TypingUser) => u.user_id === userId)) {
-                        const newUser = { user_id: userId, user_name: userName };
+                        const newUser: TypingUser = { 
+                            user_id: userId, 
+                            user_name: userName,
+                            user_image: data.user_image || data.image
+                        };
                         return { typing_users: [...users, newUser] };
                     }
                 } else {

@@ -1,10 +1,11 @@
 import { Fonts, cskColors, errorColors } from '@/constants/theme';
 import { useLessonAttendance, useLessonControl, useLessonDetails, useLessonQR } from '@/hooks/useLessons';
+import { useAuthStore } from '@/libs/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, Modal, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -21,11 +22,21 @@ export default function TeacherControlPanel() {
     const router = useRouter();
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const { data: lessonResponse, isLoading: isLoadingDetails } = useLessonDetails(lessonId!);
     const lesson = lessonResponse?.data;
 
     const isLive = lesson?.status === 'LIVE';
+    const isCompleted = lesson?.status === 'COMPLETED';
 
     const { data: qrResponse, refetch: refetchQR } = useLessonQR(lessonId!, isLive);
     const { data: attendanceResponse } = useLessonAttendance(lessonId!, isLive);
@@ -33,6 +44,13 @@ export default function TeacherControlPanel() {
 
     const [timer, setTimer] = useState('00:00:00');
     const [qrCountdown, setQrCountdown] = useState(30);
+    const [isEndModalVisible, setIsEndModalVisible] = useState(false);
+    const [isEnding, setIsEnding] = useState(false);
+
+
+    const qrData = qrResponse?.data;
+    const qrString = qrData ? JSON.stringify({ data: { payload: qrData.payload, signature: qrData.signature } }) : '';
+    const qrImageUrl = qrString ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}` : null;
 
     // Scan line animation
     const translateY = useSharedValue(0);
@@ -47,6 +65,13 @@ export default function TeacherControlPanel() {
             false
         );
     }, []);
+
+    // Redirect if lesson is finished
+    useEffect(() => {
+        if (lesson && (lesson.status === 'COMPLETED')) {
+            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+        }
+    }, [lesson?.status, lessonId]);
 
     // Timer logic
     useEffect(() => {
@@ -71,10 +96,10 @@ export default function TeacherControlPanel() {
 
     // QR Countdown Timer (30s validity with ±30s tolerance = 60s total)
     useEffect(() => {
-        if (!isLive || !qrData?.expiresAt) return;
+        if (!isLive || !qrData?.expires_at) return;
 
         const interval = setInterval(() => {
-            const expiresAt = new Date(qrData.expiresAt).getTime();
+            const expiresAt = new Date(qrData.expires_at).getTime();
             const now = new Date().getTime();
             const diff = Math.max(0, expiresAt - now);
             const secondsLeft = Math.ceil(diff / 1000);
@@ -88,7 +113,7 @@ export default function TeacherControlPanel() {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isLive, qrData?.expiresAt, refetchQR]);
+    }, [isLive, qrData?.expires_at, refetchQR]);
 
     const animatedScanStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: translateY.value }],
@@ -102,35 +127,23 @@ export default function TeacherControlPanel() {
         }
     };
 
-    const handleEndLesson = () => {
-        Alert.alert(
-            'End Lesson',
-            'Are you sure you want to end this lesson and finalize attendance?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'End Lesson',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await endLesson.mutateAsync();
-                            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
-                        } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to end lesson');
-                        }
-                    }
-                }
-            ]
-        );
+    const handleEndLesson = async () => {
+        try {
+            setIsEnding(true);
+            await endLesson.mutateAsync();
+            setIsEndModalVisible(false);
+            router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to end lesson');
+        } finally {
+            setIsEnding(false);
+        }
     };
 
-    const qrData = qrResponse?.data;
-    const qrString = qrData ? JSON.stringify({ data: { payload: qrData.payload, signature: qrData.signature } }) : '';
-    const qrImageUrl = qrString ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrString)}` : null;
 
-    const studentsPresent = attendanceResponse?.data?.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
-    const totalStudents = lesson?.enrolledStudents || 50; // Use enrolled students if available
-    const attendancePercentage = (studentsPresent / totalStudents) * 100;
+    const studentsPresent = attendanceResponse?.data?.filter((a: { status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' }) => a.status === 'PRESENT' || a.status === 'LATE').length || 0;
+    const totalStudents = lesson?.enrolledStudents ?? 0; 
+    const attendancePercentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
 
     if (isLoadingDetails) {
         return (
@@ -179,21 +192,30 @@ export default function TeacherControlPanel() {
 
                 {!isLive ? (
                     <View style={styles.startSection}>
-                        <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Ready to start the lesson?</Text>
-                        <TouchableOpacity
-                            style={[styles.startButton, { backgroundColor: theme.primary }]}
-                            onPress={handleStartLesson}
-                            disabled={startLesson.isPending}
-                        >
-                            {startLesson.isPending ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <>
-                                    <MaterialIcons name="play-arrow" size={32} color="#fff" />
-                                    <Text style={styles.startButtonText}>Start Now</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                        {isCompleted ? (
+                             <View style={{ alignItems: 'center', gap: 12 }}>
+                                <MaterialIcons name="check-circle" size={64} color="#12ed87" />
+                                <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Lesson Successfully Completed</Text>
+                             </View>
+                        ) : (
+                            <>
+                                <Text style={[styles.startPrompt, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Ready to start the lesson?</Text>
+                                <TouchableOpacity
+                                    style={[styles.startButton, { backgroundColor: theme.primary }]}
+                                    onPress={handleStartLesson}
+                                    disabled={startLesson.isPending}
+                                >
+                                    {startLesson.isPending ? (
+                                        <ActivityIndicator color="#fff" />
+                                    ) : (
+                                        <>
+                                            <MaterialIcons name="play-arrow" size={32} color="#fff" />
+                                            <Text style={styles.startButtonText}>Start Now</Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 ) : (
                     <>
@@ -296,18 +318,96 @@ export default function TeacherControlPanel() {
             </View>
 
             {/* Footer */}
-            {isLive && (
+            {isLive && !isCompleted && (
                 <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
                     <TouchableOpacity
                         style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
-                        onPress={handleEndLesson}
+                        onPress={() => setIsEndModalVisible(true)}
+                        disabled={endLesson.isPending}
                         activeOpacity={0.9}
                     >
-                        <MaterialIcons name="stop" size={24} color="#ffffff" />
-                        <Text style={styles.endButtonText}>End Lesson</Text>
+                        {endLesson.isPending ? (
+                            <ActivityIndicator color="#ffffff" />
+                        ) : (
+                            <>
+                                <MaterialIcons name="stop" size={24} color="#ffffff" />
+                                <Text style={styles.endButtonText}>End Lesson</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             )}
+
+            {/* Show completed message */}
+            {isCompleted && (
+                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                    <View style={[styles.completedBanner, { backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: '#22c55e' }]}>
+                        <MaterialIcons name="check-circle" size={24} color="#22c55e" />
+                        <Text style={[styles.completedText, { color: '#22c55e' }]}>Lesson Completed</Text>
+                    </View>
+                </View>
+            )}
+
+            {/* Custom End Lesson Modal */}
+            <Modal
+                visible={isEndModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsEndModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#142a20' : '#ffffff' }]}>
+                        <View style={styles.modalIconContainer}>
+                            <View style={[styles.modalIconBg, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                                <MaterialIcons name="report-problem" size={32} color="#ef4444" />
+                            </View>
+                        </View>
+                        
+                        <View style={styles.modalTextContainer}>
+                            <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>End Lesson?</Text>
+                            <Text style={[styles.modalSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                                You are about to finalize this session.
+                            </Text>
+
+                            <View style={styles.summaryStats}>
+                                <View style={styles.summaryStatItem}>
+                                    <Text style={styles.summaryStatValue}>{studentsPresent}</Text>
+                                    <Text style={styles.summaryStatLabel}>Present</Text>
+                                </View>
+                                <View style={[styles.summaryStatItem, { borderLeftWidth: 1, borderLeftColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                                    <Text style={[styles.summaryStatValue, { color: '#ef4444' }]}>{Math.max(0, totalStudents - studentsPresent)}</Text>
+                                    <Text style={styles.summaryStatLabel}>Remaining</Text>
+                                </View>
+                            </View>
+
+                            <Text style={[styles.modalWarning, { color: '#ef4444' }]}>
+                                All remaining students will be marked as ABSENT.
+                            </Text>
+                        </View>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, styles.modalSecondaryBtn, { borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}
+                                onPress={() => setIsEndModalVisible(false)}
+                                disabled={isEnding}
+                            >
+                                <Text style={[styles.modalSecondaryBtnText, { color: isDark ? '#e0e7e4' : '#64748b' }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalBtn, styles.modalPrimaryBtn, { backgroundColor: '#ef4444' }]}
+                                onPress={handleEndLesson}
+                                disabled={isEnding}
+                            >
+                                {isEnding ? (
+                                    <ActivityIndicator color="#fff" size="small" />
+                                ) : (
+                                    <Text style={styles.modalPrimaryBtnText}>End & Finalize</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -613,4 +713,118 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontFamily: Fonts.bold,
     },
+    completedBanner: {
+        width: '100%',
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    completedText: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 340,
+        borderRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+    },
+    modalIconContainer: {
+        marginBottom: 20,
+    },
+    modalIconBg: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalTextContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontFamily: Fonts.bold,
+        marginBottom: 8,
+    },
+    modalSubtitle: {
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        textAlign: 'center',
+        lineHeight: 22,
+    },
+    summaryStats: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(0,0,0,0.02)',
+        borderRadius: 16,
+        padding: 16,
+        marginVertical: 20,
+        width: '100%',
+    },
+    summaryStatItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    summaryStatValue: {
+        fontSize: 24,
+        fontFamily: Fonts.bold,
+        color: '#097d46',
+    },
+    summaryStatLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.medium,
+        color: '#64748b',
+        marginTop: 2,
+    },
+    modalWarning: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+        textAlign: 'center',
+        marginTop: 4,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        gap: 12,
+        width: '100%',
+    },
+    modalBtn: {
+        flex: 1,
+        height: 52,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalSecondaryBtn: {
+        borderWidth: 1,
+    },
+    modalPrimaryBtn: {
+        shadowColor: '#ef4444',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    modalSecondaryBtnText: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+    },
+    modalPrimaryBtnText: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+        color: '#ffffff',
+    },
 });
+

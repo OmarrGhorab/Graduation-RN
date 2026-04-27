@@ -66,7 +66,14 @@
         "@react-native-google-signin/google-signin"
       ],
       "expo-localization",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -10,6 +10,7 @@ export const ChatMemberSchema = z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Professional/Global Role
     }),
     is_online: z.boolean().optional(),
 });
@@ -69,13 +70,16 @@ export const ConversationSchema = z.object({
             image: z.string(),
         }),
     }).nullable().optional(),
+    role: z.string().optional(), // Global role of the peer (for DIRECT)
     peer_profile: z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Global role
     }).optional(),
     peer_online: z.boolean().optional(),
     is_typing_name: z.string().nullable().optional(),
+    is_typing_image: z.string().nullable().optional(),
 });
 
 export type Conversation = z.infer<typeof ConversationSchema>;
@@ -95,6 +99,7 @@ export const ConversationDetailSchema = z.object({
         id: z.string(),
         name: z.string(),
         image: z.string(),
+        role: z.string().optional(), // Global role
     }).optional(),
     peer_online: z.boolean().optional(),
 });
@@ -191,4 +196,29 @@ export interface UserPresenceEvent {
     user_id: string;
     is_online: boolean;
     timestamp: string;
+}
+
+// Discovery Types
+export const DiscoverySuggestionSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().nullable().optional(),
+    role: z.string(),
+    category: z.enum(['FAMILY', 'ACADEMIC', 'GROUPS']),
+    relation: z.string(),
+});
+
+export type DiscoverySuggestion = z.infer<typeof DiscoverySuggestionSchema>;
+
+export const GroupSuggestionSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    type: z.string(),
+});
+
+export type GroupSuggestion = z.infer<typeof GroupSuggestionSchema>;
+
+export interface DiscoveryResponse {
+    contacts: DiscoverySuggestion[];
+    groups: GroupSuggestion[];
 }

@@ -70,6 +70,15 @@ export default function WelcomeScreen() {
         // Main navigation logic
         const handleNavigation = async () => {
             try {
+                // Step 0: Ensure auth store is hydrated
+                const { hasHydrated } = useAuthStore.getState();
+                if (!hasHydrated) {
+                    logger.log('[Splash] Auth store not hydrated yet, waiting...');
+                    // Check again in 500ms
+                    setTimeout(handleNavigation, 500);
+                    return;
+                }
+
                 // Step 1: Check if this is first time opening the app (intro onboarding)
                 const introCompleted = await isOnboardingCompleted();
                 logger.log('[Splash] Intro Onboarding Completed:', introCompleted);

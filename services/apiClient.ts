@@ -1,7 +1,7 @@
 import { BASE_URL } from '@/constants/config';
+import { ApiError, AuthError, NetworkError, TimeoutError } from '@/types/errors';
 import { getValidAccessToken } from './AuthService';
 import { DeviceService } from './DeviceService';
-import { ApiError, NetworkError, AuthError, TimeoutError } from '@/types/errors';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -26,6 +26,10 @@ interface RequestOptions {
     timeout?: number;
     /** Skip request deduplication */
     skipDeduplication?: boolean;
+    /** Suppress console error logging for this request */
+    silent?: boolean;
+    /** Internal flag to avoid infinite retry loops */
+    _isRetry?: boolean;
 }
 
 /**
@@ -71,6 +75,7 @@ async function request<T = unknown>(
         params,
         timeout = DEFAULT_TIMEOUT_MS,
         skipDeduplication = false,
+        silent = false,
     } = options;
 
     const url = buildUrl(endpoint, params);
@@ -89,9 +94,13 @@ async function request<T = unknown>(
         const timeoutId = setTimeout(() => abortController.abort(), timeout);
 
         try {
+            // Detect if body is FormData
+            const isFormData = body instanceof FormData;
+            
             // Build headers
             const requestHeaders: Record<string, string> = {
-                'Content-Type': 'application/json',
+                // Don't set Content-Type for FormData - let browser set it with boundary
+                ...(!isFormData && { 'Content-Type': 'application/json' }),
                 ...headers,
             };
 
@@ -119,15 +128,31 @@ async function request<T = unknown>(
 
             // Add body for non-GET requests
             if (body && method !== 'GET') {
-                config.body = JSON.stringify(body);
+                // Don't stringify FormData - send it as-is
+                config.body = isFormData ? (body as any) : JSON.stringify(body);
             }
+
+            console.log('[apiClient] Making request:', {
+                method,
+                url,
+                headers: requestHeaders,
+                body: isFormData ? '[FormData]' : config.body,
+            });
 
             // Make request
             const response = await fetch(url, config);
 
+            console.log('[apiClient] Response received:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                headers: Object.fromEntries(response.headers.entries()),
+            });
+
             // Check content type for JSON
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
+                console.log('[apiClient] Non-JSON response, content-type:', contentType);
                 if (!response.ok) {
                     throw new ApiError(
                         `Server error (${response.status}): Invalid response format`,
@@ -140,16 +165,47 @@ async function request<T = unknown>(
 
             // Parse response
             const data: unknown = await response.json();
+            console.log('[apiClient] Response data:', data);
 
             // Handle error responses
             if (!response.ok) {
                 const responseObj = data as Record<string, unknown>;
                 const message = (responseObj.message || responseObj.error || `Request failed with status ${response.status}`) as string;
+
+                // Handle 401 Unauthorized - attempt to refresh token and retry
+                if (response.status === 401 && !options._isRetry && !skipAuth) {
+                    console.log('[apiClient] 401 detected, attempting token refresh and retry...');
+                    try {
+                        // Import here to avoid circular dependency if any, or just use the injected getValidAccessToken
+                        // Actually, we want to FORCE a refresh here because the supposedly "valid" token was rejected
+                        const { refreshAccessToken, getRefreshToken, clearAuthToken } = require('./auth/tokenService');
+                        const refreshToken = getRefreshToken();
+                        
+                        if (refreshToken) {
+                            await refreshAccessToken(refreshToken);
+                            // Retry the request with new token
+                            return await request<T>(method, endpoint, { ...options, _isRetry: true });
+                        } else {
+                            await clearAuthToken();
+                        }
+                    } catch (refreshError) {
+                        console.error('[apiClient] Token refresh failed during 401 retry:', refreshError);
+                        // Fall through to error throwing
+                    }
+                }
+
+                if (!silent) {
+                    console.error('[apiClient] Error response:', { status: response.status, message, data });
+                }
                 throw new ApiError(message, response.status, data);
             }
 
             return data as T;
         } catch (error: unknown) {
+            if (!silent) {
+                console.error('[apiClient] Request failed with error:', error);
+            }
+            
             // Handle abort/timeout errors
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new TimeoutError(`Request timed out after ${timeout}ms`, timeout);
@@ -162,6 +218,12 @@ async function request<T = unknown>(
 
             // Handle network errors
             if (error instanceof Error) {
+                console.error('[apiClient] Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                });
+                
                 if (error.message === 'Network request failed') {
                     throw new NetworkError(
                         `Cannot connect to server at ${BASE_URL}. Please check your connection.`,

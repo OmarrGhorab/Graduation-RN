@@ -13,9 +13,10 @@ export interface ParentUser {
 
 export interface ChildUser {
     id: string;
-    username: string;
     name: string;
+    email?: string;
     profileImg: string | null;
+    relation?: string;
 }
 
 export interface SearchParentsResponse {
@@ -44,6 +45,54 @@ export interface LinkedAccount {
     parent?: ParentUser;
     child?: ChildUser;
     linkedAt: string;
+}
+
+export interface ChildCourseProgress {
+    courseId: string;
+    courseTitle: string;
+    teacherName: string;
+    overallProgress: number;
+    attendanceRate: number;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+    totalLessons: number;
+}
+
+export interface ChildProgress {
+    child: ChildUser;
+    courses: ChildCourseProgress[];
+}
+
+export interface AttendanceRecord {
+    id: string;
+    lessonId: string;
+    studentId: string;
+    lessonTitle?: string;
+    courseTitle?: string;
+    lessonName?: string;
+    courseName?: string;
+    lesson_title?: string;
+    course_title?: string;
+    scheduledAt?: string;
+    lesson?: {
+        id: string;
+        title: string;
+        name?: string;
+        scheduledAt?: string;
+    };
+    course?: {
+        id: string;
+        title: string;
+        name?: string;
+    };
+    status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+    scannedAt: string | null;
+    distanceFromLocation?: number;
+    isManualOverride?: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface SendLinkRequestResponse {
@@ -220,4 +269,58 @@ export async function respondToUnlinkRequest(requestId: string, action: 'accept'
     });
 
     return parseResponse<RespondRequestResponse>(response);
+}
+
+/**
+ * Get kids linked to the parent (Monitoring Suite)
+ */
+export async function getKids(): Promise<{ data: ChildUser[] }> {
+    const token = await getValidAccessToken();
+    if (!token) throw new Error('No authentication token found');
+
+    logger.log('[ParentLinkService] Fetching kids from /api/v1/parent/kids');
+    const response = await fetch(`${BASE_URL}/api/v1/parent/kids`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+
+    const result = await parseResponse<{ data: ChildUser[] }>(response);
+    logger.log('[ParentLinkService] getKids result:', JSON.stringify(result, null, 2));
+    return result;
+}
+
+/**
+ * Get child course progress & stats
+ */
+export async function getChildProgress(studentId: string): Promise<{ data: ChildProgress }> {
+    const token = await getValidAccessToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${BASE_URL}/api/v1/parent/kids/${studentId}/progress`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+
+    return parseResponse<{ data: ChildProgress }>(response);
+}
+
+/**
+ * Get full attendance history for a specific child
+ */
+export async function getChildAttendance(studentId: string): Promise<{ data: AttendanceRecord[] }> {
+    const token = await getValidAccessToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${BASE_URL}/api/v1/parent/kids/${studentId}/attendance`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+
+    return parseResponse<{ data: AttendanceRecord[] }>(response);
 }

@@ -1,13 +1,15 @@
+import { useAuthStore } from '@/libs/auth';
 import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
-import { getAllSubjects } from '@/services/CourseService';
+import { useTranslation } from '@/hooks/useTranslation';
+import { getAllSubjects, getCourseById } from '@/services/CourseService';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -29,8 +31,55 @@ type BillingType = 'ONE_TIME' | 'MONTHLY';
 
 export default function CreateCourseScreen() {
     const router = useRouter();
+    const { editId } = useLocalSearchParams<{ editId: string }>();
     const { theme, isDark } = useTheme();
-    const { createCourseMutation } = useCourseCreation();
+    const { t } = useTranslation();
+    const user = useAuthStore(state => state.user);
+    const { createCourseMutation, updateCourseMutation } = useCourseCreation();
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
+
+    // Fetch course data if editing
+    const { data: editCourseData, isLoading: isLoadingEditCourse } = useQuery({
+        queryKey: ['course', editId],
+        queryFn: () => getCourseById(editId!),
+        enabled: !!editId,
+    });
+
+    useEffect(() => {
+        if (editCourseData?.data) {
+            const course = editCourseData.data;
+            setTitle(course.title || '');
+            setDescription(course.description || '');
+            setSubjectId(course.subjectId || '');
+            setCourseImage(course.courseImage || '');
+            setDeliveryType((course.deliveryType as DeliveryType) || 'ONLINE');
+            setLocationName(course.locationName || '');
+            setLocationLat(course.locationLat?.toString() || '');
+            setLocationLng(course.locationLng?.toString() || '');
+            setGeofenceRadius(course.geofenceRadiusM?.toString() || '50');
+            setTotalLessons(course.totalLessons?.toString() || '12');
+            setAttendanceWindow(course.attendanceWindowMinutes?.toString() || '15');
+            setPrice(course.price?.toString() || '0');
+            setCurrency(course.currency || 'EGP');
+            setIsPaid(course.isPaid ?? (course.price > 0));
+            setBillingType((course.billingType as BillingType) || 'ONE_TIME');
+            setAttendanceWeight(course.attendanceWeight?.toString() || '0.3');
+            setFreeTrialLessons(course.freeTrialLessons?.toString() || '0');
+            if (course.reminderIntervals) {
+                setReminderIntervals(course.reminderIntervals.split(','));
+            }
+            if (course.previewVideoUrl) {
+                setVideoUrl(course.previewVideoUrl);
+            }
+        }
+    }, [editCourseData]);
 
     // Form state
     const [title, setTitle] = useState('');
@@ -50,7 +99,16 @@ export default function CreateCourseScreen() {
     const [isPaid, setIsPaid] = useState(false);
     const [billingType, setBillingType] = useState<BillingType>('ONE_TIME');
     const [attendanceWeight, setAttendanceWeight] = useState('0.3');
+    const [freeTrialLessons, setFreeTrialLessons] = useState('0');
     const [showLocationPicker, setShowLocationPicker] = useState(false);
+    const [reminderIntervals, setReminderIntervals] = useState<string[]>(['60', '15']);
+    const [uploadProgress, setUploadProgress] = useState<{
+        image: number;
+        video: number;
+    }>({
+        image: 0,
+        video: 0,
+    });
 
     // Fetch subjects
     const { data: subjectsResponse, isLoading: isLoadingSubjects } = useQuery({
@@ -60,10 +118,14 @@ export default function CreateCourseScreen() {
 
     const subjects = subjectsResponse?.data || [];
 
+    // Form state extensions
+    const [videoFile, setVideoFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+    const [videoUrl, setVideoUrl] = useState('');
+    const [uploading, setUploading] = useState(false);
+
     const pickImage = async () => {
         try {
             const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            
             if (!permissionResult.granted) {
                 Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
                 return;
@@ -84,21 +146,41 @@ export default function CreateCourseScreen() {
         }
     };
 
+    const pickVideo = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                allowsEditing: true,
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                setVideoFile({
+                    uri: result.assets[0].uri,
+                    name: `course_preview_${Date.now()}.mp4`,
+                    type: 'video/mp4'
+                });
+                setVideoUrl(''); // Clear manual URL
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Failed to pick video');
+        }
+    };
+
     const handleCreateCourse = async () => {
-        // Validation
-        if (!title.trim()) {
-            Alert.alert('Validation Error', 'Please enter a course title');
+        if (!title.trim() || !subjectId) {
+            Alert.alert('Validation Error', 'Title and Subject are required');
             return;
         }
 
-        if (!subjectId) {
-            Alert.alert('Validation Error', 'Please select a subject');
-            return;
-        }
-
-        if (deliveryType === 'ONLINE' && !locationName.trim()) {
-            Alert.alert('Validation Error', 'Please enter a meeting link for online courses');
-            return;
+        // Online Validation: Need either a Meeting Link OR a Video
+        if (deliveryType === 'ONLINE') {
+            const hasVideo = !!videoFile || !!videoUrl.trim();
+            const hasLink = !!locationName.trim();
+            if (!hasVideo && !hasLink) {
+                Alert.alert('Content Required', 'Please provide either a meeting link or upload a course preview video.');
+                return;
+            }
         }
 
         if (deliveryType === 'OFFLINE' && (!locationName.trim() || !locationLat || !locationLng)) {
@@ -107,38 +189,74 @@ export default function CreateCourseScreen() {
         }
 
         try {
+            setUploading(true);
+            const { uploadCourseImage, uploadCoursePreviewVideo } = await import('@/services/CourseService');
+            
+            // 1. Handle Image Upload if needed
+            let finalImageUrl = courseImage;
+            if (courseImage && courseImage.startsWith('file://')) {
+                const imgRes = await uploadCourseImage({
+                    uri: courseImage,
+                    name: 'course_thumb.jpg',
+                    type: 'image/jpeg'
+                }, (progress) => {
+                    setUploadProgress(prev => ({ ...prev, image: progress }));
+                });
+                finalImageUrl = imgRes.data.url;
+            }
+
+            // 2. Handle Video Upload if needed
+            let finalVideoUrl = videoUrl;
+            let finalVideoPublicId = '';
+            if (videoFile) {
+                const vidRes = await uploadCoursePreviewVideo({
+                    uri: videoFile.uri,
+                    name: videoFile.name,
+                    type: videoFile.type
+                }, (progress) => {
+                    setUploadProgress(prev => ({ ...prev, video: progress }));
+                });
+                finalVideoUrl = vidRes.data.url;
+                finalVideoPublicId = vidRes.data.publicId;
+            }
+
+            // 3. Prepare Final Data (MAPPED TO POSTMAN SPEC)
             const courseData = {
                 title: title.trim(),
                 description: description.trim(),
                 subjectId,
-                courseImage: courseImage.trim() || undefined,
+                courseImage: finalImageUrl,
+                previewVideoUrl: finalVideoUrl.trim() || undefined,
+                previewVideoPublicId: finalVideoPublicId || undefined,
                 deliveryType,
                 locationName: locationName.trim(),
                 locationLat: locationLat ? parseFloat(locationLat) : undefined,
                 locationLng: locationLng ? parseFloat(locationLng) : undefined,
                 geofenceRadiusM: parseInt(geofenceRadius) || 50,
                 totalLessons: parseInt(totalLessons) || 12,
+                freeTrialLessons: parseInt(freeTrialLessons) || 0,
                 attendanceWindowMinutes: parseInt(attendanceWindow) || 15,
                 price: parseFloat(price) || 0,
                 currency,
                 isPaid,
                 billingType,
                 attendanceWeight: parseFloat(attendanceWeight) || 0.3,
+                reminderIntervals: reminderIntervals.filter(r => r.trim() !== '').join(',') || "60,15",
             };
 
-            await createCourseMutation.mutateAsync(courseData);
-            
-            Alert.alert(
-                'Success',
-                'Course created successfully!',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => router.back(),
-                    },
-                ]
-            );
+            if (editId) {
+                await updateCourseMutation.mutateAsync({ id: editId, data: courseData });
+                Alert.alert('Success', 'Course updated successfully!', [
+                    { text: 'OK', onPress: () => router.back() }
+                ]);
+            } else {
+                await createCourseMutation.mutateAsync(courseData);
+                Alert.alert('Success', 'Course created successfully!', [
+                    { text: 'OK', onPress: () => router.back() }
+                ]);
+            }
         } catch (error: any) {
+            setUploading(false);
             Alert.alert('Error', error.message || 'Failed to create course');
         }
     };
@@ -159,12 +277,21 @@ export default function CreateCourseScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={isDark ? cskColors[500] : '#0d1b15'} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
-                    Create New Course
+                    {editId ? t('teacher.editCourse') : t('teacher.createNewCourse')}
                 </Text>
                 <View style={{ width: 48 }} />
             </View>
 
-            <KeyboardAvoidingView
+            {isLoadingEditCourse ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={cskColors[500]} />
+                    <Text style={{ marginTop: 12, color: isDark ? '#FFF' : '#0d1b15', fontFamily: Fonts.medium }}>
+                        {t('teacher.loadingCourse')}
+                    </Text>
+                </View>
+            ) : (
+                <>
+                <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.keyboardView}
             >
@@ -329,6 +456,82 @@ export default function CreateCourseScreen() {
                                     )}
                                 </View>
                             )}
+
+                            {uploading && uploadProgress.image > 0 && uploadProgress.image < 100 && (
+                                <View style={styles.progressContainer}>
+                                    <View style={[styles.progressBar, { width: `${uploadProgress.image}%` }]} />
+                                    <Text style={[styles.progressText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                        Uploading Image: {uploadProgress.image.toFixed(0)}%
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Course Preview Video (Trailer)
+                            </Text>
+                            
+                            {videoFile ? (
+                                <View style={[styles.filePreview, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                }]}>
+                                    <MaterialIcons name="videocam" size={24} color={cskColors[500]} />
+                                    <Text style={[styles.fileName, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                        {videoFile.name}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setVideoFile(null)}>
+                                        <MaterialIcons name="close" size={20} color="#dc2626" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.uploadButton, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            borderColor: isDark ? '#3a4048' : '#d1d5d9',
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            padding: 12,
+                                            borderRadius: 12,
+                                            borderWidth: 1,
+                                            borderStyle: 'dashed',
+                                            justifyContent: 'center',
+                                            gap: 8,
+                                        }]}
+                                        onPress={pickVideo}
+                                    >
+                                        <MaterialIcons name="movie-creation" size={24} color={cskColors[500]} />
+                                        <Text style={{ color: isDark ? '#e1e5e9' : '#0d1b15', fontFamily: Fonts.medium }}>
+                                            Upload Preview Video
+                                        </Text>
+                                    </TouchableOpacity>
+                                    
+                                    <View style={{ height: 12 }} />
+                                    
+                                    <TextInput
+                                        style={[styles.input, {
+                                            backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                            color: isDark ? '#e1e5e9' : '#0d1b15',
+                                        }]}
+                                        placeholder="Or paste video URL (YouTube/Vimeo)"
+                                        placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                        value={videoUrl}
+                                        onChangeText={setVideoUrl}
+                                        keyboardType="url"
+                                        autoCapitalize="none"
+                                    />
+                                </>
+                            )}
+
+                            {uploading && uploadProgress.video > 0 && uploadProgress.video < 100 && (
+                                <View style={styles.progressContainer}>
+                                    <View style={[styles.progressBar, { width: `${uploadProgress.video}%` }]} />
+                                    <Text style={[styles.progressText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                        Uploading Video: {uploadProgress.video.toFixed(0)}%
+                                    </Text>
+                                </View>
+                            )}
                         </View>
 
                         <View style={styles.inputContainer}>
@@ -346,6 +549,26 @@ export default function CreateCourseScreen() {
                                 onChangeText={setTotalLessons}
                                 keyboardType="numeric"
                             />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
+                                Free Trial Lessons (Intro)
+                            </Text>
+                            <TextInput
+                                style={[styles.input, {
+                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                    color: isDark ? '#e1e5e9' : '#0d1b15',
+                                }]}
+                                placeholder="0"
+                                placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                value={freeTrialLessons}
+                                onChangeText={setFreeTrialLessons}
+                                keyboardType="numeric"
+                            />
+                            <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                Number of lessons students can watch before buying
+                            </Text>
                         </View>
                     </View>
 
@@ -645,6 +868,65 @@ export default function CreateCourseScreen() {
                                 />
                             </View>
                         </View>
+
+                        <View style={styles.inputContainer}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                                <MaterialIcons name="notifications-active" size={18} color={cskColors[500]} />
+                                <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15', marginBottom: 0 }]}>
+                                    Custom Lesson Reminders
+                                </Text>
+                            </View>
+                            <View style={{ gap: 10 }}>
+                                {reminderIntervals.map((interval, index) => (
+                                    <View key={index} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                                        <View style={[styles.inputWithSuffix, { flex: 1 }]}>
+                                            <TextInput
+                                                style={[styles.input, {
+                                                    backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
+                                                    color: isDark ? '#e1e5e9' : '#0d1b15',
+                                                }]}
+                                                placeholder="60"
+                                                placeholderTextColor={isDark ? '#6b737c' : '#949da5'}
+                                                value={interval}
+                                                onChangeText={(text) => {
+                                                    const newIntervals = [...reminderIntervals];
+                                                    newIntervals[index] = text.replace(/[^0-9]/g, '');
+                                                    setReminderIntervals(newIntervals);
+                                                }}
+                                                keyboardType="numeric"
+                                            />
+                                            <Text style={[styles.suffix, { color: isDark ? '#6b737c' : '#949da5' }]}>
+                                                MINS
+                                            </Text>
+                                        </View>
+                                        {reminderIntervals.length > 1 && (
+                                            <TouchableOpacity 
+                                                onPress={() => setReminderIntervals(reminderIntervals.filter((_, i) => i !== index))}
+                                                style={{ padding: 8 }}
+                                            >
+                                                <MaterialIcons name="remove-circle-outline" size={24} color="#dc2626" />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))}
+                                
+                                <TouchableOpacity 
+                                    style={[styles.uploadButton, {
+                                        height: 48,
+                                        marginTop: 4,
+                                        borderColor: cskColors[500],
+                                        borderStyle: 'dashed',
+                                    }]}
+                                    onPress={() => setReminderIntervals([...reminderIntervals, ''])}
+                                >
+                                    <MaterialIcons name="add" size={20} color={cskColors[500]} />
+                                    <Text style={{ color: cskColors[500], fontFamily: Fonts.bold }}>Add Another Reminder</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={[styles.helperText, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                Remind your students automatically before the lesson starts.
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Bottom padding for fixed button */}
@@ -671,21 +953,27 @@ export default function CreateCourseScreen() {
                 borderTopColor: isDark ? '#2a4d3d' : '#e9ebed',
             }]}>
                 <TouchableOpacity
-                    style={[styles.createButton, { backgroundColor: cskColors[500] }]}
+                    style={[styles.createButton, { 
+                        backgroundColor: (createCourseMutation.isPending || updateCourseMutation.isPending || uploading) ? '#6b737c' : cskColors[500] 
+                    }]}
                     onPress={handleCreateCourse}
-                    disabled={createCourseMutation.isPending}
+                    disabled={createCourseMutation.isPending || updateCourseMutation.isPending || uploading}
                     activeOpacity={0.9}
                 >
-                    {createCourseMutation.isPending ? (
+                    {(createCourseMutation.isPending || updateCourseMutation.isPending) ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
                         <>
-                            <Text style={styles.createButtonText}>Create Course</Text>
-                            <MaterialIcons name="rocket-launch" size={24} color="#ffffff" />
+                            <Text style={styles.createButtonText}>
+                                {editId ? t('teacher.saveChanges') : t('teacher.createNewCourse')}
+                            </Text>
+                            <MaterialIcons name={editId ? 'check-circle' : 'rocket-launch'} size={24} color="#ffffff" />
                         </>
                     )}
                 </TouchableOpacity>
             </View>
+            </>
+            )}
         </View>
     );
 }
@@ -911,9 +1199,54 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
     },
+    filePreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 12,
+        gap: 12,
+        marginTop: 4,
+    },
+    fileName: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+    },
+    uploadButton: {
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
     createButtonText: {
         color: '#ffffff',
         fontSize: 18,
         fontFamily: Fonts.bold,
+    },
+    progressContainer: {
+        marginTop: 12,
+        height: 24,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+        borderRadius: 12,
+        overflow: 'hidden',
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    progressBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        backgroundColor: cskColors[500],
+    },
+    progressText: {
+        fontSize: 11,
+        fontFamily: Fonts.bold,
+        textAlign: 'center',
+        zIndex: 1,
     },
 });

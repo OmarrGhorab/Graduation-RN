@@ -268,6 +268,7 @@ export default function GroupInfoScreen() {
     const renderMember = (member: ChatMember) => {
         const canManage = canManageMember(member);
         const isCurrentUser = member.user_id === currentUser?.id;
+        const upperRole = member.role?.toUpperCase();
         
         return (
             <TouchableOpacity
@@ -288,8 +289,23 @@ export default function GroupInfoScreen() {
                         {isCurrentUser && <Text style={{ color: theme.textSecondary }}> (You)</Text>}
                     </Text>
                     <View style={styles.roleContainer}>
-                        <RoleTag role={member.role} isDark={isDark} />
-                        {member.role === 'OWNER' && <Text style={{ fontSize: 10, color: theme.textSecondary, marginLeft: 4 }}>👑</Text>}
+                        {/* Always show OWNER or ADMIN if they exist */}
+                        {(upperRole === 'OWNER' || upperRole === 'ADMIN') && (
+                            <RoleTag role={member.role} isDark={isDark} />
+                        )}
+                        
+                        {/* Show professional role (Teacher, Student, etc.) */}
+                        {/* If they are just a MEMBER, show their professional role instead of saying MEMBER */}
+                        {member.profile?.role ? (
+                            <RoleTag role={member.profile.role} isDark={isDark} isProfessional />
+                        ) : (
+                            // Only show MEMBER if no professional role is available and they aren't Admin/Owner
+                            (upperRole !== 'OWNER' && upperRole !== 'ADMIN') && (
+                                <RoleTag role="MEMBER" isDark={isDark} />
+                            )
+                        )}
+                        
+                        {upperRole === 'OWNER' && <Text style={{ fontSize: 10, marginLeft: 2 }}>👑</Text>}
                     </View>
                 </View>
                 {canManage && (
@@ -323,7 +339,7 @@ export default function GroupInfoScreen() {
         displayInfo = {
             user_name: conversation.name || otherMember?.profile.name || 'User',
             user_image: conversation.image_url || otherMember?.profile.image,
-            user_role: 'STUDENT'
+            user_role: otherMember?.profile.role || 'STUDENT'
         };
     } else {
         displayInfo = {
@@ -646,36 +662,53 @@ export default function GroupInfoScreen() {
     );
 }
 
-const RoleTag = ({ role, isDark }: { role: string, isDark: boolean }) => {
-    let bg, color, border;
-    let label = role;
+const RoleTag = ({ role, isDark, isProfessional }: { role: string, isDark: boolean, isProfessional?: boolean }) => {
+    let bg, color, border, label;
+    const upperRole = role?.toUpperCase();
 
-    switch (role) {
-        case 'OWNER':
-        case 'INSTRUCTOR':
-        case 'TEACHER':
-            bg = '#097D46';
-            color = '#FFFFFF';
-            border = 'transparent';
-            break;
-        case 'ADMIN':
-        case 'ASSISTANT':
-            bg = 'transparent';
-            color = isDark ? '#4FBF8A' : '#097D46';
-            border = isDark ? '#4FBF8A' : '#097D46';
-            label = 'ASSISTANT';
-            break;
-        default: // STUDENT, MEMBER
-            bg = isDark ? '#2D3748' : '#F7FAFC';
-            color = isDark ? '#A0AEC0' : '#4A5568';
-            border = 'transparent';
-            label = role === 'MEMBER' ? 'MEMBER' : 'STUDENT';
+    if (isProfessional) {
+        // High contrast for professional roles
+        bg = isDark ? 'rgba(9, 125, 70, 0.15)' : 'rgba(9, 125, 70, 0.1)';
+        color = isDark ? '#4FBF8A' : '#097D46';
+        border = isDark ? 'rgba(79, 191, 138, 0.3)' : 'rgba(9, 125, 70, 0.2)';
+        label = role; 
+    } else {
+        switch (upperRole) {
+            case 'OWNER':
+                bg = '#097D46';
+                color = '#FFFFFF';
+                border = 'transparent';
+                label = 'OWNER';
+                break;
+            case 'ADMIN':
+                bg = isDark ? 'rgba(79, 191, 138, 0.1)' : '#F0FDF4';
+                color = isDark ? '#4FBF8A' : '#097D46';
+                border = isDark ? '#4FBF8A' : '#097D46';
+                label = 'ADMIN';
+                break;
+            case 'TEACHER':
+            case 'INSTRUCTOR':
+                bg = isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF';
+                color = '#3B82F6';
+                border = '#3B82F6';
+                label = upperRole;
+                break;
+            default: // MEMBER
+                bg = isDark ? '#2D3748' : '#F7FAFC';
+                color = isDark ? '#A0AEC0' : '#4A5568';
+                border = 'transparent';
+                label = 'MEMBER';
+        }
     }
 
     return (
         <View style={[
             styles.roleTag,
-            { backgroundColor: bg, borderColor: border, borderWidth: (role === 'ASSISTANT' || role === 'ADMIN') ? 1 : 0 }
+            { 
+                backgroundColor: bg, 
+                borderColor: border, 
+                borderWidth: (upperRole === 'ADMIN' || isProfessional) ? 1 : 0 
+            }
         ]}>
             <Text style={[styles.roleText, { color }]}>{label}</Text>
         </View>
@@ -896,6 +929,8 @@ const styles = StyleSheet.create({
     roleContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 6,
+        marginTop: 4,
     },
     userItem: {
         flexDirection: 'row',

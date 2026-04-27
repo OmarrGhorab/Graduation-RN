@@ -1,12 +1,15 @@
-import { Fonts, cskColors } from '@/constants/theme';
-import { useLessonAbsences } from '@/hooks/useCourses';
-import { useLessonAttendance, useLessonDetails } from '@/hooks/useLessons';
+import { Fonts, cskColors, Colors } from '@/constants/theme';
+import { useAuthStore } from '@/libs/auth';
+import { useLessonAbsences, useAbsenceMutations } from '@/hooks/useCourses';
+import { useLessonAttendance, useLessonDetails, useManualAttendanceOverride } from '@/hooks/useLessons';
 import { useTheme } from '@/hooks/useTheme';
+import { useProfile } from '@/hooks/useProfile';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, ScrollView, Platform } from 'react-native';
+import { useEffect } from 'react';
 
 const STATUS_COLORS = {
     PRESENT: '#12ed87',
@@ -41,10 +44,31 @@ export default function AttendanceListScreen() {
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
     const [searchQuery, setSearchQuery] = useState('');
+    const user = useAuthStore(state => state.user);
+
+    useEffect(() => {
+        if (user && user.role !== 'TEACHER') {
+            router.replace('/home');
+        }
+    }, [user, router]);
+
+    if (!user || user.role !== 'TEACHER') return null;
 
     const { data: attendanceResponse, isLoading: isLoadingAttendance } = useLessonAttendance(lessonId!);
     const { data: lessonResponse, isLoading: isLoadingLesson } = useLessonDetails(lessonId!);
     const { data: absencesResponse, isLoading: isLoadingAbsences } = useLessonAbsences(lessonId!);
+    const { profile } = useProfile();
+    const overrideMutation = useManualAttendanceOverride();
+    const { respondToAbsence } = useAbsenceMutations();
+
+    // Override State
+    const [selectedStudent, setSelectedStudent] = useState<any>(null);
+    const [overrideStatus, setOverrideStatus] = useState<'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED'>('PRESENT');
+    const [overrideReason, setOverrideReason] = useState('');
+    const [isOverrideModalVisible, setIsOverrideModalVisible] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const isTeacher = profile?.role === 'TEACHER' || profile?.role === 'ADMIN';
 
     const isLoading = isLoadingAttendance || isLoadingLesson || isLoadingAbsences;
 
@@ -83,15 +107,24 @@ export default function AttendanceListScreen() {
                         borderWidth: hasPendingRequest ? 1 : 0,
                     }
                 ]}
-                onPress={() => router.push({
-                    pathname: '/student-analytics',
-                    params: {
-                        name: item.studentName || 'Student',
-                        id: item.studentId,
-                        image: item.studentProfileImg,
-                        courseId: lesson?.courseId
+                onPress={() => {
+                    if (isTeacher) {
+                        setSelectedStudent(item);
+                        setOverrideStatus((item.status || 'ABSENT') as any);
+                        setOverrideReason('');
+                        setIsOverrideModalVisible(true);
+                    } else {
+                        router.push({
+                            pathname: '/student-analytics',
+                            params: {
+                                name: item.studentName || 'Student',
+                                id: item.studentId,
+                                image: item.studentProfileImg,
+                                courseId: lesson?.courseId
+                            }
+                        });
                     }
-                })}
+                }}
             >
                 <View style={styles.avatarContainer}>
                     {item.studentProfileImg ? (
@@ -103,9 +136,11 @@ export default function AttendanceListScreen() {
                             ]}
                         />
                     ) : (
-                        <View style={[styles.avatar, { backgroundColor: isDark ? '#2a4d3d' : '#e7f3ee', alignItems: 'center', justifyContent: 'center' }]}>
-                            <MaterialIcons name="person" size={24} color={theme.primary} />
-                        </View>
+                    <View style={[styles.avatar, { backgroundColor: isDark ? '#2a4d3d' : '#e7f3ee', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ color: theme.primary, fontFamily: Fonts?.bold || 'System', fontSize: 18 }}>
+                            {(item.studentName || 'S').charAt(0).toUpperCase()}
+                        </Text>
+                    </View>
                     )}
                     {(status === 'PRESENT' || status === 'LATE') && (
                         <View style={[styles.statusDot, { backgroundColor: cskColors[500], borderColor: isDark ? '#1a2e26' : '#ffffff' }]} />
@@ -190,6 +225,31 @@ export default function AttendanceListScreen() {
                 </View>
             </View>
 
+            {/* Dashboard Stats */}
+            {!isLoading && (
+                <View style={styles.dashboardContainer}>
+                    <View style={styles.statsGridRow}>
+                        <View style={[styles.dashboardStat, { backgroundColor: isDark ? 'rgba(18, 237, 135, 0.1)' : 'rgba(18, 237, 135, 0.05)', borderColor: isDark ? 'rgba(18, 237, 135, 0.2)' : 'rgba(18, 237, 135, 0.1)' }]}>
+                            <Text style={[styles.statValue, { color: STATUS_TEXT.PRESENT }]}>{students.filter(s => s.status === 'PRESENT').length}</Text>
+                            <Text style={[styles.statLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Present</Text>
+                        </View>
+                        <View style={[styles.dashboardStat, { backgroundColor: isDark ? 'rgba(251, 191, 36, 0.1)' : 'rgba(251, 191, 36, 0.05)', borderColor: isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(251, 191, 36, 0.1)' }]}>
+                            <Text style={[styles.statValue, { color: STATUS_TEXT.LATE }]}>{students.filter(s => s.status === 'LATE').length}</Text>
+                            <Text style={[styles.statLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Late</Text>
+                        </View>
+                        <View style={[styles.dashboardStat, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)', borderColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)' }]}>
+                            <Text style={[styles.statValue, { color: STATUS_TEXT.ABSENT }]}>{students.filter(s => s.status === 'ABSENT').length}</Text>
+                            <Text style={[styles.statLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Absent</Text>
+                        </View>
+                        <View style={[styles.dashboardStat, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)', borderColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }]}>
+                            <Text style={[styles.statValue, { color: STATUS_TEXT.EXCUSED }]}>{students.filter(s => s.status === 'EXCUSED').length}</Text>
+                            <Text style={[styles.statLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Excused</Text>
+                        </View>
+                    </View>
+                </View>
+            )}
+
+
             {/* Content List */}
             <FlatList
                 data={filteredStudents}
@@ -204,6 +264,190 @@ export default function AttendanceListScreen() {
                     </View>
                 )}
             />
+
+            {/* Override Modal */}
+            <Modal
+                visible={isOverrideModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setIsOverrideModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#142a20' : '#ffffff' }]}>
+                        <View style={[styles.modalHeader, { borderBottomColor: isDark ? '#2a4a3c' : '#edf2f7' }]}>
+                            <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>Manual Override</Text>
+                            <TouchableOpacity onPress={() => setIsOverrideModalVisible(false)}>
+                                <MaterialIcons name="close" size={24} color={isDark ? '#88cba8' : '#4c9a75'} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ padding: 20 }}>
+                            <Text style={[styles.studentLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Student</Text>
+                            <Text style={[styles.studentValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>{selectedStudent?.studentName}</Text>
+
+                            <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#0f172a', marginTop: 20 }]}>New Status</Text>
+                            <View style={styles.statusGrid}>
+                                {(['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'] as const).map((status) => (
+                                    <TouchableOpacity
+                                        key={status}
+                                        style={[
+                                            styles.statusOption,
+                                            {
+                                                backgroundColor: overrideStatus === status ? STATUS_BG[status] : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'),
+                                                borderColor: overrideStatus === status ? STATUS_BORDER[status] : 'transparent',
+                                            }
+                                        ]}
+                                        onPress={() => setOverrideStatus(status)}
+                                    >
+                                        <View style={[styles.statusOptionDot, { backgroundColor: STATUS_COLORS[status] }]} />
+                                        <Text style={[
+                                            styles.statusOptionText,
+                                            { color: overrideStatus === status ? (isDark ? STATUS_COLORS[status] : STATUS_TEXT[status]) : (isDark ? '#94a3b8' : '#64748b') }
+                                        ]}>
+                                            {status}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={[styles.sectionTitle, { color: isDark ? '#ffffff' : '#0f172a', marginTop: 20 }]}>Reason for Change</Text>
+                            <TextInput
+                                style={[
+                                    styles.overrideInput,
+                                    {
+                                        backgroundColor: isDark ? '#1a2e26' : '#f1f5f9',
+                                        color: isDark ? '#ffffff' : '#0f172a',
+                                        borderColor: isDark ? '#2a4a3c' : '#e2e8f0'
+                                    }
+                                ]}
+                                placeholder="E.g. Student phone battery died..."
+                                placeholderTextColor="#64748b"
+                                multiline
+                                value={overrideReason}
+                                onChangeText={setOverrideReason}
+                            />
+
+                            {/* Absence Appeal Review Section (if exists) */}
+                            {absencesResponse?.data?.find(a => a.studentId === selectedStudent?.studentId && a.status === 'PENDING') && (
+                                <View style={[styles.appealReviewCard, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.05)' : 'rgba(59, 130, 246, 0.03)', borderColor: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)' }]}>
+                                    <View style={styles.appealHeader}>
+                                        <MaterialIcons name="description" size={20} color="#3b82f6" />
+                                        <Text style={[styles.appealTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>Pending Absence Appeal</Text>
+                                    </View>
+                                    
+                                    {(() => {
+                                        const appeal = absencesResponse?.data?.find(a => a.studentId === selectedStudent?.studentId && a.status === 'PENDING');
+                                        if (!appeal) return null;
+                                        return (
+                                            <View style={styles.appealDetails}>
+                                                <View style={styles.appealRow}>
+                                                    <Text style={[styles.appealLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Reason Type:</Text>
+                                                    <Text style={[styles.appealValue, { color: isDark ? '#ffffff' : '#0f172a' }]}>{appeal.reasonType.replace('_', ' ')}</Text>
+                                                </View>
+                                                <View style={styles.appealBody}>
+                                                    <Text style={[styles.appealLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Parent Note:</Text>
+                                                    <Text style={[styles.appealText, { color: isDark ? '#ffffff' : '#0d1b15' }]}>"{appeal.reasonText}"</Text>
+                                                </View>
+                                                
+                                                {appeal.attachmentUrl && (
+                                                    <TouchableOpacity 
+                                                        style={styles.attachmentLink}
+                                                        onPress={() => {
+                                                            Alert.alert('Proof Attached', 'An image has been provided as proof. Opening it in browser...');
+                                                        }}
+                                                    >
+                                                        <MaterialIcons name="attach-file" size={16} color="#3b82f6" />
+                                                        <Text style={styles.attachmentLinkText}>View Proof Attachment</Text>
+                                                    </TouchableOpacity>
+                                                )}
+
+                                                <View style={styles.appealActions}>
+                                                    <TouchableOpacity 
+                                                        style={[styles.appealActionBtn, styles.rejectBtn]}
+                                                        onPress={async () => {
+                                                            try {
+                                                                setIsSubmitting(true);
+                                                                await respondToAbsence.mutateAsync({
+                                                                    requestId: appeal.id,
+                                                                    data: { approve: false, responseNote: overrideReason || 'Rejected by teacher' }
+                                                                });
+                                                                setIsOverrideModalVisible(false);
+                                                                Alert.alert('Success', 'Appeal rejected.');
+                                                            } catch (err: any) {
+                                                                Alert.alert('Error', err.message || 'Failed to reject appeal');
+                                                            } finally {
+                                                                setIsSubmitting(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.rejectBtnText}>Reject Appeal</Text>
+                                                    </TouchableOpacity>
+                                                    
+                                                    <TouchableOpacity 
+                                                        style={[styles.appealActionBtn, styles.approveBtn]}
+                                                        onPress={async () => {
+                                                            try {
+                                                                setIsSubmitting(true);
+                                                                await respondToAbsence.mutateAsync({
+                                                                    requestId: appeal.id,
+                                                                    data: { approve: true, responseNote: overrideReason || 'Approved by teacher' }
+                                                                });
+                                                                setIsOverrideModalVisible(false);
+                                                                Alert.alert('Success', 'Appeal approved and attendance updated.');
+                                                            } catch (err: any) {
+                                                                Alert.alert('Error', err.message || 'Failed to approve appeal');
+                                                            } finally {
+                                                                setIsSubmitting(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.approveBtnText}>Approve Appeal</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        );
+                                    })()}
+                                </View>
+                            )}
+                        </ScrollView>
+
+                        <View style={styles.modalFooter}>
+                            <TouchableOpacity
+                                style={[styles.cancelBtn, { borderColor: isDark ? '#2a4a3c' : '#e2e8f0' }]}
+                                onPress={() => setIsOverrideModalVisible(false)}
+                            >
+                                <Text style={[styles.cancelBtnText, { color: isDark ? '#94a3b8' : '#64748b' }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.submitBtn, { backgroundColor: cskColors[500] }]}
+                                disabled={isSubmitting || !overrideReason.trim()}
+                                onPress={async () => {
+                                    try {
+                                        setIsSubmitting(true);
+                                        await overrideMutation.mutateAsync({
+                                            lessonId: lessonId!,
+                                            data: {
+                                                studentId: selectedStudent.studentId,
+                                                status: overrideStatus,
+                                                reason: overrideReason
+                                            }
+                                        });
+                                        setIsOverrideModalVisible(false);
+                                        Alert.alert('Success', 'Attendance status updated successfully.');
+                                    } catch (err: any) {
+                                        Alert.alert('Error', err.message || 'Failed to update attendance');
+                                    } finally {
+                                        setIsSubmitting(false);
+                                    }
+                                }}
+                            >
+                                {isSubmitting ? <ActivityIndicator size="small" color="#0f172a" /> : <Text style={styles.submitBtnText}>Confirm</Text>}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
 
             {/* Bottom Floating Action */}
             <View style={styles.fabContainer}>
@@ -245,7 +489,7 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 24,
-        fontFamily: Fonts.bold,
+        fontFamily: Fonts?.bold || 'System',
         letterSpacing: -0.5,
     },
     headerSubtitle: {
@@ -382,5 +626,213 @@ const styles = StyleSheet.create({
         right: 0,
         height: 96,
         zIndex: 10,
-    }
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 24,
+        borderBottomWidth: 1,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+    },
+    studentLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    studentValue: {
+        fontSize: 18,
+        fontFamily: Fonts.semiBold,
+        marginTop: 4,
+    },
+    sectionTitle: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+        marginBottom: 12,
+    },
+    statusGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    statusOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        minWidth: '45%',
+    },
+    statusOptionDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 8,
+    },
+    statusOptionText: {
+        fontSize: 14,
+        fontFamily: Fonts.bold,
+    },
+    overrideInput: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
+        height: 100,
+        textAlignVertical: 'top',
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+    },
+    modalFooter: {
+        flexDirection: 'row',
+        padding: 20,
+        gap: 12,
+    },
+    cancelBtn: {
+        flex: 1,
+        height: 56,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+    },
+    cancelBtnText: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+    },
+    submitBtn: {
+        flex: 2,
+        height: 56,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    submitBtnText: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+        color: '#0f172a',
+    },
+    dashboardContainer: {
+        paddingHorizontal: 20,
+        marginBottom: 16,
+    },
+    statsGridRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    dashboardStat: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+    },
+    statValue: {
+        fontSize: 18,
+        fontFamily: Fonts.bold,
+    },
+    statLabel: {
+        fontSize: 11,
+        fontFamily: Fonts.semiBold,
+        marginTop: 2,
+    },
+    appealReviewCard: {
+        marginTop: 24,
+        borderRadius: 20,
+        padding: 16,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+    },
+    appealHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    appealTitle: {
+        fontSize: 15,
+        fontFamily: Fonts.bold,
+    },
+    appealDetails: {
+        gap: 12,
+    },
+    appealRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    appealLabel: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+    },
+    appealValue: {
+        fontSize: 12,
+        fontFamily: Fonts.semiBold,
+    },
+    appealBody: {
+        gap: 4,
+    },
+    appealText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
+        fontStyle: 'italic',
+    },
+    attachmentLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 4,
+    },
+    attachmentLinkText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#3b82f6',
+        textDecorationLine: 'underline',
+    },
+    appealActions: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 8,
+    },
+    appealActionBtn: {
+        flex: 1,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    rejectBtn: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.2)',
+    },
+    rejectBtnText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#ef4444',
+    },
+    approveBtn: {
+        backgroundColor: '#12ed87',
+    },
+    approveBtnText: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        color: '#10221a',
+    },
 });
+
+

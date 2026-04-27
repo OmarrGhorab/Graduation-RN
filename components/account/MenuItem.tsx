@@ -9,9 +9,10 @@ interface MenuItemProps {
     icon: keyof typeof Ionicons.glyphMap;
     label: string;
     onPress?: () => void;
+    badge?: string | number;
 }
 
-export function MenuItem({ icon, label, onPress }: MenuItemProps) {
+export function MenuItem({ icon, label, onPress, badge }: MenuItemProps) {
     const { theme } = useTheme();
     const { isRTL } = useTranslation();
 
@@ -24,7 +25,14 @@ export function MenuItem({ icon, label, onPress }: MenuItemProps) {
             <View style={styles.iconContainer}>
                 <Ionicons name={icon} size={22} color={theme.gray[600]} />
             </View>
-            <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+            <View style={styles.labelContainer}>
+                <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
+                {badge !== undefined && (
+                    <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                        <Text style={styles.badgeText}>{badge}</Text>
+                    </View>
+                )}
+            </View>
             <Ionicons name={isRTL ? "chevron-back" : "chevron-forward"} size={20} color={theme.gray[400]} />
         </TouchableOpacity>
     );
@@ -43,10 +51,28 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    label: {
+    labelContainer: {
         flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginLeft: 14,
+    },
+    label: {
         fontSize: 16,
         fontFamily: Fonts.medium,
-        marginLeft: 14,
+    },
+    badge: {
+        marginLeft: 8,
+        minWidth: 20,
+        height: 20,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+    },
+    badgeText: {
+        color: '#FFF',
+        fontSize: 12,
+        fontFamily: Fonts.bold,
     },
 });

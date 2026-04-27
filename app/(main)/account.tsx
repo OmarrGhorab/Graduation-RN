@@ -4,6 +4,7 @@ import {
     MenuItem,
     ProfileHeader
 } from '@/components/account';
+import { Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
 import { usePrefetchPreferences } from '@/hooks/usePreferences';
 import { useTheme } from '@/hooks/useTheme';
@@ -15,7 +16,8 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { useCart } from '@/hooks/useCart';
+import { ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AccountScreen() {
@@ -28,6 +30,7 @@ export default function AccountScreen() {
     const [isUploading, setIsUploading] = useState(false);
     const [showImageOptions, setShowImageOptions] = useState(false);
     const { prefetch: prefetchPreferences } = usePrefetchPreferences();
+    const { cart } = useCart();
 
     const displayName = user?.name || user?.username || 'User';
     const profileImage = user?.profileImg;
@@ -150,14 +153,56 @@ export default function AccountScreen() {
                 <View style={styles.menuContainer}>
                     <MenuItem icon="person-outline" label={t('account.profile')} />
                     <MenuItem icon="create-outline" label={t('account.editProfile')} onPress={handleEditProfile} />
-                    <MenuItem 
-                        icon="grid-outline" 
-                        label={t('account.dashboard')} 
-                        onPress={() => router.push('/teacher-dashboard')}
-                    />
+                    {user?.role === 'TEACHER' && (
+                        <MenuItem 
+                            icon="grid-outline" 
+                            label={t('account.dashboard')} 
+                            onPress={() => router.push('/teacher-dashboard')}
+                        />
+                    )}
+                    {user?.role === 'PARENT' && (
+                        <MenuItem 
+                            icon="analytics-outline" 
+                            label={t('reports.title') || 'AI Progress Reports'} 
+                            onPress={() => router.push('/progress-report')}
+                        />
+                    )}
                     
                     <MenuItem icon="settings-outline" label={t('account.settings')} onPress={() => router.push('/settings')} />
                     <MenuItem icon="location-outline" label={t('account.location')} onPress={() => router.push('/location')} />
+                    
+                    <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? theme.primary : theme.gray[600] }]}>
+                            {t('account.aiServices') || 'AI Assistant Services'}
+                        </Text>
+                    </View>
+
+                    <MenuItem 
+                        icon="chatbubble-ellipses-outline" 
+                        label={t('account.aiAssistant')} 
+                        onPress={() => router.push('/ai-chat')} 
+                    />
+                    <MenuItem 
+                        icon="cart-outline" 
+                        label={t('cart.title') || 'My Cart'} 
+                        onPress={() => router.push('/cart')}
+                        badge={cart?.items?.length || undefined}
+                    />
+                    <MenuItem
+                        icon="receipt-outline"
+                        label={t('account.paymentHistory') || 'Payment History'}
+                        onPress={() => router.push('/(main)/payment-history')}
+                    />
+                    <MenuItem
+                        icon="calendar-outline"
+                        label={t('account.subscriptions') || 'My Subscriptions'}
+                        onPress={() => router.push('/(main)/subscriptions')}
+                    />
+                    <MenuItem
+                        icon="card-outline"
+                        label={t('account.paymentMethods') || 'Payment Methods'}
+                        onPress={() => router.push('/(main)/payment-methods')}
+                    />
                     <MenuItem icon="help-circle-outline" label={t('account.helpSupport')} />
                 </View>
 
@@ -181,5 +226,16 @@ const styles = StyleSheet.create({
     menuContainer: {
         paddingHorizontal: 16,
         paddingTop: 16,
+    },
+    sectionHeader: {
+        marginTop: 24,
+        marginBottom: 8,
+        paddingHorizontal: 4,
+    },
+    sectionTitle: {
+        fontSize: 12,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
 });

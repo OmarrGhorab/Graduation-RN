@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useFonts, Rubik_300Light, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold, Rubik_800ExtraBold, Rubik_900Black } from '@expo-google-fonts/rubik';
 import * as SplashScreen from 'expo-splash-screen';
 import { initializeLanguage } from '@/hooks/useTranslation';
@@ -16,9 +16,15 @@ import { LocationUpdateService } from '@/services/LocationUpdateService';
 import NotificationListener from '@/components/NotificationListener';
 import { setQueryClientRef, useAuthStore } from '@/libs/auth';
 import { defaultQueryOptions } from '@/constants/queryConfig';
+import { logger } from '@/libs/logger';
+import { RECOMMENDED_COURSES_QUERY_KEY, TRENDING_COURSES_QUERY_KEY } from '@/hooks/useCourses';
+import { getRecommendedCourses, getTrendingCourses } from '@/services/CourseService';
 
 // Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // SplashScreen.preventAutoHideAsync() can fail if called too late
+  logger.log('[Layout] SplashScreen.preventAutoHideAsync failed (non-critical)');
+});
 
 const queryClient = new QueryClient({
   defaultOptions: defaultQueryOptions,
@@ -30,7 +36,9 @@ setQueryClientRef(queryClient);
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [i18nReady, setI18nReady] = useState(false);
+  const [forceReady, setForceReady] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load Rubik fonts from Expo Google Fonts
   const [fontsLoaded, fontsError] = useFonts({
@@ -44,25 +52,61 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    logger.log('[Layout] Fonts state - loaded:', fontsLoaded, 'error:', !!fontsError);
     if (fontsLoaded || fontsError) {
       // Hide the splash screen after fonts are loaded
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {
+        logger.log('[Layout] SplashScreen.hideAsync failed (non-critical)');
+      });
     }
   }, [fontsLoaded, fontsError]);
 
-  // Initialize i18n
+  // Initialize i18n with error handling
   useEffect(() => {
-    initializeLanguage().then(() => {
-      setI18nReady(true);
-    });
+    logger.log('[Layout] Starting i18n initialization...');
+    initializeLanguage()
+      .then(() => {
+        logger.log('[Layout] i18n initialized successfully');
+        setI18nReady(true);
+      })
+      .catch((error) => {
+        logger.error('[Layout] i18n initialization failed:', error);
+        // Force ready even on error - app should still work with default locale
+        setI18nReady(true);
+      });
+  }, []);
+
+  // Safety timeout: force the app to render after 5 seconds no matter what
+  // This prevents the app from being stuck on a white screen forever
+  useEffect(() => {
+    safetyTimerRef.current = setTimeout(() => {
+      logger.warn('[Layout] Safety timeout reached - forcing render. fontsLoaded:', fontsLoaded, 'fontsError:', !!fontsError, 'i18nReady:', i18nReady);
+      setForceReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 5000);
+
+    return () => {
+      if (safetyTimerRef.current) {
+        clearTimeout(safetyTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
     // Initialize device service (pre-fetches location and device info)
-    DeviceService.initialize();
+    // Wrapped in try/catch to prevent crashes from blocking the app
+    try {
+      DeviceService.initialize().catch((error) => {
+        logger.error('[Layout] DeviceService initialization failed:', error);
+      });
+    } catch (error) {
+      logger.error('[Layout] DeviceService initialization sync error:', error);
+    }
     
     // Register for push notifications on app start
-    registerForPushNotificationsAsync();
+    registerForPushNotificationsAsync().catch((error) => {
+      logger.error('[Layout] Push notification registration failed:', error);
+    });
   }, []);
 
   // Start/stop location updates based on authentication state
@@ -78,8 +122,31 @@ export default function RootLayout() {
     };
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    queryClient.prefetchQuery({
+      queryKey: TRENDING_COURSES_QUERY_KEY,
+      queryFn: getTrendingCourses,
+    }).catch((error) => {
+      logger.log('[Layout] Trending prefetch skipped:', error);
+    });
+
+    queryClient.prefetchQuery({
+      queryKey: RECOMMENDED_COURSES_QUERY_KEY,
+      queryFn: getRecommendedCourses,
+    }).catch((error) => {
+      logger.log('[Layout] Recommendations prefetch skipped:', error);
+    });
+  }, [isAuthenticated]);
+
   // Don't render anything until fonts are loaded and i18n is ready
-  if ((!fontsLoaded && !fontsError) || !i18nReady) {
+  // BUT force render after safety timeout to prevent infinite white screen
+  const isReady = (fontsLoaded || !!fontsError) && i18nReady;
+  if (!isReady && !forceReady) {
+    logger.log('[Layout] Not ready yet - fontsLoaded:', fontsLoaded, 'fontsError:', !!fontsError, 'i18nReady:', i18nReady);
     return null;
   }
 

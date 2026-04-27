@@ -4,7 +4,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { ChatService } from '@/services/ChatService';
 import { User } from '@/types/auth';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,6 +40,13 @@ export default function NewChatScreen() {
     const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
     const [groupName, setGroupName] = useState('');
     const [groupDesc, setGroupDesc] = useState('');
+
+    // Discovery Implementation
+    const { data: discovery, isLoading: isDiscoveryLoading } = useQuery({
+        queryKey: ['chat-discovery'],
+        queryFn: () => ChatService.discoverContacts(),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
 
     // Search Users Effect
     useEffect(() => {
@@ -133,6 +140,58 @@ export default function NewChatScreen() {
         );
     };
 
+    const renderDiscoverySection = (title: string, data: any[], type: 'contact' | 'group') => {
+        if (!data || data.length === 0) return null;
+        return (
+            <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>{title}</Text>
+                    <View style={[styles.sectionBadge, { backgroundColor: theme.primary + '20' }]}>
+                        <Text style={[styles.sectionBadgeText, { color: theme.primary }]}>{data.length}</Text>
+                    </View>
+                </View>
+                {data.map((item, index) => (
+                    <TouchableOpacity
+                        key={item.id}
+                        style={[
+                            styles.discoveryItem,
+                            { borderBottomColor: index === data.length - 1 ? 'transparent' : theme.divider }
+                        ]}
+                        onPress={() => {
+                            if (type === 'contact') {
+                                // Direct chat for suggestion
+                                createDirectMutation.mutate(item.id);
+                            } else {
+                                // Group chat suggestion
+                                // For course groups, the ID matches the conversation ID in our chat service
+                                router.replace(`/conversation/${item.id}`);
+                            }
+                        }}
+                    >
+                        <View style={styles.discoveryAvatarContainer}>
+                            <Image
+                                source={{ uri: item.image || `https://ui-avatars.com/api/?name=${item.name}` }}
+                                style={styles.discoveryAvatar}
+                            />
+                            {type === 'group' && (
+                                <View style={[styles.groupIconBadge, { backgroundColor: theme.primary }]}>
+                                    <Ionicons name="people" size={10} color="white" />
+                                </View>
+                            )}
+                        </View>
+                        <View style={styles.discoveryInfo}>
+                            <Text style={[styles.discoveryName, { color: theme.text }]}>{item.name}</Text>
+                            <Text style={[styles.discoverySub, { color: theme.textSecondary }]}>
+                                {type === 'contact' ? `${item.relation} • ${item.role}` : 'Course Group'}
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
+                    </TouchableOpacity>
+                ))}
+            </View>
+        );
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
             {/* Header */}
@@ -204,11 +263,28 @@ export default function NewChatScreen() {
                     contentContainerStyle={styles.listContent}
                     ListHeaderComponent={
                         searchQuery.trim().length === 0 ? (
-                            <View style={styles.guideContainer}>
-                                <Ionicons name="search-outline" size={48} color={theme.textTertiary} />
-                                <Text style={[styles.guideText, { color: theme.textSecondary }]}>
-                                    Search for people by name or email to start a conversation
-                                </Text>
+                            <View style={styles.discoveryContainer}>
+                                {isDiscoveryLoading ? (
+                                    <View style={styles.discoveryLoading}>
+                                        <ActivityIndicator size="small" color={theme.primary} />
+                                        <Text style={[styles.discoveryLoadingText, { color: theme.textSecondary }]}>Finding your contacts...</Text>
+                                    </View>
+                                ) : (
+                                    <>
+                                        {renderDiscoverySection(t('Family'), discovery?.contacts.filter(c => c.category === 'FAMILY') || [], 'contact')}
+                                        {renderDiscoverySection(t('Academic'), discovery?.contacts.filter(c => c.category === 'ACADEMIC') || [], 'contact')}
+                                        {renderDiscoverySection(t('Course Groups'), discovery?.groups || [], 'group')}
+
+                                        {!discovery?.contacts.length && !discovery?.groups.length && (
+                                            <View style={styles.guideContainer}>
+                                                <Ionicons name="search-outline" size={48} color={theme.textTertiary} />
+                                                <Text style={[styles.guideText, { color: theme.textSecondary }]}>
+                                                    Search for people by name or email to start a conversation
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </>
+                                )}
                             </View>
                         ) : null
                     }
@@ -503,5 +579,85 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontFamily: Fonts.bold,
+    },
+    // Discovery Styles
+    discoveryContainer: {
+        paddingBottom: 100,
+    },
+    section: {
+        marginTop: 24,
+        paddingHorizontal: 16,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 8,
+    },
+    sectionTitle: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    sectionBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    sectionBadgeText: {
+        fontSize: 11,
+        fontFamily: Fonts.bold,
+    },
+    discoveryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+    },
+    discoveryAvatarContainer: {
+        position: 'relative',
+    },
+    discoveryAvatar: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#f1f1f1',
+    },
+    groupIconBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'white',
+    },
+    discoveryInfo: {
+        flex: 1,
+        marginLeft: 16,
+    },
+    discoveryName: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+    },
+    discoverySub: {
+        fontSize: 13,
+        fontFamily: Fonts.regular,
+        marginTop: 2,
+    },
+    discoveryLoading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 40,
+        gap: 12,
+    },
+    discoveryLoadingText: {
+        fontSize: 14,
+        fontFamily: Fonts.medium,
     },
 });

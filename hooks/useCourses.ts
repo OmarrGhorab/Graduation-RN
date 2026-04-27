@@ -4,18 +4,25 @@ import {
     createCourse,
     enrollInCourse,
     getAllCourses,
+    getRecommendedCourses,
     getAllSubjects,
     getCourse,
     getCourseDetails,
+    getTrendingCourses,
     getLessonAbsenceRequests,
     getMyCourses,
+    getTeacherCourses,
     getMySubjects,
     getPendingParentAbsenceRequests,
     getStudentAbsenceRequests,
     getStudentAnalytics,
     getSubjectDetails,
     respondToAbsenceRequest,
-    updateCourse
+    updateCourse,
+    getCourseReviews,
+    createCourseReview,
+    updateCourseReview,
+    deleteCourseReview
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -29,6 +36,9 @@ export const STUDENT_ANALYTICS_QUERY_KEY = (studentId: string, courseId: string)
 export const ABNSENCE_STUDENT_QUERY_KEY = (studentId: string) => ['absences', 'student', studentId];
 export const ABNSENCE_LESSON_QUERY_KEY = (lessonId: string) => ['absences', 'lesson', lessonId];
 export const ABSENCES_PENDING_PARENT_QUERY_KEY = ['absences', 'pending-parent'];
+export const TRENDING_COURSES_QUERY_KEY = ['courses', 'trending'];
+export const RECOMMENDED_COURSES_QUERY_KEY = ['courses', 'recommended'];
+export const REVIEWS_QUERY_KEY = (courseId: string, page?: number) => ['reviews', courseId, { page }];
 
 export function useMyCourses() {
     return useQuery({
@@ -38,15 +48,49 @@ export function useMyCourses() {
     });
 }
 
+export function useTeacherCourses() {
+    return useQuery({
+        queryKey: ['courses', 'teacher'],
+        queryFn: getTeacherCourses,
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
 export function useAllCourses(params?: {
+    teacherId?: string;
     subjectId?: string;
-    deliveryType?: 'OFFLINE' | 'ONLINE';
+    teacherName?: string;
+    subjectName?: string;
     search?: string;
+    deliveryType?: 'OFFLINE' | 'ONLINE';
+    isPaid?: boolean;
+    status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+    billingType?: 'ONE_TIME' | 'MONTHLY';
+    page?: number;
+    limit?: number;
 }) {
     return useQuery({
         queryKey: ALL_COURSES_QUERY_KEY(params),
         queryFn: () => getAllCourses(params),
         staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useTrendingCourses() {
+    return useQuery({
+        queryKey: TRENDING_COURSES_QUERY_KEY,
+        queryFn: () => getTrendingCourses(),
+        staleTime: STALE_TIMES.STANDARD,
+        retry: false,
+    });
+}
+
+export function useRecommendedCourses() {
+    return useQuery({
+        queryKey: RECOMMENDED_COURSES_QUERY_KEY,
+        queryFn: () => getRecommendedCourses(),
+        staleTime: STALE_TIMES.STANDARD,
+        retry: false,
     });
 }
 
@@ -213,4 +257,52 @@ export function useAbsenceMutations() {
         createAbsence: createMutation,
         respondToAbsence: respondMutation,
     };
+}
+
+export function useCourseReviews(courseId: string, page: number = 1, limit: number = 20) {
+    return useQuery({
+        queryKey: REVIEWS_QUERY_KEY(courseId, page),
+        queryFn: () => getCourseReviews(courseId, page, limit),
+        enabled: !!courseId,
+        staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useCreateReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, data }: { courseId: string; data: Parameters<typeof createCourseReview>[1] }) =>
+            createCourseReview(courseId, data),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
+}
+
+export function useUpdateReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, reviewId, data }: { courseId: string; reviewId: string; data: Parameters<typeof updateCourseReview>[2] }) =>
+            updateCourseReview(courseId, reviewId, data),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
+}
+
+export function useDeleteReview() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ courseId, reviewId }: { courseId: string; reviewId: string }) =>
+            deleteCourseReview(courseId, reviewId),
+        onSuccess: (_, { courseId }) => {
+            queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
+            queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
+        },
+    });
 }

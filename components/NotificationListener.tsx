@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
+import { useAuthStore } from '@/libs/auth';
 
 /**
  * NotificationListener component
@@ -232,6 +233,12 @@ export default function NotificationListener() {
 
         // New notifications are also handled by useNotificationSSE's cache update
         logger.log('[NotificationListener] New notification received via SSE:', notification.id);
+
+        // Auto-refresh calendar for lesson-related events
+        if (notification.type === 'lesson_started' || notification.type === 'LESSON_STARTED' || notification.type === 'ATTENDANCE_FINALIZED') {
+            logger.log('[NotificationListener] Lesson event via SSE, invalidating calendar queries');
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
+        }
     }, [queryClient]);
 
     // Connect to SSE for real-time notifications
@@ -293,7 +300,7 @@ export default function NotificationListener() {
 
                 // Create notification object for cache in Unified Format
                 const apiNotification: ApiNotification = {
-                    id: `push-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    id: data.id || data.notification_id || `push-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     type: data.type || 'info',
                     title: notification.request.content.title || data.title || 'Notification',
                     body: notification.request.content.body || data.body || '',
@@ -307,6 +314,19 @@ export default function NotificationListener() {
                 // Add to React Query cache
                 addNotificationToCache(apiNotification);
 
+                // Auto-refresh calendar for lesson-related push notifications
+                if (data.type === 'lesson_started' || data.type === 'LESSON_STARTED' || data.type === 'ATTENDANCE_FINALIZED') {
+                    logger.log('[NotificationListener] Lesson event via Push, invalidating calendar queries');
+                    queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                }
+
+                // Auto-refresh reports for parent report ready events
+                if (data.type === 'parent_report_ready') {
+                    logger.log('[NotificationListener] Parent report ready, invalidating report queries');
+                    queryClient.invalidateQueries({ queryKey: ['report-summary'] });
+                    queryClient.invalidateQueries({ queryKey: ['report-history'] });
+                }
+
                 logger.log('[NotificationListener] Added notification to cache:', apiNotification.id);
             }
         });
@@ -317,18 +337,92 @@ export default function NotificationListener() {
 
             const data = response.notification.request.content.data as Record<string, any>;
             const action = data?.action;
+            const user = useAuthStore.getState().user;
+            const role = user?.role;
+            const type = data?.type || data?.notification_type;
 
+            // 0. Emergency Security Handling (Highest Priority)
+            if (type === 'security_new_device_blocked') {
+                const newDevice = data.newDevice;
+                logger.log('[NotificationListener] Security alert tapped, redirecting to Security Alert screen');
+                router.push({
+                    pathname: '/security-alert' as any,
+                    params: {
+                        deviceName: newDevice?.name,
+                        platform: newDevice?.platform,
+                        ipAddress: newDevice?.ipAddress,
+                        timestamp: data.timestamp,
+                        securityTip: data.securityTip
+                    }
+                });
+                return;
+            }
+
+            // 1. High Priority Role-Based Overrides (Lesson Started/Reminder)
+            if (type === 'lesson_started' || type === 'LESSON_STARTED' || type === 'reminder') {
+                if (role === 'STUDENT') {
+                    logger.log('[NotificationListener] Student tapped lesson notification, redirecting to Scan QR');
+                    router.push('/(main)/home?action=scan');
+                    return;
+                } else if (role === 'TEACHER') {
+                    const lessonId = data.lessonId || data.lesson_id;
+                    if (lessonId) {
+                        logger.log('[NotificationListener] Teacher tapped lesson notification, going to Control');
+                        router.push({ pathname: '/teacher-control', params: { lessonId } });
+                        return;
+                    }
+                }
+            }
+
+            // 2. Handle Action-based Navigation with Role Guards
             if (action && action.type === 'navigate') {
-                logger.log('[NotificationListener] Navigating to:', action.target, 'with params:', action.params);
-                // Handle params for expo-router if needed
-                if (action.target === 'chat-detail' && action.params?.conversationId) {
+                const target = action.target;
+                
+                // Security Guard: Prevent students from accessing teacher screens
+                const teacherOnlyScreens = ['teacher-control', 'teacher-dashboard', 'teacher-courses', 'create-course', 'create-lesson', 'lesson-analytics'];
+                if (role === 'STUDENT' && teacherOnlyScreens.includes(target)) {
+                    logger.warn(`[NotificationListener] Student attempted to access ${target}, redirecting to scan`);
+                    router.push('/(main)/home?action=scan');
+                    return;
+                }
+
+                logger.log('[NotificationListener] Navigating to:', target, 'with params:', action.params);
+                
+                // Specialized navigation
+                if (target === 'chat-detail' && action.params?.conversationId) {
                     router.push(`/conversation/${action.params.conversationId}`);
+                } else if (target === '/security-settings' || target === 'security-settings') {
+                    // Map generic security settings target to the specific alert screen
+                    router.push({
+                        pathname: '/security-alert' as any,
+                        params: {
+                            deviceName: data?.newDevice?.name,
+                            platform: data?.newDevice?.platform,
+                            ipAddress: data?.newDevice?.ipAddress,
+                            timestamp: data?.timestamp,
+                            securityTip: data?.securityTip
+                        }
+                    });
+                } else if (target === '/course-reviews' || target === 'course-reviews') {
+                    const courseId = action.params?.id || action.params?.courseId;
+                    if (courseId) {
+                        router.push({ pathname: '/course-details', params: { id: courseId, tab: 'REVIEWS' } });
+                    } else {
+                        router.push('/(main)/courses');
+                    }
                 } else if (action.params) {
                     // Generic navigation fallback
-                    router.push({ pathname: action.target as any, params: action.params });
+                    router.push({ pathname: target as any, params: action.params });
                 } else {
-                    router.push(action.target as any);
+                    router.push(target as any);
                 }
+            } else if (data?.type === 'parent_report_ready') {
+                const studentId = data.studentId || data.student_id;
+                const studentName = data.studentName || data.student_name;
+                router.push({
+                    pathname: '/report-history' as any,
+                    params: { studentId, studentName }
+                });
             } else if (data?.type === 'parent_link_request' || data?.type === 'link-requests') {
                 // Backward compatibility fallback
                 router.push('/link-requests' as any);

@@ -1,7 +1,14 @@
-
+export { AbsenceRequestCard } from './AbsenceRequestCard';
 export { AssistantsSection } from './AssistantsSection';
-export { default as CourseStatsCard } from './CourseStatsCard';
 export { EnrollmentBadge } from './EnrollmentBadge';
+export { EnrollmentList } from './EnrollmentList';
+export { FreeTrialBadge } from './FreeTrialBadge';
+export { ProgressCard } from './ProgressCard';
 export { default as QRScannerModal } from './QRScannerModal';
-export { default as SyllabusItem } from './SyllabusItem';
+export { ReviewModal } from './ReviewModal';
+export { ReviewsSection } from './ReviewsSection';
+export { TeacherCard } from './TeacherCard';
+export { LessonDetailsModal } from './LessonDetailsModal';
+export { LessonMaterialsSection } from './LessonMaterialsSection';
+
 

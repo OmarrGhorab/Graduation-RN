@@ -1,5 +1,25 @@
+import { BASE_URL } from '@/constants/config';
 import { logger } from '@/libs/logger';
+import { getValidAccessToken } from './AuthService';
 import { apiClient } from './apiClient';
+import { DeviceService } from './DeviceService';
+import { Platform } from 'react-native';
+
+export interface CourseAnalytics {
+    totalRevenue: number;
+    totalStudents: number;
+    activeStudents: number;
+    completionRate: number;
+    averageRating: number;
+    reviewCount: number;
+}
+
+export interface TeacherSummary {
+    averageRating: number;
+    totalRatings: number;
+    totalRevenue: number;
+    totalUniqueStudents: number;
+}
 
 export interface ApiCourse {
     id: string;
@@ -15,6 +35,8 @@ export interface ApiCourse {
     courseRating?: number;
     totalRatings?: number;
     enrolledStudents?: number;
+    enrollmentCount?: number;
+    freeTrialLessons?: number;
     deliveryType: 'OFFLINE' | 'ONLINE';
     locationName: string;
     locationLat?: number;
@@ -28,13 +50,54 @@ export interface ApiCourse {
     billingType: 'ONE_TIME' | 'MONTHLY';
     status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PAUSED';
     attendanceWeight: number;
+    previewVideoUrl?: string;
+    previewVideoPublicId?: string;
+    preview_video_url?: string;
+    preview_video_public_id?: string;
+    reminderIntervals?: string;
+    analytics?: CourseAnalytics;
     createdAt: string;
     updatedAt: string;
 }
 
+export interface CourseMeta {
+    total: number;
+    limit: number;
+    page: number;
+}
+
 export interface CoursesResponse {
     data: ApiCourse[];
+    meta?: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages?: number;
+    };
+    summary?: TeacherSummary;
     success: boolean;
+}
+
+export interface RecommendationCourseItem {
+    courseId: string;
+    score: number;
+    title: string;
+    courseImage?: string;
+    price: number;
+    currency: string;
+    enrolledCount: number;
+    subjectName: string;
+    teacher: {
+        name: string;
+        avatar?: string;
+    };
+    matchReason?: string;
+    priority?: string;
+}
+
+export interface RecommendationCoursesResponse {
+    success: boolean;
+    data: RecommendationCourseItem[];
 }
 
 export interface ApiSubject {
@@ -44,9 +107,82 @@ export interface ApiSubject {
     icon: string;
 }
 
+export interface CourseReview {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentUsername: string;
+    studentProfile?: string;
+    rating: number;
+    review: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RatingBreakdown {
+    fiveStars: number;
+    fourStars: number;
+    threeStars: number;
+    twoStars: number;
+    oneStar: number;
+}
+
+export interface CourseReviewsResponse {
+    success: boolean;
+    data: {
+        courseId: string;
+        courseTitle: string;
+        averageRating: number;
+        totalRatings: number;
+        ratingBreakdown: RatingBreakdown;
+        reviews: CourseReview[];
+        pagination: {
+            page: number;
+            limit: number;
+            totalItems: number;
+            totalPages: number;
+        };
+    };
+}
+
+export interface CreateReviewRequest {
+    rating: number;
+    review: string;
+}
+
+export interface CreateReviewResponse {
+    success: boolean;
+    data: CourseReview;
+}
+
 export interface SubjectsResponse {
     data: ApiSubject[];
     success: boolean;
+}
+
+export interface Subscription {
+    id: string;
+    userId: string;
+    courseId: string;
+    status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED' | 'PAST_DUE';
+    priceCents: number;
+    currency: string;
+    billingCycle: 'MONTHLY' | 'WEEKLY' | 'YEARLY';
+    nextBillingDate: string;
+    startedAt: string;
+    cancelledAt?: string;
+    endedAt?: string;
+    courseTitle?: string; // Optional field for UI display convenience
+}
+
+export interface SubscriptionsResponse {
+    success: boolean;
+    data: Subscription[] | null;
+}
+
+export interface SubscriptionResponse {
+    success: boolean;
+    data: Subscription;
 }
 
 export interface ApiCourseDetails {
@@ -71,6 +207,14 @@ export interface ApiCourseDetails {
         geofenceRadiusM?: number;
         enrollmentCount?: number;
         assistants?: CourseAssistant[];
+        freeTrialLessons?: number;
+        courseRating?: number;
+        totalReviews?: number;
+        courseImage?: string;
+        previewVideoUrl?: string;
+        previewVideoPublicId?: string;
+        preview_video_url?: string;
+        preview_video_public_id?: string;
     };
     progress?: {
         attendancePercentage: number;
@@ -107,6 +251,12 @@ export interface ApiCourseDetails {
         attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED' | null;
         absenceRequestStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
         attendeeCount?: number;
+        deliveryType?: 'ONLINE' | 'OFFLINE';
+        isFree?: boolean;
+        videoUrl?: string;
+        videoPublicId?: string;
+        materialsUrl?: string;
+        duration?: number;
     }[];
     enrollment?: {
         id: string;
@@ -179,6 +329,14 @@ export async function getMyCourses(): Promise<CoursesResponse> {
 }
 
 /**
+ * Fetch courses for the current teacher (owned courses)
+ */
+export async function getTeacherCourses(): Promise<CoursesResponse> {
+    logger.log('[Courses] Fetching teacher courses');
+    return apiClient.get<CoursesResponse>('/api/v1/courses/teacher');
+}
+
+/**
  * Fetch subject categories for the student
  */
 export async function getMySubjects(): Promise<SubjectsResponse> {
@@ -187,15 +345,33 @@ export async function getMySubjects(): Promise<SubjectsResponse> {
 }
 
 /**
- * Fetch all available courses
+ * Fetch all available courses with filters and pagination
  */
 export async function getAllCourses(params?: {
+    teacherId?: string;
     subjectId?: string;
-    deliveryType?: 'OFFLINE' | 'ONLINE';
+    teacherName?: string;
+    subjectName?: string;
     search?: string;
+    deliveryType?: 'OFFLINE' | 'ONLINE';
+    isPaid?: boolean;
+    status?: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+    billingType?: 'ONE_TIME' | 'MONTHLY';
+    page?: number;
+    limit?: number;
 }): Promise<CoursesResponse> {
     logger.log('[Courses] Fetching all courses', params);
     return apiClient.get<CoursesResponse>('/api/v1/courses', { params });
+}
+
+export async function getTrendingCourses(): Promise<RecommendationCoursesResponse> {
+    logger.log('[Courses] Fetching trending courses');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/trending/', { silent: true });
+}
+
+export async function getRecommendedCourses(): Promise<RecommendationCoursesResponse> {
+    logger.log('[Courses] Fetching recommended courses');
+    return apiClient.get<RecommendationCoursesResponse>('/api/v1/recommendations/', { silent: true });
 }
 
 /**
@@ -206,6 +382,14 @@ export async function getCourseDetails(courseId: string, studentId?: string): Pr
     return apiClient.get<CourseDetailsResponse>(`/api/v1/courses/${courseId}/details`, {
         params: { studentId }
     });
+}
+
+/**
+ * Fetch a single course by ID (for editing)
+ */
+export async function getCourseById(courseId: string): Promise<{ success: boolean; data: ApiCourse }> {
+    logger.log('[Courses] Fetching course by ID:', courseId);
+    return apiClient.get<{ success: boolean; data: ApiCourse }>(`/api/v1/courses/${courseId}`);
 }
 
 /**
@@ -239,13 +423,34 @@ export interface LessonAttendanceResponse {
         studentId: string;
         studentName: string;
         studentProfileImg?: string;
-        status: 'PRESENT' | 'LATE' | 'ABSENT';
+        status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
         scannedAt: string | null;
         isManualOverride?: boolean;
         createdAt?: string;
         updatedAt?: string;
     }[];
 }
+
+export interface LessonAnalyticsResponse {
+    success: boolean;
+    data: {
+        lessonId: string;
+        lessonTitle: string;
+        totalStudents: number;
+        presentCount: number;
+        lateCount: number;
+        absentCount: number;
+        excusedCount: number;
+        attendanceRate: number;
+        recentActivity: Array<{
+            studentId: string;
+            studentName: string;
+            status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED';
+            scannedAt: string | null;
+        }>;
+    };
+}
+
 
 export interface StudentAnalyticsResponse {
     success: boolean;
@@ -289,6 +494,7 @@ export interface CreateLessonRequest {
     locationLat?: number;
     locationLng?: number;
     geofenceRadiusM: number;
+    isFree?: boolean;
 }
 
 export interface ApiLesson {
@@ -304,6 +510,7 @@ export interface ApiLesson {
     locationLat: number;
     locationLng: number;
     geofenceRadiusM: number;
+    enrolledStudents?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -313,14 +520,22 @@ export interface CreateLessonResponse {
     success: boolean;
 }
 
-/**
- * Start a lesson (Teacher)
- */
 export async function startLesson(lessonId: string, deviceId?: string, deviceFingerprint?: string): Promise<{ success: boolean; message: string; qr_token?: any }> {
     logger.log('[Lessons] Starting lesson:', lessonId);
+
+    // Auto-fetch device info if missing
+    let finalDeviceId = deviceId;
+    let finalFingerprint = deviceFingerprint;
+
+    if (!finalDeviceId || !finalFingerprint) {
+        const deviceInfo = DeviceService.getDeviceInfo();
+        if (!finalDeviceId) finalDeviceId = `${deviceInfo.platform}-${deviceInfo.deviceModel}`;
+        if (!finalFingerprint) finalFingerprint = deviceInfo.deviceName;
+    }
+
     return apiClient.post<{ success: boolean; message: string; qr_token?: any }>(`/api/v1/lessons/${lessonId}/start`, {
-        deviceId,
-        deviceFingerprint
+        deviceId: finalDeviceId,
+        deviceFingerprint: finalFingerprint
     });
 }
 
@@ -357,11 +572,43 @@ export async function getStudentAnalytics(studentId: string, courseId: string): 
 }
 
 /**
+ * Get analytics for a specific lesson (Teacher)
+ */
+export async function getLessonAnalytics(lessonId: string): Promise<LessonAnalyticsResponse> {
+    logger.log('[Analytics] Fetching lesson analytics:', lessonId);
+    return apiClient.get<LessonAnalyticsResponse>(`/api/v1/attendance/lesson/${lessonId}/analytics`);
+}
+
+
+/**
  * Create a new lesson (Teacher)
  */
 export async function createLesson(data: CreateLessonRequest): Promise<CreateLessonResponse> {
+    console.log('[CourseService] Creating lesson with FULL data:');
+    console.log('  courseId:', data.courseId);
+    console.log('  title:', data.title);
+    console.log('  description:', data.description);
+    console.log('  scheduledAt:', data.scheduledAt);
+    console.log('  durationMinutes:', data.durationMinutes);
+    console.log('  deliveryType:', data.deliveryType);
+    console.log('  locationName:', data.locationName);
+    console.log('  locationLat:', data.locationLat);
+    console.log('  locationLng:', data.locationLng);
+    console.log('  geofenceRadiusM:', data.geofenceRadiusM);
+    console.log('[CourseService] Full object:', data);
+
     logger.log('[Lessons] Creating new lesson:', data.title);
-    return apiClient.post<CreateLessonResponse>('/api/v1/lessons', data);
+
+    try {
+        const response = await apiClient.post<CreateLessonResponse>('/api/v1/lessons', data);
+        console.log('[CourseService] Lesson created successfully:', response);
+        return response;
+    } catch (error: any) {
+        console.error('[CourseService] Create lesson failed:', error);
+        console.error('[CourseService] Error response:', error.response?.data);
+        console.error('[CourseService] Error status:', error.response?.status);
+        throw error;
+    }
 }
 
 /**
@@ -423,10 +670,12 @@ export interface UpdateLessonRequest {
     description?: string;
     scheduledAt?: string;
     durationMinutes?: number;
+    deliveryType?: 'ONLINE' | 'OFFLINE';
     locationName?: string;
     locationLat?: number;
     locationLng?: number;
     geofenceRadiusM?: number;
+    isFree?: boolean;
 }
 
 export async function updateLesson(
@@ -474,6 +723,7 @@ export interface UpdateCourseRequest {
     billingType?: 'ONE_TIME' | 'MONTHLY';
     status?: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'PAUSED';
     attendanceWeight?: number;
+    reminderIntervals?: string;
 }
 
 export async function updateCourse(
@@ -488,23 +738,37 @@ export async function updateCourse(
 }
 
 /**
+ * Delete a course (Teacher)
+ */
+export async function deleteCourse(courseId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Deleting course:', courseId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}`);
+}
+
+/**
  * Create a new course (Teacher)
  */
 export interface CreateCourseRequest {
     title: string;
     description: string;
     subjectId: string;
+    courseImage?: string;
+    previewVideoUrl?: string;
+    previewVideoPublicId?: string;
     deliveryType: 'OFFLINE' | 'ONLINE';
-    locationName: string;
+    totalLessons: number;
+    freeTrialLessons?: number;
+    locationName?: string;
     locationLat?: number;
     locationLng?: number;
-    geofenceRadiusM: number;
-    attendanceWindowMinutes: number;
+    geofenceRadiusM?: number;
+    attendanceWindowMinutes?: number;
     price: number;
     currency: string;
     isPaid: boolean;
     billingType: 'ONE_TIME' | 'MONTHLY';
     attendanceWeight: number;
+    reminderIntervals?: string;
 }
 
 export async function createCourse(data: CreateCourseRequest): Promise<{ success: boolean; data: ApiCourse }> {
@@ -658,21 +922,57 @@ export async function scanAttendance(
  * ABSENCE / EXCUSE ENDPOINTS
  */
 
-export type AbsenceReasonType = 'PARENT_EXCUSE' | 'MEDICAL' | 'EMERGENCY';
+export type AbsenceReasonType = 'MEDICAL' | 'TECHNICAL' | 'EMERGENCY' | 'PERSONAL' | 'PARENT_EXCUSE';
 export type AbsenceStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface CreateAbsenceRequest {
     lessonId: string;
-    studentId: string;
+    studentId: string; // The child's ID if parent is submitting
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachment?: string;
+}
+
+/**
+ * Manually override a student's attendance status (Teacher)
+ */
+export async function manualAttendanceOverride(
+    lessonId: string,
+    data: { 
+        studentId: string; 
+        status: 'PRESENT' | 'LATE' | 'ABSENT' | 'EXCUSED'; 
+        reason: string; 
+    }
+): Promise<{ success: boolean; message: string }> {
+    logger.log('[Attendance] Manually overriding attendance for student:', data.studentId);
+    return apiClient.post<{ success: boolean; message: string }>(
+        `/api/v1/attendance/lesson/${lessonId}/override`,
+        data
+    );
 }
 
 export interface ApiAbsenceRequest {
     id: string;
     lessonId: string;
     studentId: string;
+    studentName?: string;
+    lessonTitle?: string;
+    courseTitle?: string;
+    lessonName?: string;
+    courseName?: string;
+    lesson_title?: string;
+    course_title?: string;
+    lesson?: {
+        id: string;
+        title: string;
+        name?: string;
+        scheduledAt?: string;
+    };
+    course?: {
+        id: string;
+        title: string;
+        name?: string;
+    };
     reasonType: AbsenceReasonType;
     reasonText: string;
     attachmentUrl?: string;
@@ -714,6 +1014,14 @@ export async function getStudentAbsenceRequests(studentId: string): Promise<Abse
 }
 
 /**
+ * Get all absence history for all linked children (Parent)
+ */
+export async function getKidsAbsenceHistory(): Promise<AbsencesListResponse> {
+    logger.log('[Absences] Fetching kids absence history');
+    return apiClient.get<AbsencesListResponse>('/api/v1/absences/parent/kids');
+}
+
+/**
  * Get absence requests for a specific lesson (Teacher)
  */
 export async function getLessonAbsenceRequests(lessonId: string): Promise<AbsencesListResponse> {
@@ -731,6 +1039,7 @@ export async function getPendingParentAbsenceRequests(): Promise<AbsencesListRes
 
 /**
  * Respond to an absence request (Approve/Reject)
+ * Parents can also call this to self-approve their child's excuse.
  */
 export async function respondToAbsenceRequest(
     requestId: string,
@@ -739,6 +1048,7 @@ export async function respondToAbsenceRequest(
     logger.log('[Absences] Responding to absence request:', requestId, data.approve ? 'APPROVE' : 'REJECT');
     return apiClient.post<AbsenceResponse>(`/api/v1/absences/${requestId}/respond`, data);
 }
+
 
 /**
  * COURSE ASSISTANTS ENDPOINTS
@@ -809,4 +1119,679 @@ export async function removeCourseAssistant(
     return apiClient.delete<{ success: boolean; message: string }>(
         `/api/v1/courses/${courseId}/assistants/${assistantId}`
     );
+}
+
+
+/**
+ * REVIEWS & RATINGS ENDPOINTS
+ */
+
+/**
+ * LESSON MATERIALS ENDPOINTS
+ */
+
+export interface UploadVideoResponse {
+    success: boolean;
+    data: {
+        id: string;
+        url: string;
+        publicId: string;
+    };
+    message: string;
+    upload_info?: {
+        size_mb: number;
+        format: string;
+    };
+}
+
+export interface UploadDocumentResponse {
+    success: boolean;
+    data: {
+        id: string;
+        url: string;
+    };
+    message: string;
+}
+
+export interface UpdateMaterialsRequest {
+    videoUrl?: string;
+    videoPublicId?: string;
+    materialsUrl?: string;
+    duration?: number;
+}
+
+/**
+ * Upload video for lesson (backend upload to Cloudinary)
+ */
+export async function uploadLessonVideo(
+    lessonId: string,
+    videoFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<UploadVideoResponse> {
+    logger.log('[Lessons] Uploading video for lesson:', lessonId);
+
+    const formData = new FormData();
+
+    // Format file object correctly for React Native FormData
+    formData.append('video', {
+        uri: videoFile.uri,
+        type: videoFile.type,
+        name: videoFile.name,
+    } as any);
+
+    // Use XMLHttpRequest for progress tracking
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        // Track upload progress
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+
+        xhr.addEventListener('load', async () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    resolve(response);
+                } catch (error) {
+                    reject(new Error('Failed to parse response'));
+                }
+            } else {
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+        });
+
+        // Get auth token and setup request
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            if (!token) {
+                reject(new Error('No authentication token found'));
+                return;
+            }
+
+            xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-video`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Upload document for lesson (backend upload to Cloudinary)
+ */
+export async function uploadLessonDocument(
+    lessonId: string,
+    documentFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<UploadDocumentResponse> {
+    logger.log('[Lessons] Uploading document for lesson:', lessonId);
+
+    const formData = new FormData();
+
+    // Format file object correctly for React Native FormData
+    formData.append('document', {
+        uri: documentFile.uri,
+        type: documentFile.type,
+        name: documentFile.name,
+    } as any);
+
+    // Use XMLHttpRequest for progress tracking
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        // Track upload progress
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+
+        xhr.addEventListener('load', async () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    resolve(response);
+                } catch (error) {
+                    reject(new Error('Failed to parse response'));
+                }
+            } else {
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+            }
+        });
+
+        xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+        });
+
+        // Get auth token and setup request
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            if (!token) {
+                reject(new Error('No authentication token found'));
+                return;
+            }
+
+            xhr.open('POST', `${BASE_URL}/api/v1/lessons/${lessonId}/upload-document`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Delete lesson video
+ */
+export async function deleteLessonVideo(lessonId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Lessons] Deleting video for lesson:', lessonId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/lessons/${lessonId}/video`);
+}
+
+/**
+ * Update lesson materials (manual URLs)
+ */
+export async function updateLessonMaterials(
+    lessonId: string,
+    data: UpdateMaterialsRequest
+): Promise<{ success: boolean; message: string; data: ApiLesson }> {
+    logger.log('[Lessons] Updating materials for lesson:', lessonId);
+    return apiClient.put<{ success: boolean; message: string; data: ApiLesson }>(
+        `/api/v1/lessons/${lessonId}/materials`,
+        data
+    );
+}
+
+// ============================================================================
+// COURSE ENROLLMENTS
+// ============================================================================
+
+export interface CourseEnrollment {
+    id: string;
+    studentId: string;
+    courseId: string;
+    enrolledAt: string;
+    status: string;
+    student: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        profilePicture?: string;
+    };
+}
+
+export interface CourseEnrollmentsResponse {
+    success: boolean;
+    data: CourseEnrollment[];
+}
+
+/**
+ * Get all enrollments for a course (Teacher only)
+ */
+export async function getCourseEnrollments(courseId: string): Promise<CourseEnrollmentsResponse> {
+    logger.log('[Courses] Fetching enrollments for course:', courseId);
+    return apiClient.get<CourseEnrollmentsResponse>(`/api/v1/courses/${courseId}/enrollments`);
+}
+
+// ============================================================================
+// PROGRESS TRACKING
+// ============================================================================
+
+export interface StudentProgress {
+    studentId: string;
+    courseId: string;
+    attendanceRate: number;
+    completionRate: number;
+    status: 'GOOD_STANDING' | 'NEEDS_IMPROVEMENT' | 'AT_RISK';
+    totalLessons: number;
+    attendedLessons: number;
+    lastUpdated: string;
+}
+
+export interface StudentProgressResponse {
+    success: boolean;
+    data: StudentProgress;
+}
+
+export interface CourseProgressResponse {
+    success: boolean;
+    data: StudentProgress[];
+}
+
+/**
+ * Get student progress for a course
+ */
+export async function getStudentProgress(
+    courseId: string,
+    studentId: string
+): Promise<StudentProgressResponse> {
+    logger.log('[Progress] Fetching student progress:', { courseId, studentId });
+    return apiClient.get<StudentProgressResponse>(`/api/v1/progress/student/${courseId}/${studentId}`);
+}
+
+/**
+ * Get progress for all students in a course (Teacher only)
+ */
+export async function getCourseProgress(courseId: string): Promise<CourseProgressResponse> {
+    logger.log('[Progress] Fetching course progress:', courseId);
+    return apiClient.get<CourseProgressResponse>(`/api/v1/progress/course/${courseId}`);
+}
+
+/**
+ * Recompute progress for a student in a course (Teacher only)
+ */
+export async function recomputeProgress(
+    courseId: string,
+    studentId: string
+): Promise<StudentProgressResponse> {
+    logger.log('[Progress] Recomputing progress:', { courseId, studentId });
+    return apiClient.post<StudentProgressResponse>(`/api/v1/progress/recompute/${courseId}/${studentId}`, {});
+}
+
+// ============================================================================
+// CALENDAR
+// ============================================================================
+
+export interface CalendarLesson {
+    id: string;
+    courseId: string;
+    title: string;
+    description: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+    deliveryType: 'ONLINE' | 'OFFLINE';
+    course: {
+        id: string;
+        title: string;
+        courseImage?: string;
+    };
+}
+
+export interface CalendarResponse {
+    success: boolean;
+    data: CalendarLesson[];
+}
+
+/**
+ * Get student calendar (upcoming lessons)
+ */
+export async function getStudentCalendar(
+    start?: string,
+    end?: string
+): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching student calendar:', { start, end });
+    const params: any = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/student', { params });
+}
+
+/**
+ * Get teacher calendar (scheduled lessons)
+ */
+export async function getTeacherCalendar(
+    start?: string,
+    end?: string
+): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching teacher calendar:', { start, end });
+    const params: any = {};
+    if (start) params.start = start;
+    if (end) params.end = end;
+
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', { params });
+}
+
+// ============================================================================
+// TEACHERS
+// ============================================================================
+
+export interface TopRatedTeacher {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+    averageRating: number;
+    totalRatings: number;
+    totalCourses: number;
+}
+
+export interface TopRatedTeachersResponse {
+    success: boolean;
+    data: TopRatedTeacher[];
+}
+
+export interface TeacherRatingResponse {
+    success: boolean;
+    data: {
+        teacherId: string;
+        averageRating: number;
+        totalRatings: number;
+    };
+}
+
+/**
+ * Get top rated teachers (Public)
+ */
+export async function getTopRatedTeachers(
+    limit: number = 10,
+    minRating: number = 4.0
+): Promise<TopRatedTeachersResponse> {
+    logger.log('[Teachers] Fetching top rated teachers:', { limit, minRating });
+    return apiClient.get<TopRatedTeachersResponse>('/api/v1/teachers/top-rated', {
+        params: { limit, minRating }
+    });
+}
+
+/**
+ * Get teacher rating (Public)
+ */
+export async function getTeacherRating(teacherId: string): Promise<TeacherRatingResponse> {
+    logger.log('[Teachers] Fetching teacher rating:', teacherId);
+    return apiClient.get<TeacherRatingResponse>(`/api/v1/teachers/${teacherId}/rating`);
+}
+
+/**
+ * Upload thumbnail for course (Teacher)
+ */
+export async function uploadCourseImage(
+    imageFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<{ success: boolean; data: { url: string }; message: string }> {
+    logger.log('[Courses] Uploading course thumbnail');
+
+    const formData = new FormData();
+    formData.append('image', {
+        uri: imageFile.uri,
+        type: imageFile.type,
+        name: imageFile.name,
+    } as any);
+
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch (e) { reject(new Error('Failed to parse response')); }
+            } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-image`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Upload preview video for course (Teacher)
+ */
+export async function uploadCoursePreviewVideo(
+    videoFile: {
+        uri: string;
+        type: string;
+        name: string;
+    },
+    onProgress?: (progress: number) => void
+): Promise<{ success: boolean; data: { url: string; publicId: string }; message: string }> {
+    logger.log('[Courses] Uploading course preview video');
+
+    const formData = new FormData();
+    formData.append('video', {
+        uri: videoFile.uri,
+        type: videoFile.type,
+        name: videoFile.name,
+    } as any);
+
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 100;
+                    onProgress(progress);
+                }
+            });
+        }
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try { resolve(JSON.parse(xhr.responseText)); }
+                catch (e) { reject(new Error('Failed to parse response')); }
+            } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+
+        Promise.all([getValidAccessToken(), DeviceService.getDeviceHeaders()]).then(([token, deviceHeaders]) => {
+            xhr.open('POST', `${BASE_URL}/api/v1/courses/upload-video`);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            // Attach Device Headers (Passport)
+            Object.entries(deviceHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value as string);
+            });
+
+            xhr.send(formData as any);
+        }).catch(reject);
+    });
+}
+
+/**
+ * Get teacher analytics (Teacher)
+ */
+export async function getTeacherAnalytics(): Promise<{ success: boolean; data: any }> {
+    logger.log('[Analytics] Fetching teacher analytics');
+    return apiClient.get<{ success: boolean; data: any }>('/api/v1/courses/teacher/analytics');
+}
+
+/**
+ * Mark a lesson as completed (Student progress tracking)
+ */
+export async function markLessonCompleted(lessonId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Progress] Marking lesson as completed:', lessonId);
+    return apiClient.post<{ success: boolean; message: string }>(`/api/v1/progress/${lessonId}`, {});
+}
+
+/**
+ * Get reviews for a specific course
+ */
+export async function getCourseReviews(courseId: string, page: number = 1, limit: number = 20): Promise<CourseReviewsResponse> {
+    logger.log('[Courses] Fetching reviews for course:', courseId);
+    return apiClient.get<CourseReviewsResponse>(`/api/v1/courses/${courseId}/reviews`, {
+        params: { page, limit }
+    });
+}
+
+/**
+ * Add a review for a course (Student)
+ */
+export async function createCourseReview(courseId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
+    logger.log('[Courses] Adding review for course:', courseId);
+    return apiClient.post<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews`, data);
+}
+
+/**
+ * Update a review for a course (Student)
+ */
+export async function updateCourseReview(courseId: string, reviewId: string, data: CreateReviewRequest): Promise<CreateReviewResponse> {
+    logger.log('[Courses] Updating review for course:', courseId, reviewId);
+    return apiClient.put<CreateReviewResponse>(`/api/v1/courses/${courseId}/reviews/${reviewId}`, data);
+}
+
+export async function deleteCourseReview(courseId: string, reviewId: string): Promise<{ success: boolean; message: string }> {
+    logger.log('[Courses] Deleting review for course:', courseId, reviewId);
+    return apiClient.delete<{ success: boolean; message: string }>(`/api/v1/courses/${courseId}/reviews/${reviewId}`);
+}
+
+/**
+ * Upload absence attachment to Cloudinary
+ */
+export async function uploadAbsenceAttachment(fileUri: string): Promise<string> {
+    try {
+        logger.log('[Absences] Starting attachment upload:', fileUri);
+
+        // 1. Get presigned URL
+        const folder = 'absences/attachments';
+        const presignData = await apiClient.post<any>('/api/v1/media/presign', { folder });
+
+        // 2. Prepare file
+        const fileData = {
+            uri: Platform.OS === 'ios' ? fileUri.replace('file://', '') : fileUri,
+            type: 'image/jpeg',
+            name: 'absence_proof.jpg'
+        };
+
+        // 3. Build FormData for Cloudinary
+        const formData = new FormData();
+        formData.append('file', fileData as any);
+        formData.append('api_key', presignData.api_key);
+        formData.append('timestamp', presignData.timestamp.toString());
+        formData.append('signature', presignData.signature);
+        formData.append('folder', presignData.folder);
+
+        // 4. Upload to Cloudinary
+        const uploadRes = await fetch(presignData.url, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!uploadRes.ok) {
+            throw new Error('Cloudinary upload failed');
+        }
+
+        const uploadData = await uploadRes.json();
+        return uploadData.secure_url;
+
+    } catch (error) {
+        logger.error('[Absences] Upload error:', error);
+        throw error;
+    }
+}
+
+// ============================================================================
+// SUBSCRIPTIONS (Billing)
+// ============================================================================
+
+/**
+ * Get user subscriptions
+ */
+export async function getSubscriptions(): Promise<SubscriptionsResponse> {
+    logger.log('[Billing] Fetching subscriptions');
+    return apiClient.get<SubscriptionsResponse>('/api/v1/subscriptions');
+}
+
+/**
+ * Get subscription details
+ */
+export async function getSubscriptionDetails(id: string): Promise<SubscriptionResponse> {
+    logger.log('[Billing] Fetching subscription details:', id);
+    return apiClient.get<SubscriptionResponse>(`/api/v1/subscriptions/${id}`);
+}
+
+/**
+ * Cancel subscription
+ */
+export async function cancelSubscription(id: string): Promise<{ success: boolean; message?: string }> {
+    logger.log('[Billing] Cancelling subscription:', id);
+    return apiClient.post<{ success: boolean; message?: string }>(`/api/v1/subscriptions/${id}/cancel`, {});
+}
+
+// ============================================================================
+// HEALTH CHECKS
+// ============================================================================
+
+export interface HealthResponse {
+    success: boolean;
+    status: string;
+    timestamp: string;
+}
+
+/**
+ * Health check endpoint
+ */
+export async function healthCheck(): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/api/v1/health');
+}
+
+/**
+ * Readiness check endpoint
+ */
+export async function readinessCheck(): Promise<HealthResponse> {
+    return apiClient.get<HealthResponse>('/api/v1/ready');
 }
