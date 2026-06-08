@@ -27,9 +27,9 @@ export interface PaymentHistoryItem {
         courseId: string;
         title: string;
         courseImage?: string;
-        teacherName: string;
-        teacherProfileImg?: string;
-        subjectName: string;
+        teacherName?: string | null;
+        teacherProfileImg?: string | null;
+        subjectName?: string | null;
         priceCents: number;
     }>;
 }

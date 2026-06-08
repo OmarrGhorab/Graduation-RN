@@ -26,10 +26,10 @@ export interface ApiCourse {
     title: string;
     description: string;
     subjectId: string;
-    subjectName: string;
+    subjectName?: string;
     teacherId: string;
-    teacherName: string;
-    teacherProfileImg?: string;
+    teacherName?: string | null;
+    teacherProfileImg?: string | null;
     teacherRating?: number;
     courseImage?: string;
     courseRating?: number;
@@ -86,11 +86,11 @@ export interface RecommendationCourseItem {
     price: number;
     currency: string;
     enrolledCount: number;
-    subjectName: string;
-    teacher: {
-        name: string;
-        avatar?: string;
-    };
+    subjectName?: string;
+    teacher?: {
+        name?: string | null;
+        avatar?: string | null;
+    } | null;
     matchReason?: string;
     priority?: string;
 }
@@ -98,6 +98,40 @@ export interface RecommendationCourseItem {
 export interface RecommendationCoursesResponse {
     success: boolean;
     data: RecommendationCourseItem[];
+}
+
+export interface CourseAutocompleteSuggestion {
+    type: 'course' | 'subject';
+    courseId?: string;
+    title?: string;
+    subjectName?: string;
+    courseImage?: string;
+    score: number;
+}
+
+export interface CourseAutocompleteResponse {
+    success: boolean;
+    data: CourseAutocompleteSuggestion[];
+    meta?: {
+        search: string;
+        limit: number;
+    };
+}
+
+export interface CourseSearchFeedbackRequest {
+    query: string;
+    courseId: string;
+    eventType: 'click' | 'preview' | 'watch' | 'enroll';
+}
+
+export interface CourseSearchFeedbackResponse {
+    success: boolean;
+    data: {
+        recorded: boolean;
+        query: string;
+        courseId: string;
+        eventType: string;
+    };
 }
 
 export interface ApiSubject {
@@ -191,7 +225,7 @@ export interface ApiCourseDetails {
         title: string;
         description: string;
         subjectId: string;
-        subjectName: string;
+        subjectName?: string;
         deliveryType: 'OFFLINE' | 'ONLINE';
         locationName: string;
         totalLessons: number;
@@ -231,9 +265,9 @@ export interface ApiCourseDetails {
     } | null;
     teacher: {
         id: string;
-        name: string;
-        profileImg: string | null;
-    };
+        name?: string | null;
+        profileImg?: string | null;
+    } | null;
     lessons: {
         id: string;
         title: string;
@@ -279,8 +313,8 @@ export interface ApiSubjectCourse {
     title: string;
     description: string;
     teacherId: string;
-    teacherName: string;
-    teacherProfileImg: string | null;
+    teacherName?: string | null;
+    teacherProfileImg?: string | null;
     deliveryType: 'OFFLINE' | 'ONLINE';
     locationName: string;
     totalLessons: number;
@@ -362,6 +396,22 @@ export async function getAllCourses(params?: {
 }): Promise<CoursesResponse> {
     logger.log('[Courses] Fetching all courses', params);
     return apiClient.get<CoursesResponse>('/api/v1/courses', { params });
+}
+
+export async function getCourseAutocomplete(search: string, limit: number = 8): Promise<CourseAutocompleteResponse> {
+    logger.log('[Courses] Fetching course autocomplete', { search, limit });
+    return apiClient.get<CourseAutocompleteResponse>('/api/v1/courses/autocomplete', {
+        params: { search, limit },
+        silent: true,
+    });
+}
+
+export async function recordCourseSearchFeedback(data: CourseSearchFeedbackRequest): Promise<CourseSearchFeedbackResponse> {
+    logger.log('[Courses] Recording search feedback', data);
+    return apiClient.post<CourseSearchFeedbackResponse>('/api/v1/courses/feedback', data, {
+        silent: true,
+        skipDeduplication: true,
+    });
 }
 
 export async function getTrendingCourses(): Promise<RecommendationCoursesResponse> {

@@ -19,6 +19,7 @@ interface ScheduleCardProps {
     title: string;
     time: string;
     teacherName: string;
+    lessonSubtitle?: string;
     status: LessonStatus;
     startTime?: string;
     endTime?: string;
@@ -35,6 +36,7 @@ export default function ScheduleCard({
     title,
     time,
     teacherName,
+    lessonSubtitle,
     status,
     startTime,
     endTime,
@@ -225,9 +227,15 @@ export default function ScheduleCard({
                 </View>
 
                 {/* Title */}
-                <Text style={[styles.title, { color: isDark ? theme.text : '#0d1b15' }]} numberOfLines={1}>
+                <Text style={[styles.title, { color: isDark ? theme.text : '#0d1b15' }]} numberOfLines={2}>
                     {title}
                 </Text>
+
+                {!!lessonSubtitle && (
+                    <Text style={[styles.lessonSubtitle, { color: theme.gray[500] }]} numberOfLines={2}>
+                        {lessonSubtitle}
+                    </Text>
+                )}
 
                 {/* Location & Teacher/Avatar */}
                 <View style={styles.cardFooter}>
@@ -238,7 +246,9 @@ export default function ScheduleCard({
                         </Text>
                     </View>
 
-                    <Text style={[styles.teacherText, { color: theme.gray[500] }]}>{teacherName}</Text>
+                    <Text style={[styles.teacherText, { color: theme.gray[500] }]} numberOfLines={1}>
+                        {teacherName}
+                    </Text>
                 </View>
             </TouchableOpacity>
         </View>
@@ -356,16 +366,24 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 18,
         fontFamily: Fonts.bold,
-        marginBottom: 8,
+        marginBottom: 6,
+    },
+    lessonSubtitle: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginBottom: 10,
     },
     cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        gap: 12,
     },
     locationContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        flex: 1,
+        minWidth: 0,
     },
     locationText: {
         fontSize: 13,
@@ -375,6 +393,9 @@ const styles = StyleSheet.create({
     teacherText: {
         fontSize: 12,
         fontFamily: Fonts.regular,
+        flexShrink: 1,
+        textAlign: 'right',
+        maxWidth: '48%',
     },
     remainingBadge: {
         flexDirection: 'row',

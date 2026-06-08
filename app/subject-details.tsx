@@ -43,65 +43,70 @@ export default function SubjectDetailsScreen() {
         router.push({ pathname: '/course-details', params: { id: courseId } });
     }, [router]);
 
-    const renderCourseItem = ({ item, index }: { item: ApiSubjectCourse; index: number }) => (
-        <Animated.View entering={FadeInDown.delay(index * 100).duration(600)}>
-            <TouchableOpacity
-                style={[
-                    styles.courseCard,
-                    {
-                        backgroundColor: isDark ? theme.surface : '#FFFFFF',
-                        borderColor: isDark ? theme.border : theme.gray[200],
-                    },
-                ]}
-                activeOpacity={0.8}
-                onPress={() => handleCoursePress(item.id)}
-            >
-                <View style={styles.courseHeader}>
-                    <View style={[styles.courseIcon, { backgroundColor: isDark ? theme.surfaceVariant : theme.primaryContainer }]}>
-                        <Ionicons name="book" size={24} color={theme.primary} />
-                    </View>
-                    <View style={styles.courseTitleContainer}>
-                        <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={1}>
-                            {item.title}
-                        </Text>
-                        <View style={styles.badgeRow}>
-                            <View style={[styles.deliveryBadge, { backgroundColor: item.deliveryType === 'ONLINE' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)' }]}>
-                                <Text style={[styles.deliveryBadgeText, { color: item.deliveryType === 'ONLINE' ? '#3b82f6' : '#10b981' }]}>
-                                    {item.deliveryType}
-                                </Text>
-                            </View>
-                            {item.progress && (
-                                <View style={[styles.progressBadge, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                                    <Text style={[styles.progressBadgeText, { color: '#f59e0b' }]}>
-                                        {item.progress.attendancePercentage}% {t('course.attendance')}
+    const renderCourseItem = ({ item, index }: { item: ApiSubjectCourse; index: number }) => {
+        const teacherDisplayName = item.teacherName?.trim() || t('course.instructor') || 'Instructor';
+        const teacherAvatarUri = item.teacherProfileImg || `https://ui-avatars.com/api/?name=${encodeURIComponent(teacherDisplayName)}`;
+
+        return (
+            <Animated.View entering={FadeInDown.delay(index * 100).duration(600)}>
+                <TouchableOpacity
+                    style={[
+                        styles.courseCard,
+                        {
+                            backgroundColor: isDark ? theme.surface : '#FFFFFF',
+                            borderColor: isDark ? theme.border : theme.gray[200],
+                        },
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => handleCoursePress(item.id)}
+                >
+                    <View style={styles.courseHeader}>
+                        <View style={[styles.courseIcon, { backgroundColor: isDark ? theme.surfaceVariant : theme.primaryContainer }]}>
+                            <Ionicons name="book" size={24} color={theme.primary} />
+                        </View>
+                        <View style={styles.courseTitleContainer}>
+                            <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={1}>
+                                {item.title}
+                            </Text>
+                            <View style={styles.badgeRow}>
+                                <View style={[styles.deliveryBadge, { backgroundColor: item.deliveryType === 'ONLINE' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)' }]}>
+                                    <Text style={[styles.deliveryBadgeText, { color: item.deliveryType === 'ONLINE' ? '#3b82f6' : '#10b981' }]}>
+                                        {item.deliveryType}
                                     </Text>
                                 </View>
-                            )}
+                                {item.progress && (
+                                    <View style={[styles.progressBadge, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                                        <Text style={[styles.progressBadgeText, { color: '#f59e0b' }]}>
+                                            {item.progress.attendancePercentage}% {t('course.attendance')}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
                         </View>
                     </View>
-                </View>
 
-                <View style={[styles.divider, { backgroundColor: isDark ? theme.border : theme.gray[100] }]} />
+                    <View style={[styles.divider, { backgroundColor: isDark ? theme.border : theme.gray[100] }]} />
 
-                <View style={styles.courseFooter}>
-                    <View style={styles.teacherInfo}>
-                        <Image
-                            source={{ uri: item.teacherProfileImg || 'https://ui-avatars.com/api/?name=' + item.teacherName }}
-                            style={styles.teacherAvatar}
-                        />
-                        <Text style={[styles.teacherName, { color: theme.gray[600] }]}>
-                            {item.teacherName}
-                        </Text>
+                    <View style={styles.courseFooter}>
+                        <View style={styles.teacherInfo}>
+                            <Image
+                                source={{ uri: teacherAvatarUri }}
+                                style={styles.teacherAvatar}
+                            />
+                            <Text style={[styles.teacherName, { color: theme.gray[600] }]}>
+                                {teacherDisplayName}
+                            </Text>
+                        </View>
+                        <View style={styles.priceContainer}>
+                            <Text style={[styles.price, { color: theme.primary }]}>
+                                {item.price === 0 ? t('course.free') : `${item.price} ${item.currency}`}
+                            </Text>
+                        </View>
                     </View>
-                    <View style={styles.priceContainer}>
-                        <Text style={[styles.price, { color: theme.primary }]}>
-                            {item.price === 0 ? t('course.free') : `${item.price} ${item.currency}`}
-                        </Text>
-                    </View>
-                </View>
-            </TouchableOpacity>
-        </Animated.View>
-    );
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     if (isLoading) {
         return (

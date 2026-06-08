@@ -1,12 +1,12 @@
 import CourseMarketplaceCard from '@/components/course/CourseMarketplaceCard';
 import { Fonts } from '@/constants/theme';
-import { useAllCourses, useRecommendedCourses, useTrendingCourses, useAllSubjects } from '@/hooks/useCourses';
+import { useAllCourses, useRecommendedCourses, useTrendingCourses, useAllSubjects, useCourseAutocomplete, useCourseSearchFeedback } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { ApiCourse, RecommendationCourseItem, Subject } from '@/services/CourseService';
+import { ApiCourse, CourseAutocompleteSuggestion, RecommendationCourseItem, Subject } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -24,6 +24,17 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const FILTERS = ['all', 'math', 'science', 'physics', 'chemistry', 'english', 'cs'];
 
+function useDebouncedValue<T>(value: T, delay: number): T {
+    const [debounced, setDebounced] = useState(value);
+
+    useEffect(() => {
+        const timeout = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(timeout);
+    }, [value, delay]);
+
+    return debounced;
+}
+
 export default function CoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
@@ -40,12 +51,16 @@ export default function CoursesScreen() {
     const [tempBillingType, setTempBillingType] = useState<string | undefined>(undefined);
     const [tempIsPaid, setTempIsPaid] = useState<boolean | undefined>(undefined);
     const [showFiltersModal, setShowFiltersModal] = useState(false);
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
 
     const { data: subjectsData } = useAllSubjects();
     const subjects = useMemo(() => subjectsData?.data || [], [subjectsData]);
 
     const filterParams = useMemo(() => ({
-        search: searchQuery,
+        search: debouncedSearchQuery,
         subjectName: activeFilter === 'all' ? undefined : activeFilter,
         deliveryType: deliveryType as 'OFFLINE' | 'ONLINE' | undefined,
         billingType: billingType as 'ONE_TIME' | 'MONTHLY' | undefined,
@@ -53,9 +68,11 @@ export default function CoursesScreen() {
         isPaid,
         page,
         limit,
-    }), [searchQuery, activeFilter, deliveryType, billingType, status, isPaid, page, limit]);
+    }), [debouncedSearchQuery, activeFilter, deliveryType, billingType, status, isPaid, page, limit]);
 
     const { data: coursesData, isLoading, isFetching, refetch } = useAllCourses(filterParams);
+    const { data: autocompleteData, isFetching: autocompleteLoading } = useCourseAutocomplete(searchQuery, 8);
+    const searchFeedback = useCourseSearchFeedback();
     const { data: trendingData, isLoading: trendingLoading, refetch: refetchTrending } = useTrendingCourses();
     const { data: recommendedData, isLoading: recommendedLoading, refetch: refetchRecommended } = useRecommendedCourses();
 
@@ -72,10 +89,10 @@ export default function CoursesScreen() {
         title: item.title,
         description: '',
         subjectId: '',
-        subjectName: item.subjectName,
+        subjectName: item.subjectName || '',
         teacherId: '',
-        teacherName: item.teacher.name,
-        teacherProfileImg: item.teacher.avatar,
+        teacherName: item.teacher?.name || null,
+        teacherProfileImg: item.teacher?.avatar || null,
         courseImage: item.courseImage,
         enrolledStudents: item.enrolledCount,
         deliveryType: 'ONLINE',
@@ -103,15 +120,52 @@ export default function CoursesScreen() {
         [recommendedData]
     );
 
+    const autocompleteSuggestions = useMemo(
+        () => autocompleteData?.data || [],
+        [autocompleteData]
+    );
+    const hasActiveSearch = debouncedSearchQuery.trim().length > 0;
+
     const handleCoursePress = (courseId: string) => {
+        const normalizedQuery = searchQuery.trim();
+        if (normalizedQuery) {
+            searchFeedback.mutate({
+                query: normalizedQuery,
+                courseId,
+                eventType: 'click',
+            });
+        }
+        setShowAutocomplete(false);
         router.push({ pathname: '/course-details', params: { id: courseId } });
     };
 
-    const handleRefresh = () => {
+    const handleSuggestionPress = (suggestion: CourseAutocompleteSuggestion) => {
+        if (suggestion.type === 'course' && suggestion.courseId) {
+            setSearchQuery(suggestion.title || searchQuery);
+            handleCoursePress(suggestion.courseId);
+            return;
+        }
+
+        if (suggestion.type === 'subject' && suggestion.subjectName) {
+            setSearchQuery(suggestion.subjectName);
+            setPage(1);
+            setActiveFilter('all');
+            setShowAutocomplete(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
         setPage(1);
-        refetch();
-        refetchTrending();
-        refetchRecommended();
+        try {
+            await Promise.all([
+                refetch(),
+                refetchTrending(),
+                refetchRecommended(),
+            ]);
+        } finally {
+            setIsRefreshing(false);
+        }
     };
 
     const handleLoadMore = () => {
@@ -242,7 +296,12 @@ export default function CoursesScreen() {
                             placeholder={t('courses.searchPlaceholder')}
                             placeholderTextColor={theme.gray[400]}
                             value={searchQuery}
-                            onChangeText={setSearchQuery}
+                            onChangeText={(text) => {
+                                setSearchQuery(text);
+                                setPage(1);
+                                setShowAutocomplete(text.trim().length >= 2);
+                            }}
+                            onFocus={() => setShowAutocomplete(searchQuery.trim().length >= 2)}
                         />
                     </View>
                     <TouchableOpacity 
@@ -258,6 +317,49 @@ export default function CoursesScreen() {
                         )}
                     </TouchableOpacity>
                 </View>
+
+                {showAutocomplete && searchQuery.trim().length >= 2 && (
+                    <View style={[styles.autocompleteContainer, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : '#E5E7EB' }]}>
+                        {autocompleteLoading ? (
+                            <View style={styles.autocompleteLoadingRow}>
+                                <ActivityIndicator size="small" color={theme.primary} />
+                            </View>
+                        ) : autocompleteSuggestions.length > 0 ? (
+                            autocompleteSuggestions.map((suggestion, index) => (
+                                <TouchableOpacity
+                                    key={`${suggestion.type}-${suggestion.courseId || suggestion.subjectName || index}`}
+                                    style={[
+                                        styles.autocompleteItem,
+                                        index < autocompleteSuggestions.length - 1 && { borderBottomWidth: 1, borderBottomColor: isDark ? theme.border : '#F3F4F6' }
+                                    ]}
+                                    onPress={() => handleSuggestionPress(suggestion)}
+                                >
+                                    <Ionicons
+                                        name={suggestion.type === 'course' ? 'school-outline' : 'search-outline'}
+                                        size={18}
+                                        color={theme.gray[500]}
+                                    />
+                                    <View style={styles.autocompleteTextWrap}>
+                                        <Text style={[styles.autocompletePrimaryText, { color: isDark ? theme.text : '#111827' }]} numberOfLines={1}>
+                                            {suggestion.type === 'course' ? suggestion.title : suggestion.subjectName}
+                                        </Text>
+                                        {suggestion.type === 'course' && !!suggestion.subjectName && (
+                                            <Text style={[styles.autocompleteSecondaryText, { color: theme.gray[500] }]} numberOfLines={1}>
+                                                {suggestion.subjectName}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            ))
+                        ) : (
+                            <View style={styles.autocompleteEmptyRow}>
+                                <Text style={[styles.autocompleteSecondaryText, { color: theme.gray[500] }]}>
+                                    {t('courses.noCoursesFound')}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
 
                 {/* Filter Chips */}
                 <ScrollView
@@ -323,16 +425,16 @@ export default function CoursesScreen() {
                 data={courses}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-                refreshControl={<RefreshControl refreshing={isLoading || trendingLoading || recommendedLoading} onRefresh={handleRefresh} tintColor={theme.primary} />}
+                refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
                 ListHeaderComponent={
                     <View style={styles.listHeader}>
-                        {renderSliderSection(
+                        {!hasActiveSearch && renderSliderSection(
                             t('courses.recommendedForYou'),
                             'sparkles-outline',
                             recommendedCourses,
                             recommendedLoading
                         )}
-                        {renderSliderSection(
+                        {!hasActiveSearch && renderSliderSection(
                             t('courses.trendingNow'),
                             'flame-outline',
                             trendingCourses,
@@ -342,7 +444,7 @@ export default function CoursesScreen() {
                         {/* Section Title */}
                         <View style={styles.allCoursesTitleRow}>
                             <Text style={[styles.filterOptionsTitle, { color: isDark ? theme.text : '#1F2937' }]}>
-                                {t('courses.allCourses')}
+                                {hasActiveSearch ? (t('courses.searchResults') || 'Search Results') : t('courses.allCourses')}
                             </Text>
                         </View>
                     </View>
@@ -357,7 +459,7 @@ export default function CoursesScreen() {
                 )}
                 ListFooterComponent={
                     <View style={styles.footerContainer}>
-                        {isFetching ? (
+                        {isFetching && !showAutocomplete ? (
                             <ActivityIndicator size="small" color={theme.primary} style={{ marginBottom: 20 }} />
                         ) : null}
                         
@@ -722,6 +824,43 @@ const styles = StyleSheet.create({
         gap: 12,
         marginTop: 16,
         marginBottom: 8,
+        zIndex: 20,
+    },
+    autocompleteContainer: {
+        marginHorizontal: 20,
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+        marginBottom: 8,
+        zIndex: 19,
+    },
+    autocompleteLoadingRow: {
+        paddingVertical: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    autocompleteEmptyRow: {
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    autocompleteItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    autocompleteTextWrap: {
+        flex: 1,
+    },
+    autocompletePrimaryText: {
+        fontFamily: Fonts.medium,
+        fontSize: 14,
+    },
+    autocompleteSecondaryText: {
+        fontFamily: Fonts.regular,
+        fontSize: 12,
+        marginTop: 2,
     },
     headerFilterBtn: {
         width: 48,

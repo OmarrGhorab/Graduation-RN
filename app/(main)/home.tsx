@@ -85,6 +85,8 @@ export default function MainHomeScreen() {
     const [rangePreset, setRangePreset] = React.useState<'upcoming_7' | 'upcoming_30' | 'prev_7' | 'manual'>('upcoming_7');
     const [statusFilter, setStatusFilter] = React.useState<'upcoming' | 'finished' | 'CANCELED' | 'all'>('upcoming');
     const [selectedSubject, setSelectedSubject] = React.useState<string | null>(null);
+    const [schedulePage, setSchedulePage] = React.useState(1);
+    const scheduleLimit = 10;
 
     const isTeacher = user?.role === 'TEACHER';
 
@@ -125,8 +127,11 @@ export default function MainHomeScreen() {
             filters.subject = selectedSubject;
         }
 
+        filters.page = schedulePage;
+        filters.limit = scheduleLimit;
+
         return filters;
-    }, [startDate, endDate, rangePreset, statusFilter, selectedSubject]);
+    }, [startDate, endDate, rangePreset, statusFilter, selectedSubject, schedulePage]);
 
     // Scroll tracking for header animation
     const scrollY = useSharedValue(0);
@@ -197,6 +202,7 @@ export default function MainHomeScreen() {
             title: item.courseTitle,
             time: formatTimeRange(item.startTime, item.endTime),
             teacherName: item.title, // Lesson title as sub-info
+            lessonSubtitle: `Lesson ${item.lessonNumber}: ${item.title}`,
             status: item.status,
             location: item.location,
             attendanceStatus: item.attendanceStatus,
@@ -222,6 +228,8 @@ export default function MainHomeScreen() {
             return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
         });
     }, [calendarData]);
+    const scheduleMeta = calendarData?.meta;
+    const hasMoreSchedule = !!scheduleMeta && scheduleMeta.page < scheduleMeta.totalPages;
 
     const activeLessonId = useMemo(() => {
         const live = schedule.find((s: any) => s.status === 'LIVE');
@@ -234,6 +242,7 @@ export default function MainHomeScreen() {
     const onRefresh = React.useCallback(async () => {
         setIsRefreshing(true);
         try {
+            setSchedulePage(1);
             await Promise.all([
                 refetchCalendar(),
                 refetch(), // notifications
@@ -244,6 +253,10 @@ export default function MainHomeScreen() {
             setIsRefreshing(false);
         }
     }, [refetchCalendar, refetch]);
+
+    React.useEffect(() => {
+        setSchedulePage(1);
+    }, [rangePreset, statusFilter, selectedSubject, startDate, endDate]);
 
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
@@ -723,23 +736,35 @@ export default function MainHomeScreen() {
                         {isLoadingCalendar ? (
                             <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
                         ) : schedule.length > 0 ? (
-                            schedule.map((item: any, index: number) => (
-                                <ScheduleCard
-                                    key={item.id}
-                                    {...item}
-                                    status={item.status as any}
-                                    isLast={index === schedule.length - 1}
-                                    isTeacher={user?.role === 'TEACHER'}
-                                    onPress={() => {
-                                        if (user?.role === 'TEACHER' && item.status === 'LIVE') {
-                                            router.push({ pathname: '/teacher-control', params: { lessonId: item.id } });
-                                        } else {
-                                            router.push({ pathname: '/course-details', params: { id: item.courseId } });
-                                        }
-                                    }}
-                                    onScanPress={handleScanQR}
-                                />
-                            ))
+                            <>
+                                {schedule.map((item: any, index: number) => (
+                                    <ScheduleCard
+                                        key={item.id}
+                                        {...item}
+                                        status={item.status as any}
+                                        isLast={index === schedule.length - 1 && !hasMoreSchedule}
+                                        isTeacher={user?.role === 'TEACHER'}
+                                        onPress={() => {
+                                            if (user?.role === 'TEACHER' && item.status === 'LIVE') {
+                                                router.push({ pathname: '/teacher-control', params: { lessonId: item.id } });
+                                            } else {
+                                                router.push({ pathname: '/course-details', params: { id: item.courseId } });
+                                            }
+                                        }}
+                                        onScanPress={handleScanQR}
+                                    />
+                                ))}
+                                {hasMoreSchedule && (
+                                    <TouchableOpacity
+                                        style={[styles.loadMoreButton, { borderColor: isDark ? theme.border : theme.gray[200], backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}
+                                        onPress={() => setSchedulePage((prev) => prev + 1)}
+                                    >
+                                        <Text style={[styles.loadMoreText, { color: theme.primary }]}>
+                                            {t('common.loadMore') || 'Load More'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                            </>
                         ) : (
                             <View style={styles.emptySchedule}>
                                 <Ionicons name="calendar-outline" size={32} color={theme.gray[300]} />
@@ -930,6 +955,20 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderStyle: 'dashed',
         borderColor: 'rgba(0,0,0,0.05)',
+    },
+    loadMoreButton: {
+        marginTop: 4,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadMoreText: {
+        fontFamily: Fonts.bold,
+        fontSize: 14,
     },
 });
 

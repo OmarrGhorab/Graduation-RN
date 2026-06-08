@@ -18,6 +18,12 @@ export interface ApiSchedule {
 export interface CalendarResponse {
     data: ApiSchedule[];
     success: boolean;
+    meta?: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
 }
 
 export interface CalendarFilters {
@@ -27,6 +33,8 @@ export interface CalendarFilters {
     subject?: string;
     start?: string;
     end?: string;
+    page?: number;
+    limit?: number;
     [key: string]: string | number | boolean | undefined;
 }
 

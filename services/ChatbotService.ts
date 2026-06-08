@@ -124,27 +124,28 @@ export const ChatbotService = {
             let cleanText = text.trim();
             if (!cleanText) return;
 
-            // Strip metadata prefixes
-            if (cleanText.includes('event: done')) return;
-            cleanText = cleanText.replace(/^event:\s*chunk\s*/i, '');
-            if (!cleanText) return;
+            if (/^event:\s*/i.test(cleanText)) {
+                const eventName = cleanText.replace(/^event:\s*/i, '').trim().toLowerCase();
+                if (eventName === 'chunk' || eventName === 'correction') {
+                    return;
+                }
+                return;
+            }
 
-            const matches = cleanText.match(/\{.*?\}/g);
-            if (matches) {
-                matches.forEach(match => {
-                    try {
-                        const parsed = JSON.parse(match);
-                        const content = parsed.content || parsed.message || parsed.text;
-                        if (content) onChunk(content);
-                    } catch (e) {
-                        onChunk(match);
-                    }
-                });
-            } else {
-                onChunk(cleanText);
+            if (/^data:\s*/i.test(cleanText)) {
+                cleanText = cleanText.replace(/^data:\s*/i, '').trim();
+                if (!cleanText) return;
+
+                const parsed = JSON.parse(cleanText);
+                const content = parsed.content || parsed.message || parsed.text;
+                if (typeof content === 'string' && content.length > 0) {
+                    onChunk(content);
+                }
+                return;
             }
         } catch (e) {
-            onChunk(text);
+            // Ignore malformed/non-user-facing SSE fragments instead of leaking internals to chat UI.
+            return;
         }
     },
 

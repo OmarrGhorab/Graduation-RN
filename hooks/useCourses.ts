@@ -4,6 +4,7 @@ import {
     createCourse,
     enrollInCourse,
     getAllCourses,
+    getCourseAutocomplete,
     getRecommendedCourses,
     getAllSubjects,
     getCourse,
@@ -22,7 +23,8 @@ import {
     getCourseReviews,
     createCourseReview,
     updateCourseReview,
-    deleteCourseReview
+    deleteCourseReview,
+    recordCourseSearchFeedback
 } from '@/services/CourseService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -39,6 +41,7 @@ export const ABSENCES_PENDING_PARENT_QUERY_KEY = ['absences', 'pending-parent'];
 export const TRENDING_COURSES_QUERY_KEY = ['courses', 'trending'];
 export const RECOMMENDED_COURSES_QUERY_KEY = ['courses', 'recommended'];
 export const REVIEWS_QUERY_KEY = (courseId: string, page?: number) => ['reviews', courseId, { page }];
+export const COURSE_AUTOCOMPLETE_QUERY_KEY = (search: string, limit: number) => ['courses', 'autocomplete', search, limit];
 
 export function useMyCourses() {
     return useQuery({
@@ -73,6 +76,17 @@ export function useAllCourses(params?: {
         queryKey: ALL_COURSES_QUERY_KEY(params),
         queryFn: () => getAllCourses(params),
         staleTime: STALE_TIMES.STANDARD,
+    });
+}
+
+export function useCourseAutocomplete(search: string, limit: number = 8) {
+    const normalized = search.trim();
+    return useQuery({
+        queryKey: COURSE_AUTOCOMPLETE_QUERY_KEY(normalized, limit),
+        queryFn: () => getCourseAutocomplete(normalized, limit),
+        enabled: normalized.length >= 2,
+        staleTime: 1000 * 60,
+        retry: false,
     });
 }
 
@@ -304,5 +318,12 @@ export function useDeleteReview() {
             queryClient.invalidateQueries({ queryKey: REVIEWS_QUERY_KEY(courseId) });
             queryClient.invalidateQueries({ queryKey: COURSE_DETAILS_QUERY_KEY(courseId) });
         },
+    });
+}
+
+export function useCourseSearchFeedback() {
+    return useMutation({
+        mutationFn: recordCourseSearchFeedback,
+        retry: false,
     });
 }

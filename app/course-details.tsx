@@ -48,6 +48,9 @@ export default function CourseDetailsScreen() {
     const progress = detailsData?.data?.progress;
     const teacher = detailsData?.data?.teacher;
     const safeLessons = detailsData?.data?.lessons || [];
+    const subjectDisplayName = course?.subjectName?.toUpperCase() || (t('course.subject') || 'COURSE');
+    const teacherDisplayName = teacher?.name?.trim() || t('course.instructor') || 'Instructor';
+    const teacherAvatarUri = teacher?.profileImg || `https://ui-avatars.com/api/?name=${encodeURIComponent(teacherDisplayName)}`;
 
     // Redirect teachers to the management view if it's their course
     useEffect(() => {
@@ -522,7 +525,7 @@ export default function CourseDetailsScreen() {
                 <View style={[styles.mainCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}>
                     <View style={[styles.badgeRow, { marginBottom: 8 }]}>
                         <View style={[styles.badge, { backgroundColor: `${theme.primary}15` }]}>
-                            <Text style={[styles.badgeText, { color: theme.primary }]}>{course.subjectName?.toUpperCase()}</Text>
+                            <Text style={[styles.badgeText, { color: theme.primary }]}>{subjectDisplayName}</Text>
                         </View>
                         <View style={styles.ratingContainer}>
                             <Ionicons name="star" size={14} color="#FFC107" />
@@ -550,17 +553,19 @@ export default function CourseDetailsScreen() {
                         <View style={[styles.instructorCard, { backgroundColor: isDark ? theme.background : '#F6F8F7', borderColor: `${theme.primary}10` }]}>
                             <View style={styles.instructorInfo}>
                                 <Image
-                                    source={{ uri: teacher.profileImg || 'https://ui-avatars.com/api/?name=' + teacher.name }}
+                                    source={{ uri: teacherAvatarUri }}
                                     style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
                                 />
                                 <View>
                                     <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>{t('courseDetails.instructor')}</Text>
-                                    <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacher.name}</Text>
+                                    <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacherDisplayName}</Text>
                                 </View>
                             </View>
-                            <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
-                                <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
-                            </TouchableOpacity>
+                            {!!teacher.id && (
+                                <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
+                                    <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     )}
 

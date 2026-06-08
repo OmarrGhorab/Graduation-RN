@@ -41,6 +41,9 @@ export default function CheckoutScreen() {
     const courseDetails = detailsData?.data;
     const course = courseDetails?.course;
     const teacher = courseDetails?.teacher;
+    const teacherDisplayName = teacher?.name?.trim() || t('course.instructor') || 'Instructor';
+    const teacherAvatarUri = teacher?.profileImg || `https://ui-avatars.com/api/?name=${encodeURIComponent(teacherDisplayName)}`;
+    const subjectDisplayName = course?.subjectName || t('course.subject') || 'Course';
 
     const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
     const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
@@ -227,17 +230,17 @@ export default function CheckoutScreen() {
                     >
                         <View style={styles.cardOverlay}>
                             <View style={styles.courseMainInfo}>
-                                <Text style={styles.courseCategory}>{course.subjectName}</Text>
+                                <Text style={styles.courseCategory}>{subjectDisplayName}</Text>
                                 <Text style={styles.courseTitle} numberOfLines={2}>{course.title}</Text>
                                 
                                 <View style={styles.instructorRow}>
                                     <Image 
-                                        source={{ uri: teacher?.profileImg || 'https://ui-avatars.com/api/?name=' + (teacher?.name || 'Instructor') }} 
+                                        source={{ uri: teacherAvatarUri }} 
                                         style={styles.instructorImage} 
                                     />
                                     <View>
                                         <Text style={styles.instructorLabel}>{t('courseDetails.instructor')}</Text>
-                                        <Text style={styles.instructorName}>{teacher?.name}</Text>
+                                        <Text style={styles.instructorName}>{teacherDisplayName}</Text>
                                     </View>
                                 </View>
                             </View>

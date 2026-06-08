@@ -23,6 +23,9 @@ export default memo(function CourseMarketplaceCard({
 }: CourseMarketplaceCardProps) {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const teacherDisplayName = course.teacherName?.trim() || t('course.instructor') || 'Instructor';
+    const teacherAvatarUri = course.teacherProfileImg || `https://ui-avatars.com/api/?name=${encodeURIComponent(teacherDisplayName)}`;
+    const subjectDisplayName = course.subjectName?.toUpperCase() || (t('course.subject') || 'COURSE');
 
     return (
         <TouchableOpacity
@@ -61,7 +64,7 @@ export default memo(function CourseMarketplaceCard({
                 {/* Subject & Rating */}
                 <View style={styles.metaRow}>
                     <Text style={[styles.subjectText, { color: theme.primary }]}>
-                        {course.subjectName?.toUpperCase()}
+                        {subjectDisplayName}
                     </Text>
                     <View style={styles.ratingContainer}>
                         <Ionicons name="star" size={14} color="#F59E0B" />
@@ -79,11 +82,11 @@ export default memo(function CourseMarketplaceCard({
                 {/* Teacher Info */}
                 <View style={styles.teacherRow}>
                     <Image
-                        source={{ uri: course.teacherProfileImg || 'https://ui-avatars.com/api/?name=' + course.teacherName }}
+                        source={{ uri: teacherAvatarUri }}
                         style={styles.avatar}
                     />
                     <Text style={[styles.teacherName, { color: theme.gray[500] }]}>
-                        {course.teacherName}
+                        {teacherDisplayName}
                     </Text>
                 </View>
 
