@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { ApiCourse, CourseAutocompleteSuggestion, RecommendationCourseItem, Subject } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
@@ -39,6 +39,7 @@ export default function CoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const routeParams = useLocalSearchParams<{ teacherId?: string; teacherName?: string }>();
     const [activeFilter, setActiveFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(1);
@@ -53,6 +54,8 @@ export default function CoursesScreen() {
     const [showFiltersModal, setShowFiltersModal] = useState(false);
     const [showAutocomplete, setShowAutocomplete] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const teacherIdFilter = typeof routeParams.teacherId === 'string' ? routeParams.teacherId : '';
+    const teacherNameFilter = typeof routeParams.teacherName === 'string' ? routeParams.teacherName : '';
 
     const debouncedSearchQuery = useDebouncedValue(searchQuery, 250);
 
@@ -60,6 +63,7 @@ export default function CoursesScreen() {
     const subjects = useMemo(() => subjectsData?.data || [], [subjectsData]);
 
     const filterParams = useMemo(() => ({
+        teacherId: teacherIdFilter || undefined,
         search: debouncedSearchQuery,
         subjectName: activeFilter === 'all' ? undefined : activeFilter,
         deliveryType: deliveryType as 'OFFLINE' | 'ONLINE' | undefined,
@@ -68,7 +72,7 @@ export default function CoursesScreen() {
         isPaid,
         page,
         limit,
-    }), [debouncedSearchQuery, activeFilter, deliveryType, billingType, status, isPaid, page, limit]);
+    }), [teacherIdFilter, debouncedSearchQuery, activeFilter, deliveryType, billingType, status, isPaid, page, limit]);
 
     const { data: coursesData, isLoading, isFetching, refetch } = useAllCourses(filterParams);
     const { data: autocompleteData, isFetching: autocompleteLoading } = useCourseAutocomplete(searchQuery, 8);
@@ -136,7 +140,13 @@ export default function CoursesScreen() {
             });
         }
         setShowAutocomplete(false);
-        router.push({ pathname: '/course-details', params: { id: courseId } });
+        router.push({
+            pathname: '/course-details',
+            params: {
+                id: courseId,
+                query: normalizedQuery || undefined,
+            }
+        });
     };
 
     const handleSuggestionPress = (suggestion: CourseAutocompleteSuggestion) => {
@@ -283,9 +293,25 @@ export default function CoursesScreen() {
             <View style={[styles.header, { backgroundColor: isDark ? theme.surface : '#FFFFFF', paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 48 }]}>
                 <View style={styles.headerTopRow}>
                     <Text style={[styles.headerTitle, { color: theme.primary }]}>
-                        {t('courses.exploreTitle')}
+                        {teacherNameFilter ? `${teacherNameFilter}` : t('courses.exploreTitle')}
                     </Text>
                 </View>
+                {!!teacherIdFilter && (
+                    <View style={styles.teacherFilterBanner}>
+                        <View style={[styles.teacherFilterChip, { backgroundColor: `${theme.primary}12`, borderColor: `${theme.primary}24` }]}>
+                            <Ionicons name="person-outline" size={14} color={theme.primary} />
+                            <Text style={[styles.teacherFilterText, { color: theme.primary }]} numberOfLines={1}>
+                                {teacherNameFilter ? `Teacher: ${teacherNameFilter}` : 'Teacher filter active'}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() => router.replace('/courses')}
+                                hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                            >
+                                <Ionicons name="close" size={16} color={theme.primary} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Search Bar & Filters */}
                 <View style={styles.searchFilterRow}>
@@ -657,6 +683,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingRight: 20,
         marginBottom: 16,
+    },
+    teacherFilterBanner: {
+        paddingHorizontal: 20,
+        marginBottom: 12,
+    },
+    teacherFilterChip: {
+        minHeight: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    teacherFilterText: {
+        flex: 1,
+        minWidth: 0,
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
     },
     teachersSearchBtn: {
         flexDirection: 'row',

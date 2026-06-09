@@ -2,7 +2,7 @@ import { AssistantsSection, EnrollmentBadge, FreeTrialBadge, LessonDetailsModal,
 import { Fonts } from '@/constants/theme';
 import { useCart } from '@/hooks/useCart';
 import { useCourseReviews } from '@/hooks/useCourseReviews';
-import { useCourse, useCourseDetails, useEnrollCourse, useMyCourses } from '@/hooks/useCourses';
+import { useCourse, useCourseDetails, useCourseSearchFeedback, useEnrollCourse, useMyCourses } from '@/hooks/useCourses';
 import { useCreateLesson, useLessonMutations } from '@/hooks/useLessons';
 import { useProfile } from '@/hooks/useProfile';
 import { useTheme } from '@/hooks/useTheme';
@@ -70,6 +70,8 @@ export default function CourseDetailsScreen() {
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [editingReview, setEditingReview] = useState<CourseReview | null>(null);
     const { addToCart, isAdding } = useCart();
+    const searchFeedbackQuery = typeof params.query === 'string' ? params.query.trim() : '';
+    const previewFeedbackTrackedRef = React.useRef(false);
     const [isPlayingVideo, setIsPlayingVideo] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isPiP, setIsPiP] = useState(false);
@@ -77,6 +79,7 @@ export default function CourseDetailsScreen() {
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const scrollViewRef = React.useRef<ScrollView>(null);
     const [activeTab, setActiveTab] = useState<'ABOUT' | 'CURRICULUM' | 'REVIEWS'>((params.tab as any) || 'ABOUT');
+    const { mutate: recordSearchFeedback } = useCourseSearchFeedback();
 
     const isEnrolledInMyCourses = React.useMemo(() => {
         if (!myCoursesData?.data) return false;
@@ -254,6 +257,25 @@ export default function CourseDetailsScreen() {
         };
     }, [courseId, isEnrolledForPreviewTracking, isPlayingVideo, isTeacher, player, recordPreviewHeartbeat, isFullscreen, isPiP]);
 
+    useEffect(() => {
+        if (
+            previewFeedbackTrackedRef.current
+            || !searchFeedbackQuery
+            || !courseId
+            || !isPlayingVideo
+            || isTeacher
+        ) {
+            return;
+        }
+
+        previewFeedbackTrackedRef.current = true;
+        recordSearchFeedback({
+            query: searchFeedbackQuery,
+            courseId: String(courseId),
+            eventType: 'preview',
+        });
+    }, [courseId, isPlayingVideo, isTeacher, recordSearchFeedback, searchFeedbackQuery]);
+
     const playbackRates = [1.0, 1.25, 1.5, 2.0];
 
     const togglePlaybackRate = () => {
@@ -272,7 +294,6 @@ export default function CourseDetailsScreen() {
         deleteReview,
         isLoading: reviewsLoading,
     } = useCourseReviews(courseId as string);
-
     useEffect(() => {
         if (params.action === 'scan') {
             setShowScanner(true);
@@ -556,13 +577,24 @@ export default function CourseDetailsScreen() {
                                     source={{ uri: teacherAvatarUri }}
                                     style={[styles.avatar, { borderColor: `${theme.primary}30` }]}
                                 />
-                                <View>
+                                <View style={styles.instructorTextBlock}>
                                     <Text style={[styles.instructorLabel, { color: theme.gray[500] }]}>{t('courseDetails.instructor')}</Text>
-                                    <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]}>{teacherDisplayName}</Text>
+                                    <Text style={[styles.instructorName, { color: isDark ? theme.text : '#000' }]} numberOfLines={2}>
+                                        {teacherDisplayName}
+                                    </Text>
                                 </View>
                             </View>
                             {!!teacher.id && (
-                                <TouchableOpacity onPress={() => router.push(`/conversation/${teacher.id}`)}>
+                                <TouchableOpacity
+                                    style={styles.viewProfileButton}
+                                    onPress={() => router.push({
+                                        pathname: '/courses',
+                                        params: {
+                                            teacherId: teacher.id,
+                                            teacherName: teacherDisplayName,
+                                        }
+                                    })}
+                                >
                                     <Text style={[styles.viewProfileText, { color: theme.primary }]}>{t('courseDetails.viewProfile')}</Text>
                                 </TouchableOpacity>
                             )}
@@ -652,6 +684,7 @@ export default function CourseDetailsScreen() {
                                             style={styles.previewButtonInline}
                                             onPress={() => {
                                                 setIsPlayingVideo(true);
+                                                player.play();
                                                 scrollViewRef.current?.scrollTo({ y: 0, animated: true });
                                             }}
                                         >
@@ -687,11 +720,11 @@ export default function CourseDetailsScreen() {
                                                 onPress={() => toggleModule(moduleKey)}
                                                 style={[styles.moduleHeader, { backgroundColor: isExpanded ? `${theme.primary}08` : 'transparent' }]}
                                             >
-                                                <View>
+                                                <View style={styles.moduleTextWrap}>
                                                     <Text style={[styles.moduleLabel, { color: isExpanded ? theme.primary : theme.gray[400] }]}>
                                                         {t('courseDetails.lesson')} {index + 1}
                                                     </Text>
-                                                    <Text style={[styles.moduleTitle, { color: isDark ? theme.text : '#000' }]}>
+                                                    <Text style={[styles.moduleTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={2}>
                                                         {lesson.title}
                                                     </Text>
                                                 </View>
@@ -713,8 +746,11 @@ export default function CourseDetailsScreen() {
                                                             <Ionicons name={lessonIcon as any} size={16} color="#FFF" />
                                                         </View>
                                                         <View style={styles.lessonInfo}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                                <Text style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}>
+                                                            <View style={styles.lessonHeaderRow}>
+                                                                <Text
+                                                                    style={[styles.lessonTitle, { color: isDark ? theme.text : '#000', opacity: isLocked ? 0.6 : 1 }]}
+                                                                    numberOfLines={2}
+                                                                >
                                                                     {lesson.title}
                                                                 </Text>
                                                                 {lesson.isFree && <FreeTrialBadge variant="compact" />}
@@ -1189,9 +1225,8 @@ const styles = StyleSheet.create({
         marginLeft: 4,
     },
     instructorCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: 'column',
+        alignItems: 'stretch',
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
@@ -1199,6 +1234,13 @@ const styles = StyleSheet.create({
     instructorInfo: {
         flexDirection: 'row',
         alignItems: 'center',
+        flex: 1,
+        minWidth: 0,
+    },
+    instructorTextBlock: {
+        flex: 1,
+        minWidth: 0,
+        marginLeft: 12,
     },
     avatar: {
         width: 48,
@@ -1217,6 +1259,11 @@ const styles = StyleSheet.create({
     viewProfileText: {
         fontSize: 14,
         fontFamily: Fonts.medium,
+    },
+    viewProfileButton: {
+        alignSelf: 'flex-start',
+        marginTop: 12,
+        paddingVertical: 6,
     },
     section: {
         marginTop: 32,
@@ -1244,7 +1291,9 @@ const styles = StyleSheet.create({
     curriculumHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 12,
         marginBottom: 16,
     },
     curriculumMeta: {
@@ -1262,8 +1311,13 @@ const styles = StyleSheet.create({
     moduleHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         padding: 16,
+    },
+    moduleTextWrap: {
+        flex: 1,
+        minWidth: 0,
+        paddingRight: 12,
     },
     moduleLabel: {
         fontSize: 10,
@@ -1293,6 +1347,14 @@ const styles = StyleSheet.create({
     },
     lessonInfo: {
         flex: 1,
+        minWidth: 0,
+        marginLeft: 12,
+    },
+    lessonHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 8,
     },
     lessonTitle: {
         fontSize: 14,

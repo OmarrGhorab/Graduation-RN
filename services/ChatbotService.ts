@@ -17,6 +17,11 @@ interface ApiResponse<T> {
     data: T;
 }
 
+type ParsedSseEvent = {
+    event?: string;
+    data?: any;
+};
+
 export const ChatbotService = {
     /**
      * Create a new chat session
@@ -85,6 +90,8 @@ export const ChatbotService = {
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
             let lastIndex = 0;
+            let sseBuffer = '';
+            let sawUserFacingChunk = false;
 
             xhr.onreadystatechange = () => {
                 if (xhr.readyState === 3 || xhr.readyState === 4) {
@@ -92,11 +99,12 @@ export const ChatbotService = {
                     const newText = currentText.substring(lastIndex);
                     
                     if (newText) {
-                        const lines = newText.split(/\r?\n/);
-                        lines.forEach(line => {
-                            if (line.trim()) {
-                                this.processChunk(line, onChunk);
-                            }
+                        sseBuffer += newText;
+                        const parsed = this.processSseBuffer(sseBuffer);
+                        sseBuffer = parsed.remainingBuffer;
+                        parsed.events.forEach(event => {
+                            const emitted = this.processChunk(event, onChunk);
+                            sawUserFacingChunk = sawUserFacingChunk || emitted;
                         });
                         lastIndex = currentText.length;
                     }
@@ -104,6 +112,15 @@ export const ChatbotService = {
 
                 if (xhr.readyState === 4) {
                     if (xhr.status >= 200 && xhr.status < 300) {
+                        const parsed = this.processSseBuffer(`${sseBuffer}\n\n`);
+                        parsed.events.forEach(event => {
+                            const emitted = this.processChunk(event, onChunk);
+                            sawUserFacingChunk = sawUserFacingChunk || emitted;
+                        });
+                        if (!sawUserFacingChunk) {
+                            reject(new Error('Empty streamed response'));
+                            return;
+                        }
                         resolve();
                     } else {
                         reject(new Error(`HTTP error! status: ${xhr.status}`));
@@ -119,33 +136,86 @@ export const ChatbotService = {
     /**
      * Helper to process a potential JSON chunk from backend
      */
-    processChunk(text: string, onChunk: (chunk: string) => void) {
+    processChunk(event: ParsedSseEvent, onChunk: (chunk: string) => void): boolean {
         try {
-            let cleanText = text.trim();
-            if (!cleanText) return;
+            const eventName = event.event?.toLowerCase();
+            const payload = event.data;
 
-            if (/^event:\s*/i.test(cleanText)) {
-                const eventName = cleanText.replace(/^event:\s*/i, '').trim().toLowerCase();
-                if (eventName === 'chunk' || eventName === 'correction') {
-                    return;
-                }
-                return;
+            if (!payload || typeof payload !== 'object') {
+                return false;
             }
 
-            if (/^data:\s*/i.test(cleanText)) {
-                cleanText = cleanText.replace(/^data:\s*/i, '').trim();
-                if (!cleanText) return;
-
-                const parsed = JSON.parse(cleanText);
-                const content = parsed.content || parsed.message || parsed.text;
-                if (typeof content === 'string' && content.length > 0) {
-                    onChunk(content);
-                }
-                return;
+            if (eventName === 'error' || payload.type === 'server_error') {
+                return false;
             }
+
+            const content = payload.content || payload.message || payload.text;
+            if ((eventName === 'chunk' || eventName === 'correction' || !eventName) && typeof content === 'string' && content.length > 0) {
+                onChunk(content);
+                return true;
+            }
+
+            return false;
         } catch (e) {
             // Ignore malformed/non-user-facing SSE fragments instead of leaking internals to chat UI.
-            return;
+            return false;
+        }
+    },
+
+    processSseBuffer(buffer: string): { events: ParsedSseEvent[]; remainingBuffer: string } {
+        const normalized = buffer.replace(/\r\n/g, '\n');
+        const frames = normalized.split('\n\n');
+        const remainingBuffer = frames.pop() ?? '';
+        const events: ParsedSseEvent[] = [];
+
+        frames.forEach(frame => {
+            const parsed = this.parseSseFrame(frame);
+            if (parsed) {
+                events.push(parsed);
+            }
+        });
+
+        return { events, remainingBuffer };
+    },
+
+    parseSseFrame(frame: string): ParsedSseEvent | null {
+        if (!frame.trim()) {
+            return null;
+        }
+
+        let eventName: string | undefined;
+        const dataLines: string[] = [];
+
+        frame.split('\n').forEach(rawLine => {
+            const line = rawLine.trimEnd();
+            if (!line || line.startsWith(':')) {
+                return;
+            }
+            if (line.startsWith('event:')) {
+                eventName = line.slice(6).trim();
+                return;
+            }
+            if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trim());
+            }
+        });
+
+        if (dataLines.length === 0) {
+            return null;
+        }
+
+        const payloadText = dataLines.join('\n').trim();
+        if (!payloadText || payloadText === '[DONE]') {
+            return null;
+        }
+
+        try {
+            return {
+                event: eventName,
+                data: JSON.parse(payloadText),
+            };
+        } catch {
+            return null;
         }
     },
 
@@ -179,20 +249,36 @@ export const ChatbotService = {
             } as any);
 
             let lastIndex = 0;
+            let sseBuffer = '';
+            let sawUserFacingChunk = false;
             xhr.onreadystatechange = () => {
                 if (xhr.readyState === 3 || xhr.readyState === 4) {
                     const currentText = xhr.responseText;
                     const newText = currentText.substring(lastIndex);
                     if (newText) {
-                        const lines = newText.split(/\r?\n/);
-                        lines.forEach(line => {
-                            if (line.trim()) this.processChunk(line, onChunk);
+                        sseBuffer += newText;
+                        const parsed = this.processSseBuffer(sseBuffer);
+                        sseBuffer = parsed.remainingBuffer;
+                        parsed.events.forEach(event => {
+                            const emitted = this.processChunk(event, onChunk);
+                            sawUserFacingChunk = sawUserFacingChunk || emitted;
                         });
                         lastIndex = currentText.length;
                     }
                 }
                 if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) resolve();
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        const parsed = this.processSseBuffer(`${sseBuffer}\n\n`);
+                        parsed.events.forEach(event => {
+                            const emitted = this.processChunk(event, onChunk);
+                            sawUserFacingChunk = sawUserFacingChunk || emitted;
+                        });
+                        if (!sawUserFacingChunk) {
+                            reject(new Error('Empty streamed response'));
+                            return;
+                        }
+                        resolve();
+                    }
                     else reject(new Error(`Vision Error: ${xhr.status}`));
                 }
             };

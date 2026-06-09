@@ -33,6 +33,7 @@ export default {
     reschedule: 'إعادة جدولة',
     egp: 'ج.م',
     students: 'طلاب',
+    loadMore: 'تحميل المزيد',
     unexpectedError: 'حدث خطأ غير متوقع',
   },
 

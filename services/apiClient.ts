@@ -202,13 +202,21 @@ async function request<T = unknown>(
 
             return data as T;
         } catch (error: unknown) {
-            if (!silent) {
-                console.error('[apiClient] Request failed with error:', error);
-            }
-            
             // Handle abort/timeout errors
             if (error instanceof Error && error.name === 'AbortError') {
+                if (!silent) {
+                    console.warn('[apiClient] Request timed out', {
+                        method,
+                        endpoint,
+                        url,
+                        timeout,
+                    });
+                }
                 throw new TimeoutError(`Request timed out after ${timeout}ms`, timeout);
+            }
+
+            if (!silent) {
+                console.error('[apiClient] Request failed with error:', error);
             }
 
             // Re-throw our custom errors

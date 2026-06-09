@@ -33,6 +33,7 @@ export default {
     reschedule: 'Reschedule',
     egp: 'EGP',
     students: 'Students',
+    loadMore: 'Load More',
     unexpectedError: 'An unexpected error occurred',
   },
 

@@ -13,6 +13,7 @@ import {
     Keyboard,
     Modal,
     Dimensions,
+    useWindowDimensions,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -119,6 +120,8 @@ export default function AIChatScreen() {
     const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
     const toast = useToast();
+    const { width: windowWidth } = useWindowDimensions();
+    const sidebarWidth = useMemo(() => Math.min(windowWidth * 0.86, 380), [windowWidth]);
     
     // Core State
     const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -140,6 +143,12 @@ export default function AIChatScreen() {
     
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
+
+    useEffect(() => {
+        if (streamingContent || isTyping || isUploading) {
+            flatListRef.current?.scrollToEnd({ animated: true });
+        }
+    }, [streamingContent, isTyping, isUploading]);
 
     // Initial Loading
     useEffect(() => {
@@ -293,6 +302,12 @@ export default function AIChatScreen() {
                 );
             }
 
+            if (!accumulated.trim()) {
+                toast.error('No response', 'The assistant did not return a usable reply. Please try again.');
+                setStreamingContent('');
+                return;
+            }
+
             const assistantMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 chatId: activeSession.id,
@@ -304,12 +319,25 @@ export default function AIChatScreen() {
             setStreamingContent('');
         } catch (error) {
             console.error('[AIChat] Send Error:', error);
-            toast.error('Error', 'Failed to get a response');
+            if (streamingContent.trim()) {
+                const fallbackAssistantMessage: ChatMessage = {
+                    id: (Date.now() + 1).toString(),
+                    chatId: activeSession.id,
+                    role: 'assistant',
+                    content: streamingContent,
+                    createdAt: new Date().toISOString()
+                };
+                setMessages(prev => [...prev, fallbackAssistantMessage]);
+                setStreamingContent('');
+                toast.error('Connection interrupted', 'Saved the partial reply we received.');
+            } else {
+                toast.error('Error', 'Failed to get a response');
+            }
         } finally {
             setIsTyping(false);
             setIsUploading(false);
         }
-    }, [inputText, currentSession, isTyping, selectedImage, isUploading]);
+    }, [inputText, currentSession, isTyping, selectedImage, isUploading, streamingContent, toast]);
 
     const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
         const isAssistant = item.role === 'assistant';
@@ -425,7 +453,7 @@ export default function AIChatScreen() {
             <Modal visible={showSessions} transparent animationType="none" onRequestClose={() => setShowSessions(false)}>
                 <View style={styles.modalOverlay}>
                     <TouchableOpacity activeOpacity={1} style={styles.modalBackdrop} onPress={() => setShowSessions(false)} />
-                    <Animated.View entering={SlideInLeft.duration(300)} exiting={SlideOutLeft.duration(250)} style={[styles.sidebar, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', paddingTop: insets.top }]}>
+                    <Animated.View entering={SlideInLeft.duration(300)} exiting={SlideOutLeft.duration(250)} style={[styles.sidebar, { width: sidebarWidth, backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', paddingTop: insets.top }]}>
                         <View style={styles.sidebarHeader}><Text style={[styles.sidebarTitle, { color: theme.text }]}>History</Text><TouchableOpacity onPress={() => setShowSessions(false)}><Ionicons name="close" size={24} color={theme.text} /></TouchableOpacity></View>
                         <TouchableOpacity style={[styles.newChatBtn, { backgroundColor: theme.primary + '15' }]} onPress={handleNewSessionAction}>
                             <Ionicons name="add" size={20} color={theme.primary} /><Text style={[styles.newChatText, { color: theme.primary }]}>Start New Chat</Text>
@@ -522,16 +550,16 @@ const styles = StyleSheet.create({
     removeImageBtn: { position: 'absolute', top: -10, right: -10, zIndex: 10 },
     modalOverlay: { flex: 1, flexDirection: 'row' },
     modalBackdrop: { position: 'absolute', width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)' },
-    sidebar: { width: width * 0.8, height: '100%' },
+    sidebar: { height: '100%' },
     sidebarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
     sidebarTitle: { fontSize: 22, fontFamily: Fonts.bold },
     newChatBtn: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, padding: 14, borderRadius: 14, marginBottom: 16 },
     newChatText: { marginLeft: 10, fontFamily: Fonts.bold, fontSize: 16 },
-    sessionItemContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, marginBottom: 4 },
-    sessionItemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
-    sessionTitle: { marginLeft: 12, fontSize: 15, fontFamily: Fonts.medium, flex: 1 },
-    sessionActions: { flexDirection: 'row', alignItems: 'center' },
-    actionBtn: { padding: 8, marginLeft: 4 },
+    sessionItemContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 10, paddingLeft: 12, paddingRight: 8, paddingVertical: 6, borderRadius: 14, marginBottom: 6, gap: 8 },
+    sessionItemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, minWidth: 0 },
+    sessionTitle: { marginLeft: 12, fontSize: 15, fontFamily: Fonts.medium, flex: 1, minWidth: 0 },
+    sessionActions: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
+    actionBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
     customModalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     customModalContent: { width: '100%', maxWidth: 340, padding: 24, borderRadius: 24 },
     modalHeading: { fontSize: 20, fontFamily: Fonts.bold, marginBottom: 16 },

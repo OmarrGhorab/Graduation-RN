@@ -86,6 +86,7 @@ export default function MainHomeScreen() {
     const [statusFilter, setStatusFilter] = React.useState<'upcoming' | 'finished' | 'CANCELED' | 'all'>('upcoming');
     const [selectedSubject, setSelectedSubject] = React.useState<string | null>(null);
     const [schedulePage, setSchedulePage] = React.useState(1);
+    const [scheduleItems, setScheduleItems] = React.useState<any[]>([]);
     const scheduleLimit = 10;
 
     const isTeacher = user?.role === 'TEACHER';
@@ -195,7 +196,7 @@ export default function MainHomeScreen() {
         }, [queryClient])
     );
 
-    const schedule = React.useMemo(() => {
+    const mappedSchedulePage = React.useMemo(() => {
         const mapped = calendarData?.data?.map((item: ApiSchedule) => ({
             id: item.id,
             courseId: item.courseId,
@@ -228,6 +229,29 @@ export default function MainHomeScreen() {
             return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
         });
     }, [calendarData]);
+
+    React.useEffect(() => {
+        if (!calendarData?.data) {
+            return;
+        }
+
+        setScheduleItems((prev) => {
+            if (schedulePage <= 1) {
+                return mappedSchedulePage;
+            }
+
+            const merged = [...prev];
+            for (const item of mappedSchedulePage) {
+                if (!merged.some((existing) => existing.id === item.id)) {
+                    merged.push(item);
+                }
+            }
+
+            return merged;
+        });
+    }, [calendarData?.data, mappedSchedulePage, schedulePage]);
+
+    const schedule = scheduleItems;
     const scheduleMeta = calendarData?.meta;
     const hasMoreSchedule = !!scheduleMeta && scheduleMeta.page < scheduleMeta.totalPages;
 
@@ -256,6 +280,7 @@ export default function MainHomeScreen() {
 
     React.useEffect(() => {
         setSchedulePage(1);
+        setScheduleItems([]);
     }, [rangePreset, statusFilter, selectedSubject, startDate, endDate]);
 
     const markAsReadMutation = useMarkAsReadMutation();
