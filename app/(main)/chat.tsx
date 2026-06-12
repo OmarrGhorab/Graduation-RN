@@ -179,7 +179,7 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
                         </Text>
                     </View>
                 ) : null}
-                <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]}>
+                <Text style={[styles.time, { color: theme.textTertiary, marginTop: 4 }]} numberOfLines={1}>
                     {formatTime(item.updated_at)}
                 </Text>
             </View>
@@ -592,7 +592,7 @@ function RoleBadge({ role, isDark }: { role: string, isDark: boolean }) {
 
     return (
         <View style={[styles.roleBadge, { backgroundColor: bg }]}>
-            <Text style={[styles.roleText, { color }]}>{upperRole || role}</Text>
+            <Text style={[styles.roleText, { color }]} numberOfLines={1} ellipsizeMode="tail">{upperRole || role}</Text>
         </View>
     );
 }
@@ -767,6 +767,7 @@ const styles = StyleSheet.create({
     filtersContent: {
         paddingHorizontal: 20,
         paddingVertical: 12,
+        paddingRight: 28,
         gap: 8,
     },
     filterChip: {
@@ -776,23 +777,28 @@ const styles = StyleSheet.create({
         height: 32,
         justifyContent: 'center',
         alignItems: 'center',
+        flexShrink: 0,
     },
     filterText: {
         fontSize: 12,
         fontFamily: Fonts.semiBold,
+        textAlign: 'center',
     },
     listContent: {
         paddingBottom: 100, // Space for FAB
     },
     itemContainer: {
         flexDirection: 'row',
-        padding: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 14,
         borderBottomWidth: 1,
         alignItems: 'center',
         gap: 12,
+        minWidth: 0,
     },
     avatarContainer: {
         position: 'relative',
+        flexShrink: 0,
     },
     avatar: {
         width: 48,
@@ -811,6 +817,7 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         flex: 1,
+        minWidth: 0,
         justifyContent: 'center',
     },
     headerRow: {
@@ -818,11 +825,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 4,
+        gap: 8,
+        minWidth: 0,
     },
     subtitleRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
+        minWidth: 0,
     },
     senderThumb: {
         width: 16,
@@ -831,10 +841,14 @@ const styles = StyleSheet.create({
         marginRight: 4,
     },
     name: {
+        flex: 1,
+        minWidth: 0,
         fontSize: 16,
         fontFamily: Fonts.semiBold,
     },
     roleBadge: {
+        flexShrink: 1,
+        maxWidth: 68,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 6,
@@ -843,6 +857,7 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontFamily: Fonts.bold,
         textTransform: 'uppercase',
+        textAlign: 'center',
     },
     message: {
         fontSize: 14,
@@ -851,6 +866,7 @@ const styles = StyleSheet.create({
     metaContainer: {
         alignItems: 'flex-end',
         gap: 6,
+        flexShrink: 0,
     },
     time: {
         fontSize: 11,

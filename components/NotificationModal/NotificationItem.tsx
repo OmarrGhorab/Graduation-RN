@@ -2,12 +2,25 @@ import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Ionicons } from '@expo/vector-icons';
 import React, { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { NotificationItemProps } from './types';
 import { useNotificationStyles } from './useNotificationStyles';
 import { formatTimeAgo, getNotificationIcon } from './utils';
 
-const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProps) => {
+const getParentLinkRequestId = (item: NotificationItemProps['item']): string | null => {
+    return (
+        item.data?.requestId ||
+        item.data?.request_id ||
+        item.data?.linkRequestId ||
+        item.data?.link_request_id ||
+        item.data?.request?.id ||
+        item.action?.params?.requestId ||
+        item.action?.params?.request_id ||
+        null
+    );
+};
+
+const NotificationItem = memo(({ item, onPress, onDelete, onRespondToParentLink, isResponding }: NotificationItemProps) => {
     const { styles, colors, isDark } = useNotificationStyles();
     const { t } = useTranslation();
 
@@ -21,6 +34,13 @@ const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProp
     const isAccepted = status === 'ACCEPTED';
     const isDeclined = status === 'DECLINED';
     const hasResponded = isAccepted || isDeclined;
+    const requestId = isParentLinkRequest ? getParentLinkRequestId(item) : null;
+    const canRespond = !!requestId && !!onRespondToParentLink && !isResponding;
+
+    const handleRespond = (action: 'accept' | 'decline') => {
+        if (!requestId || !onRespondToParentLink || isResponding) return;
+        onRespondToParentLink(requestId, action);
+    };
 
     // Get icon background color based on type
     const getIconBgColor = () => {
@@ -92,17 +112,23 @@ const NotificationItem = memo(({ item, onPress, onDelete }: NotificationItemProp
                 {isParentLinkRequest && !hasResponded && (
                     <View style={localStyles.actionButtons}>
                         <TouchableOpacity
-                            style={[localStyles.acceptButton]}
-                            onPress={() => {/* Handle accept */ }}
+                            style={[localStyles.acceptButton, !canRespond && localStyles.disabledButton]}
+                            onPress={() => handleRespond('accept')}
+                            disabled={!canRespond}
                         >
-                            <Text style={localStyles.acceptButtonText}>Accept</Text>
+                            {isResponding ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                                <Text style={localStyles.acceptButtonText} numberOfLines={1}>{t('notifications.accept')}</Text>
+                            )}
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[localStyles.declineButton, { borderColor: isDark ? '#374151' : '#E5E7EB' }]}
-                            onPress={() => {/* Handle decline */ }}
+                            style={[localStyles.declineButton, { borderColor: isDark ? '#374151' : '#E5E7EB' }, !canRespond && localStyles.disabledButton]}
+                            onPress={() => handleRespond('decline')}
+                            disabled={!canRespond}
                         >
                             <Text style={[localStyles.declineButtonText, { color: isDark ? '#FFFFFF' : '#0D1B15' }]}>
-                                Decline
+                                {t('notifications.decline')}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -197,6 +223,7 @@ const localStyles = StyleSheet.create({
     },
     content: {
         flex: 1,
+        minWidth: 0,
         paddingRight: 24,
     },
     headerRow: {
@@ -204,16 +231,19 @@ const localStyles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'baseline',
         marginBottom: 4,
+        minWidth: 0,
     },
     title: {
         fontSize: 15,
         fontFamily: Fonts.bold,
         flex: 1,
+        minWidth: 0,
         marginRight: 8,
     },
     time: {
         fontSize: 12,
         fontFamily: Fonts.semiBold,
+        flexShrink: 0,
     },
     body: {
         fontSize: 14,
@@ -224,9 +254,11 @@ const localStyles = StyleSheet.create({
         flexDirection: 'row',
         gap: 12,
         marginTop: 12,
+        flexWrap: 'wrap',
     },
     acceptButton: {
         flex: 1,
+        minWidth: 112,
         height: 36,
         backgroundColor: '#48BB78',
         borderRadius: 8,
@@ -240,11 +272,15 @@ const localStyles = StyleSheet.create({
     },
     declineButton: {
         flex: 1,
+        minWidth: 112,
         height: 36,
         borderRadius: 8,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    disabledButton: {
+        opacity: 0.65,
     },
     declineButtonText: {
         fontSize: 14,

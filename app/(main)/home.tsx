@@ -13,6 +13,7 @@ import {
     useMarkAsReadMutation,
     useNotifications,
     NOTIFICATIONS_QUERY_KEY,
+    useRespondToParentLinkMutation,
 } from '@/hooks/useNotifications';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -286,6 +287,7 @@ export default function MainHomeScreen() {
     const markAsReadMutation = useMarkAsReadMutation();
     const markAllAsReadMutation = useMarkAllAsReadMutation();
     const deleteNotificationMutation = useDeleteNotificationMutation();
+    const respondToParentLinkMutation = useRespondToParentLinkMutation();
 
     const handleNotificationBellPress = useCallback(() => {
         setShowNotifications(true);
@@ -429,6 +431,10 @@ export default function MainHomeScreen() {
     const handleDeleteNotification = useCallback((notificationId: string) => {
         deleteNotificationMutation.mutate(notificationId);
     }, [deleteNotificationMutation]);
+
+    const handleRespondToParentLink = useCallback((requestId: string, action: 'accept' | 'decline') => {
+        respondToParentLinkMutation.mutate({ requestId, action });
+    }, [respondToParentLinkMutation]);
 
     const handleLoadMore = useCallback(() => {
         if (hasNextPage && !isFetchingNextPage) {
@@ -832,6 +838,8 @@ export default function MainHomeScreen() {
                 hasNextPage={hasNextPage}
                 isFetchingNextPage={isFetchingNextPage}
                 onDeleteNotification={handleDeleteNotification}
+                onRespondToParentLink={handleRespondToParentLink}
+                respondingRequestId={respondToParentLinkMutation.variables?.requestId ?? null}
             />
         </View>
     );

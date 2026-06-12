@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: '50%',
         left: 24,
+        right: 24,
         alignItems: 'flex-start',
         marginTop: 100,
     },
@@ -112,6 +113,7 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontFamily: Fonts.bold,
         textAlign: 'left',
+        maxWidth: '100%',
     },
     rightHalfTouch: {
         position: 'absolute',

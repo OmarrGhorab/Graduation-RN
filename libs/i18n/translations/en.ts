@@ -932,6 +932,8 @@ export default {
     declinedRequest: "You declined {{name}}'s link request",
     accepted: 'Accepted',
     declined: 'Declined',
+    accept: 'Accept',
+    decline: 'Decline',
     pending: 'Pending',
     someone: 'Someone',
     justNow: 'Just now',

@@ -50,6 +50,8 @@ export default function NotificationModal({
     hasNextPage,
     isFetchingNextPage,
     onDeleteNotification,
+    onRespondToParentLink,
+    respondingRequestId,
 }: NotificationModalProps) {
     const insets = useSafeAreaInsets();
     const { styles, colors, isDark } = useNotificationStyles();
@@ -146,8 +148,18 @@ export default function NotificationModal({
             item={item}
             onPress={handleNotificationPress}
             onDelete={onDeleteNotification}
+            onRespondToParentLink={onRespondToParentLink}
+            isResponding={respondingRequestId === (
+                item.data?.requestId ||
+                item.data?.request_id ||
+                item.data?.linkRequestId ||
+                item.data?.link_request_id ||
+                item.data?.request?.id ||
+                item.action?.params?.requestId ||
+                item.action?.params?.request_id
+            )}
         />
-    ), [handleNotificationPress, onDeleteNotification]);
+    ), [handleNotificationPress, onDeleteNotification, onRespondToParentLink, respondingRequestId]);
 
     const renderFooter = useCallback(() => {
         if (!isFetchingNextPage) return null;
@@ -289,6 +301,16 @@ export default function NotificationModal({
                             item={item.data as ApiNotification}
                             onPress={handleNotificationPress}
                             onDelete={onDeleteNotification}
+                            onRespondToParentLink={onRespondToParentLink}
+                            isResponding={respondingRequestId === (
+                                (item.data as ApiNotification).data?.requestId ||
+                                (item.data as ApiNotification).data?.request_id ||
+                                (item.data as ApiNotification).data?.linkRequestId ||
+                                (item.data as ApiNotification).data?.link_request_id ||
+                                (item.data as ApiNotification).data?.request?.id ||
+                                (item.data as ApiNotification).action?.params?.requestId ||
+                                (item.data as ApiNotification).action?.params?.request_id
+                            )}
                         />
                     );
                 }}
@@ -408,6 +430,7 @@ const localStyles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 16,
+        gap: 12,
     },
     headerLeft: {
         flexDirection: 'row',
@@ -418,11 +441,14 @@ const localStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        flexShrink: 1,
+        justifyContent: 'flex-end',
     },
     headerTitle: {
         fontSize: 28,
         fontFamily: Fonts.bold,
-        letterSpacing: -0.5,
+        flex: 1,
+        minWidth: 0,
     },
     headerBadge: {
         backgroundColor: '#48BB78',
@@ -447,6 +473,7 @@ const localStyles = StyleSheet.create({
         color: '#48BB78',
         fontSize: 14,
         fontFamily: Fonts.bold,
+        textAlign: 'right',
     },
     closeButton: {
         width: 40,

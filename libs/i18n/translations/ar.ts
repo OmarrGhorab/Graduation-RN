@@ -924,6 +924,8 @@ export default {
     declinedRequest: 'لقد رفضت طلب ربط {{name}}',
     accepted: 'مقبول',
     declined: 'مرفوض',
+    accept: 'قبول',
+    decline: 'رفض',
     pending: 'قيد الانتظار',
     someone: 'شخص ما',
     justNow: 'الآن',

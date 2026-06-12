@@ -126,11 +126,19 @@ export function useRespondToParentLinkMutation() {
                         ...page,
                         data: page.data.map((n: ApiNotification) => {
                             // Find the notification with matching requestId
-                            if (n.data.requestId === requestId && n.type === 'parent_link_request') {
+                            const notificationRequestId =
+                                n.data?.requestId ||
+                                n.data?.request_id ||
+                                n.data?.linkRequestId ||
+                                n.data?.link_request_id ||
+                                n.data?.request?.id ||
+                                n.action?.params?.requestId ||
+                                n.action?.params?.request_id;
+
+                            if (notificationRequestId === requestId && n.type === 'parent_link_request') {
                                 return {
                                     ...n,
                                     read: true,
-                                    type: action === 'accept' ? 'link_request_accepted' : 'link_request_declined',
                                     data: {
                                         ...n.data,
                                         title: action === 'accept' 
