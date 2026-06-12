@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
@@ -32,6 +33,7 @@ export default function TeacherCourseDetailsScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
 
     useEffect(() => {
@@ -137,7 +139,7 @@ export default function TeacherCourseDetailsScreen() {
             {/* Custom Header */}
             <LinearGradient
                 colors={[cskColors[600], cskColors[500]]}
-                style={styles.header}
+                style={[styles.header, { paddingTop: insets.top + 16 }]}
             >
                 <View style={styles.headerContent}>
                     <TouchableOpacity
@@ -351,7 +353,6 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: 60,
         paddingBottom: 32,
         paddingHorizontal: 20,
         borderBottomLeftRadius: 32,

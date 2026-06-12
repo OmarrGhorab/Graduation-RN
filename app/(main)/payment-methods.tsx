@@ -5,12 +5,12 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
     Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePayments } from '@/hooks/usePayments';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts } from '@/constants/theme';
@@ -21,6 +21,10 @@ export default function PaymentMethodsScreen() {
     const { theme } = useTheme();
     const { t } = useTranslation();
     const { savedMethods, isLoadingMethods, deleteMethod, refetchMethods } = usePayments();
+
+    const goBackToAccount = () => {
+        router.replace('/(main)/account');
+    };
 
     const handleDelete = async (id: string) => {
         Alert.alert(
@@ -76,9 +80,9 @@ export default function PaymentMethodsScreen() {
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={goBackToAccount} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={28} color={theme.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.text }]}>

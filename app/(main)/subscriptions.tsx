@@ -5,11 +5,11 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -20,6 +20,10 @@ export default function SubscriptionsScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const { subscriptions, isLoading, refetch } = useSubscriptions();
+
+    const goBackToAccount = () => {
+        router.replace('/(main)/account');
+    };
 
     if (isLoading) {
         return (
@@ -76,9 +80,9 @@ export default function SubscriptionsScreen() {
     );
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={goBackToAccount} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={28} color={theme.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.text }]}>

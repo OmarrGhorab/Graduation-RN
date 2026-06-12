@@ -18,7 +18,7 @@ import { Fonts } from '@/constants/theme';
 import { checkUsername } from '@/services/ProfileService';
 import { useToast } from '@/components/toast';
 import { useProfile, useUpdateProfileMutation } from '@/hooks/useProfile';
-import { INTERESTS_OPTIONS, GOALS_OPTIONS } from '@/libs/i18n/options';
+import { INTERESTS_OPTIONS, GOALS_OPTIONS, normalizeInterestKeys } from '@/libs/i18n/options';
 import {
     FormInput,
     ChipSelector,
@@ -84,7 +84,7 @@ export default function EditProfileScreen() {
             setCustomGoals(customUserGoals);
             setShowCustomGoalInput(customUserGoals.length > 0);
 
-            const userInterests = profile.interests?.map((i: { id: string; name: string }) => i.name) || [];
+            const userInterests = normalizeInterestKeys(profile.interests?.map((i: { id: string; name: string }) => i.name) || []);
             setSelectedInterests(userInterests);
         }
     }, [profile]);
@@ -204,7 +204,7 @@ export default function EditProfileScreen() {
         const userGoals = profile?.goals || [];
         if (JSON.stringify(finalGoals) !== JSON.stringify(userGoals)) updateData.goals = finalGoals;
 
-        const userInterests = profile?.interests?.map((i: { id: string; name: string }) => i.name) || [];
+        const userInterests = normalizeInterestKeys(profile?.interests?.map((i: { id: string; name: string }) => i.name) || []);
         if (JSON.stringify(selectedInterests) !== JSON.stringify(userInterests)) {
             updateData.interests = selectedInterests;
         }

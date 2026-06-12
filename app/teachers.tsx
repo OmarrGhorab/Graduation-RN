@@ -4,9 +4,11 @@ import { useTopRatedTeachers } from '@/hooks/useTeachers';
 import { useTheme } from '@/hooks/useTheme';
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TeachersScreen() {
     const { theme, isDark } = useTheme();
+    const insets = useSafeAreaInsets();
     const { data, isLoading, error } = useTopRatedTeachers(20, 4.0);
 
     if (isLoading) {
@@ -29,7 +31,7 @@ export default function TeachersScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <Text style={[styles.title, { color: isDark ? theme.text : '#000' }]}>
                     Top Rated Teachers
                 </Text>
@@ -60,7 +62,6 @@ const styles = StyleSheet.create({
     header: {
         paddingHorizontal: 16,
         paddingVertical: 12,
-        paddingTop: 50,
     },
     title: {
         fontSize: 24,

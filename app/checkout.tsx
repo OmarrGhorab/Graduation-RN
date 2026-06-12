@@ -4,7 +4,6 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
     Alert,
     ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/hooks/useCart';
@@ -174,7 +174,7 @@ export default function CheckoutScreen() {
 
     if (paymentUrl) {
         return (
-            <SafeAreaView style={{ flex: 1 }}>
+            <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
                 <View style={[styles.header, { backgroundColor: theme.surface }]}>
                     <TouchableOpacity onPress={() => setPaymentUrl(null)} style={styles.backButton}>
                         <Ionicons name="close" size={28} color={theme.text} />
@@ -211,7 +211,7 @@ export default function CheckoutScreen() {
     }
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={28} color={theme.text} />

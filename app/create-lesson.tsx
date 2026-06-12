@@ -26,6 +26,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type DeliveryType = 'ONLINE' | 'OFFLINE';
 type LessonFormPrefill = {
@@ -71,6 +72,7 @@ export default function CreateLessonScreen() {
     const editId = getFirstParamValue(rawEditId) || getFirstParamValue(rawLessonId) || '';
     const { theme, isDark } = useTheme();
     const toast = useToast();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
     const { createLessonMutation } = useLessonCreation();
 
@@ -373,7 +375,8 @@ export default function CreateLessonScreen() {
             {/* Header */}
             <View style={[styles.header, {
                 backgroundColor: isDark ? '#183327' : '#ffffff',
-                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed'
+                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed',
+                paddingTop: insets.top + 12,
             }]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
@@ -991,7 +994,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 48,
         paddingBottom: 16,
         paddingHorizontal: 16,
         borderBottomWidth: 1,

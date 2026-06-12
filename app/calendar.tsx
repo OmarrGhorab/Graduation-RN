@@ -9,11 +9,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CalendarScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
     const [rangePreset, setRangePreset] = React.useState<'upcoming_7' | 'upcoming_30' | 'prev_7' | 'all'>('upcoming_30');
     const [statusFilter, setStatusFilter] = React.useState<'upcoming' | 'finished' | 'CANCELED' | 'all'>('all');
@@ -61,7 +63,7 @@ export default function CalendarScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={isDark ? theme.text : '#000'} />
                 </TouchableOpacity>
@@ -224,7 +226,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        paddingTop: 50,
     },
     backBtn: {
         padding: 4,

@@ -107,7 +107,7 @@ export async function getProfile(): Promise<GetProfileResponse> {
  */
 export async function updateProfile(data: UpdateProfileRequest): Promise<UpdateProfileResponse> {
     logger.log('[Profile] Updating profile:', data);
-    return apiClient.patch<UpdateProfileResponse>('/api/v1/profile', data);
+    return apiClient.put<UpdateProfileResponse>('/api/v1/profile', data);
 }
 
 /**
@@ -151,7 +151,7 @@ export async function checkUsername(username: string): Promise<UsernameCheckResp
     }
 
     // Public endpoint - skip auth and device headers
-    return apiClient.get<UsernameCheckResponse>('/api/v1/profile/check-username', {
+    return apiClient.get<UsernameCheckResponse>('/api/v1/profile/username/check', {
         params: { username },
         skipAuth: true,
         skipDeviceHeaders: true,

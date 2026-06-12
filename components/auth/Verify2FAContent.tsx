@@ -74,6 +74,7 @@ export const Verify2FAContent: React.FC<Verify2FAContentProps> = ({
                     maxLength={8}
                     autoCapitalize="characters"
                     autoFocus
+                    showSoftInputOnFocus
                 />
             ) : (
                 <View style={styles.codeContainer}>
@@ -94,6 +95,7 @@ export const Verify2FAContent: React.FC<Verify2FAContentProps> = ({
                             maxLength={6}
                             selectTextOnFocus
                             autoFocus={index === 0}
+                            showSoftInputOnFocus
                         />
                     ))}
                 </View>

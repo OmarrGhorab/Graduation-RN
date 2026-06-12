@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ export default function SecurityAlertScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t, locale } = useTranslation();
+    const insets = useSafeAreaInsets();
 
     // Parse the data from params
     // Data might be passed as a JSON string or as individual params depending on how we navigate
@@ -47,7 +49,7 @@ export default function SecurityAlertScreen() {
             
             <LinearGradient
                 colors={['#dc2626', '#991b1b']}
-                style={styles.header}
+                style={[styles.header, { paddingTop: insets.top + 16 }]}
             >
                 <View style={styles.headerTop}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -156,7 +158,6 @@ const styles = StyleSheet.create({
     },
     header: {
         height: 280,
-        paddingTop: 60,
         alignItems: 'center',
         borderBottomLeftRadius: 40,
         borderBottomRightRadius: 40,

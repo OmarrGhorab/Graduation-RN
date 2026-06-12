@@ -16,7 +16,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useToast } from '@/components/toast';
 import { useOnboardingStore } from '@/libs/onboarding';
-import { INTERESTS_OPTIONS, translateInterest } from '@/libs/i18n/options';
+import { INTERESTS_OPTIONS, normalizeInterestKeys } from '@/libs/i18n/options';
 import {
     InterestsGrid,
     BioInput,
@@ -44,7 +44,7 @@ export default function OnboardingStep2() {
     ];
 
     const [selectedInterests, setSelectedInterests] = useState<string[]>(
-        formData.interests || []
+        normalizeInterestKeys(formData.interests || [])
     );
     const [selectedRole, setSelectedRole] = useState<string>(
         formData.role?.toLowerCase() || ''

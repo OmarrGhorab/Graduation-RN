@@ -151,7 +151,6 @@ export default function AccountScreen() {
                 />
 
                 <View style={styles.menuContainer}>
-                    <MenuItem icon="person-outline" label={t('account.profile')} />
                     <MenuItem icon="create-outline" label={t('account.editProfile')} onPress={handleEditProfile} />
                     {user?.role === 'TEACHER' && (
                         <MenuItem 
@@ -203,7 +202,6 @@ export default function AccountScreen() {
                         label={t('account.paymentMethods') || 'Payment Methods'}
                         onPress={() => router.push('/(main)/payment-methods')}
                     />
-                    <MenuItem icon="help-circle-outline" label={t('account.helpSupport')} />
                 </View>
 
                 <LogoutButton onPress={handleLogout} />

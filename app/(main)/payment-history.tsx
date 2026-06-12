@@ -5,11 +5,11 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePayments } from '@/hooks/usePayments';
 import { useTheme } from '@/hooks/useTheme';
 import { Fonts, cskColors } from '@/constants/theme';
@@ -18,6 +18,10 @@ export default function PaymentHistoryScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { paymentHistory, isLoadingHistory, refetchHistory } = usePayments();
+
+    const goBackToAccount = () => {
+        router.replace('/(main)/account');
+    };
 
     if (isLoadingHistory) {
         return (
@@ -59,9 +63,9 @@ export default function PaymentHistoryScreen() {
     );
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: theme.background }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={goBackToAccount} style={styles.backButton}>
                     <Ionicons name="chevron-back" size={28} color={theme.text} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: theme.text }]}>Payment History</Text>

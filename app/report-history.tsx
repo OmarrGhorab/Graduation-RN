@@ -32,6 +32,7 @@ import { getHistoryDownloadUrl, HistoryReport } from '@/services/ReportService';
 import { Fonts } from '@/constants/theme';
 import { getValidAccessToken } from '@/services/AuthService';
 import { logger } from '@/libs/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +40,7 @@ export default function ReportHistoryScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { studentId, studentName } = useLocalSearchParams<{ studentId: string; studentName?: string }>();
 
     const { data: history, isLoading, refetch } = useReportHistoryQuery(studentId || null);
@@ -199,7 +201,7 @@ export default function ReportHistoryScreen() {
                 style={StyleSheet.absoluteFill}
             />
 
-            <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 50 : 20 }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={theme.text} />
                 </TouchableOpacity>

@@ -144,6 +144,7 @@ export default function DeviceVerificationScreen() {
             />
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scrollContent}
             >
                 <DeviceVerificationHeader

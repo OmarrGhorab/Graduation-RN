@@ -34,6 +34,7 @@ import { useKidsQuery } from '@/hooks/useParentLinks';
 import { Fonts } from '@/constants/theme';
 import { getValidAccessToken } from '@/services/AuthService';
 import { logger } from '@/libs/logger';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +42,7 @@ export default function ProgressReportScreen() {
     const { theme, isDark } = useTheme();
     const { t, locale } = useTranslation();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const params = useLocalSearchParams<{ studentId: string; period?: string }>();
 
     const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'monthly'>(
@@ -154,7 +156,7 @@ export default function ProgressReportScreen() {
             />
 
             {/* Custom Header */}
-            <View style={[styles.topNav, { paddingTop: Platform.OS === 'ios' ? 50 : 20 }]}>
+            <View style={[styles.topNav, { paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                     <Ionicons name="chevron-back" size={24} color={theme.text} />
                 </TouchableOpacity>

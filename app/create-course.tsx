@@ -25,6 +25,7 @@ import {
     View
 } from 'react-native';
 import { useCourseCreation } from '../hooks/useCourseCreation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type DeliveryType = 'ONLINE' | 'OFFLINE';
 type BillingType = 'ONE_TIME' | 'MONTHLY';
@@ -34,6 +35,7 @@ export default function CreateCourseScreen() {
     const { editId } = useLocalSearchParams<{ editId: string }>();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
     const { createCourseMutation, updateCourseMutation } = useCourseCreation();
 
@@ -268,7 +270,8 @@ export default function CreateCourseScreen() {
             {/* Header */}
             <View style={[styles.header, { 
                 backgroundColor: isDark ? '#183327' : '#ffffff',
-                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed'
+                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed',
+                paddingTop: insets.top + 12,
             }]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
@@ -989,7 +992,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 48,
         paddingBottom: 16,
         paddingHorizontal: 16,
         borderBottomWidth: 1,

@@ -970,12 +970,18 @@ export default {
   // Options (Interests & Goals)
   options: {
     // Interests
+    fullstackDevelopment: 'Fullstack Development',
     webDevelopment: 'Web Development',
     mobileDevelopment: 'Mobile Development',
     dataScience: 'Data Science',
+    dataEngineering: 'Data Engineering',
+    aiMachineLearning: 'AI & Machine Learning',
     machineLearning: 'Machine Learning',
     artificialIntelligence: 'Artificial Intelligence',
     cloudComputing: 'Cloud Computing',
+    primarySkills: 'Primary Skills',
+    chemistry: 'Chemistry',
+    physics: 'Physics',
     devOps: 'DevOps',
     cybersecurity: 'Cybersecurity',
     blockchain: 'Blockchain',

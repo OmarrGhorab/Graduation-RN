@@ -15,6 +15,7 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { Circle, Svg } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,7 @@ export default function TeacherControlPanel() {
     const router = useRouter();
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
 
     useEffect(() => {
@@ -158,7 +160,7 @@ export default function TeacherControlPanel() {
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={isDark ? '#183327' : '#ffffff'} />
 
             {/* Header Section */}
-            <View style={[styles.header, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc', paddingTop: insets.top + 16 }]}>
                 {/* Top Bar */}
                 <View style={[styles.topBar]}>
                     <TouchableOpacity
@@ -417,7 +419,6 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 48,
         paddingBottom: 24,
         borderBottomWidth: 1,
         borderBottomLeftRadius: 16,

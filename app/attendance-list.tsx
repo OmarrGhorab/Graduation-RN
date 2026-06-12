@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, ScrollView, Platform } from 'react-native';
 import { useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATUS_COLORS = {
     PRESENT: '#12ed87',
@@ -43,6 +44,7 @@ export default function AttendanceListScreen() {
     const router = useRouter();
     const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
     const { theme, isDark } = useTheme();
+    const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const user = useAuthStore(state => state.user);
 
@@ -192,7 +194,7 @@ export default function AttendanceListScreen() {
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={isDark ? '#10221a' : '#f8fcfa'} />
 
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? '#10221a' : '#f8fcfa', paddingTop: insets.top + 16 }]}>
                 <View style={styles.headerTop}>
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.headerTitle, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
@@ -477,7 +479,6 @@ const styles = StyleSheet.create({
     },
     header: {
         paddingHorizontal: 20,
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 60,
         paddingBottom: 20,
         gap: 16,
         zIndex: 10,

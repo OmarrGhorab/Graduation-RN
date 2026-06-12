@@ -4,6 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Fonts } from '@/constants/theme';
 import { InterestChip } from './InterestChip';
+import { translateInterest } from '@/libs/i18n/options';
 
 interface InterestsGridProps {
     interests: string[];
@@ -32,7 +33,7 @@ export const InterestsGrid = ({
                 {interests.map((interest) => (
                     <InterestChip
                         key={interest}
-                        label={interest}
+                        label={translateInterest(interest, t)}
                         selected={selectedInterests.includes(interest)}
                         onPress={() => onToggleInterest(interest)}
                     />

@@ -19,12 +19,14 @@ import {
     View,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TeacherProfileScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     const { data: profileResponse, isLoading: isProfileLoading } = useTeacherProfile(id!);
     const { data: coursesResponse, isLoading: isCoursesLoading } = useAllCourses({ teacherId: id, limit: 100 });
@@ -56,7 +58,7 @@ export default function TeacherProfileScreen() {
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
             
             {/* Header / Cover Area */}
-            <View style={[styles.coverArea, { backgroundColor: theme.primary }]}>
+            <View style={[styles.coverArea, { backgroundColor: theme.primary, paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.headerBackBtn}>
                     <Ionicons name="arrow-back" size={24} color="#FFF" />
                 </TouchableOpacity>
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
     coverArea: {
         height: 160,
         width: '100%',
-        paddingTop: 48,
         paddingHorizontal: 20,
     },
     headerBackBtn: {

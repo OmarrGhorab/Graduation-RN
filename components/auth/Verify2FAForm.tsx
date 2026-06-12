@@ -122,6 +122,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
                     maxLength={8}
                     autoCapitalize="characters"
                     autoFocus
+                    showSoftInputOnFocus
                 />
             ) : (
                 <View style={styles.codeContainer}>
@@ -143,6 +144,7 @@ export const Verify2FAForm: React.FC<Verify2FAFormProps> = ({
                                 maxLength={1}
                                 selectTextOnFocus
                                 caretHidden
+                                showSoftInputOnFocus
                             />
                         </Pressable>
                     ))}

@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ export default function LessonAnalyticsScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
     const { data, isLoading, error } = useLessonAnalytics(lessonId as string);
 
@@ -68,7 +70,7 @@ export default function LessonAnalyticsScreen() {
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>
             {/* Header */}
-            <View style={[styles.header, { backgroundColor: isDark ? '#10221a' : '#f8fcfa' }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? '#10221a' : '#f8fcfa', paddingTop: insets.top + 16 }]}>
                 <TouchableOpacity 
                     onPress={() => router.back()} 
                     style={[styles.backBtn, { backgroundColor: isDark ? '#1f3b2e' : '#ffffff' }]}
@@ -214,7 +216,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingTop: 60,
         paddingBottom: 20,
         gap: 16,
     },

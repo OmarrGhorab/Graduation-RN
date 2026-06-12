@@ -962,12 +962,18 @@ export default {
   // Options (Interests & Goals)
   options: {
     // Interests
+    fullstackDevelopment: 'تطوير الويب المتكامل',
     webDevelopment: 'تطوير الويب',
     mobileDevelopment: 'تطوير التطبيقات',
     dataScience: 'علم البيانات',
+    dataEngineering: 'هندسة البيانات',
+    aiMachineLearning: 'الذكاء الاصطناعي والتعلم الآلي',
     machineLearning: 'التعلم الآلي',
     artificialIntelligence: 'الذكاء الاصطناعي',
     cloudComputing: 'الحوسبة السحابية',
+    primarySkills: 'المهارات الأساسية',
+    chemistry: 'الكيمياء',
+    physics: 'الفيزياء',
     devOps: 'DevOps',
     cybersecurity: 'الأمن السيبراني',
     blockchain: 'البلوكتشين',

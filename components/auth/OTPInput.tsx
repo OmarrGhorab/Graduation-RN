@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { StyleSheet, TextInput, View, Pressable, Text, Animated } from 'react-native';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { StyleSheet, TextInput, View, Pressable, Text, Animated, InteractionManager } from 'react-native';
 import { Colors, Fonts } from '@/constants/theme';
 
 type Theme = typeof Colors.light | typeof Colors.dark;
@@ -32,14 +32,25 @@ export const OTPInput: React.FC<OTPInputProps> = ({
     const cursorAnim = useRef(new Animated.Value(1)).current;
     const styles = createStyles(theme, isDark);
 
+    const focusInput = useCallback(() => {
+        hiddenInputRef.current?.focus();
+        requestAnimationFrame(() => hiddenInputRef.current?.focus());
+    }, []);
+
     // Auto-focus on mount
     useEffect(() => {
-        if (autoFocus) {
-            setTimeout(() => {
-                hiddenInputRef.current?.focus();
-            }, 100);
-        }
-    }, [autoFocus]);
+        if (!autoFocus) return;
+
+        const interaction = InteractionManager.runAfterInteractions(() => {
+            focusInput();
+        });
+        const fallbackTimer = setTimeout(focusInput, 350);
+
+        return () => {
+            interaction.cancel();
+            clearTimeout(fallbackTimer);
+        };
+    }, [autoFocus, focusInput]);
 
     // Blinking cursor animation
     useEffect(() => {
@@ -66,7 +77,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({
     }, [isFocused, cursorAnim]);
 
     const handlePress = () => {
-        hiddenInputRef.current?.focus();
+        focusInput();
     };
 
     const handleChange = (value: string) => {
@@ -100,9 +111,12 @@ export const OTPInput: React.FC<OTPInputProps> = ({
                 onBlur={handleBlur}
                 keyboardType="number-pad"
                 maxLength={length}
-                autoComplete="one-time-code"
+                autoFocus={autoFocus}
+                autoComplete="sms-otp"
                 textContentType="oneTimeCode"
                 caretHidden
+                blurOnSubmit={false}
+                showSoftInputOnFocus
             />
             
             {/* Visual OTP boxes */}
@@ -146,9 +160,11 @@ const createStyles = (theme: Theme, isDark: boolean) =>
         },
         hiddenInput: {
             position: 'absolute',
-            opacity: 0,
-            height: 1,
-            width: 1,
+            opacity: 0.01,
+            height: 2,
+            width: 2,
+            top: 0,
+            left: 0,
         },
         boxContainer: {
             flexDirection: 'row',

@@ -122,6 +122,7 @@ export default function VerifyResetOTPScreen() {
             />
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scrollContent}
             >
                 <VerifyOTPHeader

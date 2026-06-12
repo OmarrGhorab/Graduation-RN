@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -25,6 +26,7 @@ export default function TeacherDashboardScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore((state) => state.user);
     const { data: coursesData, isLoading } = useTeacherCourses();
     const isTeacher = user?.role === 'TEACHER';
@@ -80,7 +82,8 @@ export default function TeacherDashboardScreen() {
             {/* Header */}
             <View style={[styles.header, {
                 backgroundColor: isDark ? '#183327' : '#ffffff',
-                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed'
+                borderBottomColor: isDark ? '#2a4d3d' : '#e9ebed',
+                paddingTop: insets.top + 12,
             }]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
@@ -365,7 +368,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: 60,
         paddingBottom: 16,
         borderBottomWidth: 1,
     },

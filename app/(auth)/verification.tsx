@@ -102,6 +102,7 @@ export default function VerificationScreen() {
             />
             <ScrollView
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.scrollContent}
             >
                 <VerificationHeader theme={theme} isDark={isDark} onBack={handleBack} />

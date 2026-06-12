@@ -21,11 +21,13 @@ import {
 } from 'react-native';
 import { deleteCourse } from '@/services/CourseService';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TeacherCoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
 
     useEffect(() => {
@@ -79,7 +81,7 @@ export default function TeacherCoursesScreen() {
     const renderHeader = () => (
         <View style={[styles.header, { 
             backgroundColor: isDark ? '#183327' : '#FFFFFF',
-            paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 48 
+            paddingTop: insets.top + 12
         }]}>
             <View style={styles.headerTopRow}>
                 <TouchableOpacity

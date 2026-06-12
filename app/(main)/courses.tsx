@@ -21,6 +21,7 @@ import {
     View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FILTERS = ['all', 'math', 'science', 'physics', 'chemistry', 'english', 'cs'];
 
@@ -38,6 +39,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 export default function CoursesScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const router = useRouter();
     const routeParams = useLocalSearchParams<{ teacherId?: string; teacherName?: string }>();
     const [activeFilter, setActiveFilter] = useState('all');
@@ -290,7 +292,7 @@ export default function CoursesScreen() {
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             {/* Header Area */}
-            <View style={[styles.header, { backgroundColor: isDark ? theme.surface : '#FFFFFF', paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 48 }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? theme.surface : '#FFFFFF', paddingTop: insets.top + 12 }]}>
                 <View style={styles.headerTopRow}>
                     <Text style={[styles.headerTitle, { color: theme.primary }]}>
                         {teacherNameFilter ? `${teacherNameFilter}` : t('courses.exploreTitle')}

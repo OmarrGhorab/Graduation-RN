@@ -18,6 +18,7 @@ import {
     View,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const getSubjectIcon = (iconName: string): keyof typeof Ionicons.glyphMap => {
     const name = (iconName || '').toLowerCase();
@@ -36,6 +37,7 @@ export default function SubjectDetailsScreen() {
     const router = useRouter();
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
 
     const { data: detailsData, isLoading, error } = useSubjectDetails(id as string);
 
@@ -143,7 +145,7 @@ export default function SubjectDetailsScreen() {
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={
-                    <View style={styles.listHeader}>
+                    <View style={[styles.listHeader, { paddingTop: insets.top + 16 }]}>
                         <LinearGradient
                             colors={isDark ? ['rgba(18, 237, 135, 0.15)', 'transparent'] : ['rgba(18, 237, 135, 0.1)', 'transparent']}
                             style={styles.gradientHeader}
@@ -206,7 +208,6 @@ const styles = StyleSheet.create({
         paddingBottom: 40,
     },
     listHeader: {
-        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 48,
         paddingHorizontal: 20,
         marginBottom: 8,
     },
