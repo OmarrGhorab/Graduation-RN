@@ -1,6 +1,6 @@
 import { Fonts } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { ApiNotification } from '@/services/NotificationService';
+import { ApiNotification, isSameNotification } from '@/services/NotificationService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -63,10 +63,14 @@ export default function NotificationModal({
     // Filter notifications based on active filter (matching backend categories)
     // Also ensures uniqueness by ID to prevent duplicate keys in FlatList
     const filteredNotifications = useMemo(() => {
-        // Enforce uniqueness by ID
-        const uniqueNotifications = Array.from(
-            new Map(notifications.map(n => [n.id, n])).values()
-        );
+        // Enforce uniqueness by semantic notification identity
+        const uniqueNotifications = notifications.reduce<ApiNotification[]>((acc, notification) => {
+            const exists = acc.some((current) => isSameNotification(current, notification));
+            if (!exists) {
+                acc.push(notification);
+            }
+            return acc;
+        }, []);
 
         if (activeFilter === 'all') return uniqueNotifications;
 

@@ -61,6 +61,48 @@ export interface DeleteNotificationResponse {
     message?: string;
 }
 
+export function getNotificationRequestId(notification: Pick<ApiNotification, 'data' | 'action'>): string | null {
+    return (
+        notification.data?.requestId ||
+        notification.data?.request_id ||
+        notification.data?.linkRequestId ||
+        notification.data?.link_request_id ||
+        notification.data?.request?.id ||
+        notification.action?.params?.requestId ||
+        notification.action?.params?.request_id ||
+        null
+    );
+}
+
+export function isSameNotification(a: ApiNotification, b: ApiNotification): boolean {
+    if (a.id === b.id) return true;
+
+    const aRequestId = getNotificationRequestId(a);
+    const bRequestId = getNotificationRequestId(b);
+
+    if (
+        a.type === 'parent_link_request' &&
+        b.type === 'parent_link_request' &&
+        aRequestId &&
+        bRequestId &&
+        aRequestId === bRequestId
+    ) {
+        return true;
+    }
+
+    if (
+        a.type === 'unlink_request' &&
+        b.type === 'unlink_request' &&
+        aRequestId &&
+        bRequestId &&
+        aRequestId === bRequestId
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Fetch notifications for the current user
  * @param page - Page number (default: 1)

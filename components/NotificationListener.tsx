@@ -3,7 +3,7 @@ import { logger } from '@/libs/logger';
 import { DeviceService } from '@/services/DeviceService';
 import { LocationService } from '@/services/LocationService';
 import { SSENotification } from '@/services/NotificationSSEService';
-import { ApiNotification } from '@/services/NotificationService';
+import { ApiNotification, isSameNotification } from '@/services/NotificationService';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
@@ -41,7 +41,7 @@ export default function NotificationListener() {
 
             // Check if notification already exists
             const exists = old.pages.some((page: any) =>
-                page.data?.some((n: ApiNotification) => n.id === notification.id)
+                page.data?.some((n: ApiNotification) => isSameNotification(n, notification))
             );
             if (exists) return old;
 

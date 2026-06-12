@@ -7,7 +7,7 @@ import {
     SSENotification,
 } from '@/services/NotificationSSEService';
 import { NOTIFICATIONS_QUERY_KEY } from './useNotifications';
-import { ApiNotification } from '@/services/NotificationService';
+import { ApiNotification, isSameNotification } from '@/services/NotificationService';
 import { logger } from '@/libs/logger';
 
 interface UseNotificationSSEOptions {
@@ -75,7 +75,7 @@ export function useNotificationSSE(
                     } else {
                         // ADD new notification
                         const exists = old.pages.some((page: any) =>
-                            page.data?.some((n: ApiNotification) => n.id === notification.id)
+                            page.data?.some((n: ApiNotification) => isSameNotification(n, notification as ApiNotification))
                         );
 
                         if (exists) {
