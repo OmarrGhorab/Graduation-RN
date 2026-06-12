@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -19,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function GroupInfoScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const { theme, isDark } = useTheme();
-    const { t, textAlign } = useTranslation();
+    const { textAlign } = useTranslation();
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const currentUser = useAuthStore(state => state.user);
@@ -86,7 +85,7 @@ export default function GroupInfoScreen() {
     });
 
     const leaveGroupMutation = useMutation({
-        mutationFn: () => ChatService.removeMember(id, currentUser?.id || ''),
+        mutationFn: () => ChatService.leaveConversation(id!),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
             router.replace('/(main)/chat');
@@ -108,18 +107,6 @@ export default function GroupInfoScreen() {
         },
         onError: (error: any) => {
             Alert.alert('Error', error.message || 'Failed to remove member');
-        },
-    });
-
-    const updateGroupImageMutation = useMutation({
-        mutationFn: (imageUrl: string) => ChatService.updateGroupImage(id!, imageUrl),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['conversation', id] });
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
-            // Alert removed as per user request to handle it via query refresh
-        },
-        onError: (error: any) => {
-            Alert.alert('Error', error.message || 'Failed to update image');
         },
     });
 
@@ -148,24 +135,6 @@ export default function GroupInfoScreen() {
 
     const handleDeleteGroup = () => {
         setIsDeleteModalVisible(true);
-    };
-
-    const handleUpdateImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'], // Use array instead of deprecated string constant
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        });
-
-        if (!result.canceled) {
-            try {
-                const imageUrl = await ChatService.uploadMedia(result.assets[0].uri, 'image');
-                updateGroupImageMutation.mutate(imageUrl);
-            } catch (error) {
-                Alert.alert('Error', 'Failed to upload image');
-            }
-        }
     };
 
     const handleMemberOptions = (member: ChatMember) => {
@@ -230,7 +199,7 @@ export default function GroupInfoScreen() {
             console.log('[MemberOptions] I am NOT OWNER, my role is:', myRole);
         }
 
-        // Remove option (OWNER and ADMIN)
+        // Remove option (OWNER and ADMIN, based on canManageMember gate)
         console.log('[MemberOptions] Adding REMOVE option');
         options.push({ label: 'Remove from Group', action: handleRemoveMember, icon: 'trash-outline' as const, destructive: true });
 
@@ -332,6 +301,9 @@ export default function GroupInfoScreen() {
     if (!conversation) return null;
 
     const isDirect = conversation.type === 'DIRECT';
+    const currentMemberRole = members?.find(m => m.user_id === currentUser?.id)?.role;
+    const canManageConversation = !isDirect && (currentMemberRole === 'OWNER' || currentMemberRole === 'ADMIN');
+    const canLeaveConversation = !isDirect && currentMemberRole !== 'OWNER';
     let displayInfo;
 
     if (isDirect) {
@@ -376,19 +348,6 @@ export default function GroupInfoScreen() {
                             contentFit="cover"
                             transition={200}
                         />
-                        {!isDirect && (
-                            <TouchableOpacity
-                                style={[styles.editButton, { backgroundColor: theme.primary, borderColor: theme.background }]}
-                                onPress={handleUpdateImage}
-                                disabled={updateGroupImageMutation.isPending}
-                            >
-                                {updateGroupImageMutation.isPending ? (
-                                    <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                    <Ionicons name="pencil" size={16} color="#FFFFFF" />
-                                )}
-                            </TouchableOpacity>
-                        )}
                     </View>
                     <Text style={[styles.groupName, { color: theme.text }]}>{displayInfo.user_name}</Text>
                     {!isDirect && <Text style={[styles.memberCount, { color: theme.primary }]}>{members?.length || 0} Members</Text>}
@@ -434,9 +393,11 @@ export default function GroupInfoScreen() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={[styles.sectionHeading, { color: theme.text }]}>Members</Text>
-                            <TouchableOpacity onPress={() => setIsAddMemberModalVisible(true)}>
-                                <Text style={[styles.addButton, { color: theme.primary }]}>Add Member</Text>
-                            </TouchableOpacity>
+                            {canManageConversation && (
+                                <TouchableOpacity onPress={() => setIsAddMemberModalVisible(true)}>
+                                    <Text style={[styles.addButton, { color: theme.primary }]}>Add Member</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
                         <View style={[styles.card, { backgroundColor: isDark ? theme.surface : theme.surface, borderColor: theme.border, padding: 0 }]}>
@@ -453,42 +414,43 @@ export default function GroupInfoScreen() {
                 {/* Leave Group / Delete Group */}
                 {!isDirect && (
                     <View style={styles.section}>
-                        <TouchableOpacity
-                            style={[styles.leaveButton, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2', borderColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}
-                            onPress={handleLeaveGroup}
-                            disabled={leaveGroupMutation.isPending}
-                        >
-                            {leaveGroupMutation.isPending ? (
-                                <ActivityIndicator size="small" color="#EF4444" />
-                            ) : (
-                                <>
-                                    <Ionicons name="log-out-outline" size={24} color="#EF4444" />
-                                    <Text style={styles.leaveText}>Leave Group</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
+                        {canLeaveConversation && (
+                            <TouchableOpacity
+                                style={[styles.leaveButton, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2', borderColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}
+                                onPress={handleLeaveGroup}
+                                disabled={leaveGroupMutation.isPending}
+                            >
+                                {leaveGroupMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="#EF4444" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="log-out-outline" size={24} color="#EF4444" />
+                                        <Text style={styles.leaveText}>Leave Group</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        )}
 
-                        {(members?.find(m => m.user_id === currentUser?.id)?.role === 'OWNER' ||
-                            members?.find(m => m.user_id === currentUser?.id)?.role === 'ADMIN') && (
-                                <TouchableOpacity
-                                    style={[styles.leaveButton, {
-                                        marginTop: 12,
-                                        backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FECACA',
-                                        borderColor: '#EF4444'
-                                    }]}
-                                    onPress={handleDeleteGroup}
-                                    disabled={deleteGroupMutation.isPending}
-                                >
-                                    {deleteGroupMutation.isPending ? (
-                                        <ActivityIndicator size="small" color="#EF4444" />
-                                    ) : (
-                                        <>
-                                            <Ionicons name="trash-outline" size={24} color="#EF4444" />
-                                            <Text style={[styles.leaveText, { color: '#B91C1C' }]}>Delete Group</Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
-                            )}
+                        {canManageConversation && (
+                            <TouchableOpacity
+                                style={[styles.leaveButton, {
+                                    marginTop: 12,
+                                    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FECACA',
+                                    borderColor: '#EF4444'
+                                }]}
+                                onPress={handleDeleteGroup}
+                                disabled={deleteGroupMutation.isPending}
+                            >
+                                {deleteGroupMutation.isPending ? (
+                                    <ActivityIndicator size="small" color="#EF4444" />
+                                ) : (
+                                    <>
+                                        <Ionicons name="trash-outline" size={24} color="#EF4444" />
+                                        <Text style={[styles.leaveText, { color: '#B91C1C' }]}>Delete Group</Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
 

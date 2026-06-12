@@ -249,8 +249,61 @@ export default function ChatDetailScreen() {
             }
         });
 
+        const unsubTyping = subscribe('typing', (payload: any) => {
+            const data = payload.data || payload;
+            if (data.conversation_id !== id || !data.user_id) return;
+
+            queryClient.setQueryData(['typing', id], (old: any) => {
+                const users = old?.typing_users || [];
+
+                if (data.is_typing) {
+                    const nextUser = {
+                        user_id: data.user_id,
+                        user_name: data.user_name || data.name || 'Someone',
+                        user_image: data.user_image || data.image,
+                    };
+
+                    const existingIndex = users.findIndex((u: any) => u.user_id === data.user_id);
+                    if (existingIndex !== -1) {
+                        return {
+                            typing_users: users.map((u: any, index: number) =>
+                                index === existingIndex ? { ...u, ...nextUser } : u
+                            ),
+                        };
+                    }
+
+                    return { typing_users: [...users, nextUser] };
+                }
+
+                return {
+                    typing_users: users.filter((u: any) => u.user_id !== data.user_id),
+                };
+            });
+        });
+
+        const unsubConversationRead = subscribe('conversation.read', (payload: any) => {
+            const data = payload.data || payload;
+            if (data.conversation_id !== id) return;
+
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
+                if (!oldData?.pages) return oldData;
+
+                const newPages = oldData.pages.map((page: Conversation[]) =>
+                    page.map((conversationItem: Conversation) =>
+                        conversationItem.id === id
+                            ? { ...conversationItem, unread_count: 0 }
+                            : conversationItem
+                    )
+                );
+
+                return { ...oldData, pages: newPages };
+            });
+        });
+
         return () => {
             unsubMessage();
+            unsubTyping();
+            unsubConversationRead();
             if (isFocused) {
                 queryClient.setQueryData(['active-conversation-id'], null);
             }
