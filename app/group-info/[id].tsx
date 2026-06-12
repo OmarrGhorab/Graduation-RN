@@ -332,10 +332,8 @@ export default function GroupInfoScreen() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons name={textAlign === 'right' ? "chevron-forward" : "chevron-back"} size={28} color={theme.primary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: theme.text }]}>{isDirect ? 'Contact Info' : 'Group Info'}</Text>
-                <TouchableOpacity style={styles.moreButton}>
-                    <Ionicons name="ellipsis-horizontal" size={24} color={theme.primary} />
-                </TouchableOpacity>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.headerTitle, { color: theme.text }]}>{isDirect ? 'Contact Info' : 'Group Info'}</Text>
+                <View style={styles.moreButton} />
             </BlurView>
 
             <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>

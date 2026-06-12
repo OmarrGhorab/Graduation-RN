@@ -320,29 +320,33 @@ export default function ChatScreen() {
                         };
 
                         // Proactively update the detailed message cache if it exists
-                        queryClient.setQueryData(['messages', conversationId], (oldMessages: any) => {
-                            if (!oldMessages || !oldMessages.pages) return oldMessages;
-                            
-                            const newMsgPages = [...oldMessages.pages];
-                            if (newMsgPages.length > 0) {
-                                const firstPage = newMsgPages[0];
-                                const isArray = Array.isArray(firstPage);
-                                const currentMsgs = isArray ? firstPage : (firstPage.messages || []);
+                        // Skip for own messages — conversation detail already handles optimistic updates
+                        const isOwnMessage = message.sender_id === useAuthStore.getState().user?.id;
+                        if (!isOwnMessage) {
+                            queryClient.setQueryData(['messages', conversationId], (oldMessages: any) => {
+                                if (!oldMessages || !oldMessages.pages) return oldMessages;
                                 
-                                if (currentMsgs.some((m: any) => m.id === fullMessageObject.id)) return oldMessages;
+                                const newMsgPages = [...oldMessages.pages];
+                                if (newMsgPages.length > 0) {
+                                    const firstPage = newMsgPages[0];
+                                    const isArray = Array.isArray(firstPage);
+                                    const currentMsgs = isArray ? firstPage : (firstPage.messages || []);
+                                    
+                                    if (currentMsgs.some((m: any) => m.id === fullMessageObject.id)) return oldMessages;
 
-                                const updatedMsgs = [fullMessageObject, ...currentMsgs];
-                                
-                                if (isArray) {
-                                    newMsgPages[0] = updatedMsgs;
-                                } else {
-                                    newMsgPages[0] = { ...firstPage, messages: updatedMsgs };
+                                    const updatedMsgs = [fullMessageObject, ...currentMsgs];
+                                    
+                                    if (isArray) {
+                                        newMsgPages[0] = updatedMsgs;
+                                    } else {
+                                        newMsgPages[0] = { ...firstPage, messages: updatedMsgs };
+                                    }
+                                    
+                                    return { ...oldMessages, pages: newMsgPages };
                                 }
-                                
-                                return { ...oldMessages, pages: newMsgPages };
-                            }
-                            return oldMessages;
-                        });
+                                return oldMessages;
+                            });
+                        }
 
                         const updatedConv = {
                             ...existingConv,

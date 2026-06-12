@@ -72,8 +72,8 @@ const ChatHeader = React.memo(({
                             <View style={[styles.onlineDot, { borderColor: theme.background }]} />
                         )}
                     </View>
-                    <View>
-                        <Text style={[styles.headerName, { color: theme.text }]}>{headerInfo.name}</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.headerName, { color: theme.text }]}>{headerInfo.name}</Text>
                         {/* Show "Online" text if user is online, otherwise show role */}
                         {isOnline ? (
                             <Text style={{ fontSize: 12, color: '#10B981', fontFamily: Fonts.medium, marginTop: 2 }}>
@@ -85,12 +85,6 @@ const ChatHeader = React.memo(({
                             </View>
                         )}
                     </View>
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => router.push(`/group-info/${id}`)}>
-                    <Ionicons name="information-circle-outline" size={24} color={theme.primary} />
                 </TouchableOpacity>
             </View>
         </View>
@@ -606,6 +600,12 @@ export default function ChatDetailScreen() {
 
 
     const handleInputChange = (text: string) => {
+        if (text.endsWith('\n')) {
+            const cleanText = text.slice(0, -1);
+            handleSend(cleanText);
+            return;
+        }
+
         setInputText(text);
         if (text.length > 0) {
             sendTypingIndicator();
@@ -764,9 +764,15 @@ export default function ChatDetailScreen() {
 
                     if (!Array.isArray(messages)) return page;
 
-                    const updatedMessages = messages.map((m: any) =>
-                        m.id === localId ? sentMessage : m
-                    );
+                    // Replace temp message with real one, then deduplicate by real ID
+                    const seen = new Set<string>();
+                    const updatedMessages = messages
+                        .map((m: any) => m.id === localId ? sentMessage : m)
+                        .filter((m: any) => {
+                            if (seen.has(m.id)) return false;
+                            seen.add(m.id);
+                            return true;
+                        });
 
                     return isArray ? updatedMessages : { ...page, messages: updatedMessages };
                 });
@@ -864,8 +870,9 @@ export default function ChatDetailScreen() {
         }
     };
 
-    const handleSend = async () => {
-        if ((!inputText.trim() && selectedImages.length === 0) || uploadingMedia) return;
+    const handleSend = async (overrideText?: string) => {
+        const currentText = overrideText !== undefined ? overrideText : inputText;
+        if ((!currentText.trim() && selectedImages.length === 0) || uploadingMedia) return;
 
         // Stop typing indicator immediately when sending (fire and forget)
         ChatService.sendTyping(id!, false).catch(err =>
@@ -889,7 +896,7 @@ export default function ChatDetailScreen() {
 
                 // Send one message with all images and optional text
                 sendMessage({
-                    content: inputText.trim() || 'Image',  // Use text or default to "Image"
+                    content: currentText.trim() || 'Image',  // Use text or default to "Image"
                     type: 'image',
                     media_urls: uploadedUrls,
                     reply_to_id: replyToMessage?.id
@@ -905,8 +912,8 @@ export default function ChatDetailScreen() {
             } finally {
                 setUploadingMedia(false);
             }
-        } else if (inputText.trim()) {
-            const textToSend = inputText.trim();
+        } else if (currentText.trim()) {
+            const textToSend = currentText.trim();
             // Clear input INSTANTLY for better UX
             setInputText('');
             setReplyToMessage(null);
@@ -1321,6 +1328,9 @@ export default function ChatDetailScreen() {
                                         onChangeText={handleInputChange}
                                         multiline
                                         editable={!uploadingMedia}
+                                        returnKeyType="send"
+                                        onSubmitEditing={() => handleSend()}
+                                        blurOnSubmit={false}
                                     />
                                 </View>
                             </View>
@@ -1328,7 +1338,7 @@ export default function ChatDetailScreen() {
                             {inputText.trim() || selectedImages.length > 0 ? (
                                 <TouchableOpacity
                                     style={[styles.sendButton, { backgroundColor: theme.primary, opacity: uploadingMedia ? 0.7 : 1 }]}
-                                    onPress={handleSend}
+                                    onPress={() => handleSend()}
                                     disabled={uploadingMedia}
                                 >
                                     {uploadingMedia ? (
@@ -1616,26 +1626,46 @@ const MessageBubble = ({
 
     const [waveformWidth, setWaveformWidth] = useState(0);
 
+    // Guard ref to prevent re-processing didJustFinish (avoids infinite loop)
+    const didHandleFinish = useRef(false);
+
     // Sync player state with UI
     useEffect(() => {
-        if (message.type === 'voice') {
-            setIsPlaying(player.playing);
-            
-            // Sync duration if player has it
-            if (player.duration > 0) {
-                setDuration(player.duration * 1000);
-            }
+        if (message.type !== 'voice') return;
+        player.loop = false;
 
-            // Sync progress if not dragging
-            if (!isDragging.current) {
-                setProgress(player.currentTime * 1000);
-            }
-
-            if (playerStatus.didJustFinish) {
-                setIsPlaying(false);
+        // Handle playback finished — only once per finish event
+        if (playerStatus.didJustFinish && !didHandleFinish.current) {
+            didHandleFinish.current = true;
+            setIsPlaying(false);
+            setProgress(0);
+            try {
+                player.pause();
                 player.seekTo(0);
-                setProgress(0);
+            } catch (e) {
+                // ignore
             }
+            return;
+        }
+
+        // Reset the guard when playback restarts
+        if (player.playing) {
+            didHandleFinish.current = false;
+        }
+
+        // Sync playing state
+        setIsPlaying(prev => prev !== player.playing ? player.playing : prev);
+
+        // Sync duration if player has it
+        if (player.duration > 0) {
+            const newDuration = player.duration * 1000;
+            setDuration(prev => prev !== newDuration ? newDuration : prev);
+        }
+
+        // Sync progress if not dragging
+        if (!isDragging.current) {
+            const newProgress = player.currentTime * 1000;
+            setProgress(prev => Math.abs(prev - newProgress) > 50 ? newProgress : prev);
         }
     }, [player.playing, player.currentTime, player.duration, playerStatus.didJustFinish]);
 
