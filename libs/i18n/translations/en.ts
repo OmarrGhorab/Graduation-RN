@@ -237,6 +237,8 @@ export default {
     statusRevoked: 'Revoked',
     statusExpired: 'Expired',
     statusInactive: 'Inactive',
+    revoked: 'Revoked',
+    expired: 'Expired',
     signOutThisDevice: 'Sign out this device',
     // TwoFAModal
     enable2FATitle: 'Enable Two-Factor Authentication',

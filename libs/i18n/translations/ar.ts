@@ -230,6 +230,8 @@ export default {
     statusRevoked: 'ملغى',
     statusExpired: 'منتهي الصلاحية',
     statusInactive: 'غير نشط',
+    revoked: 'ملغى',
+    expired: 'منتهي',
     signOutThisDevice: 'تسجيل الخروج من هذا الجهاز',
     // TwoFAModal
     enable2FATitle: 'تفعيل المصادقة الثنائية',

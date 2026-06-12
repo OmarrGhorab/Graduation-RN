@@ -36,6 +36,7 @@ export const SessionsSection = memo(function SessionsSection({
     return (
         <ScrollView
             style={styles.content}
+            contentContainerStyle={styles.contentContainer}
             showsVerticalScrollIndicator={false}
             refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />
@@ -54,7 +55,7 @@ export const SessionsSection = memo(function SessionsSection({
                         <Text style={[styles.summaryTitle, { color: theme.text }]}>
                             {activeSessions.length} {activeSessions.length === 1 ? t('settings.session') : t('settings.sessions')} {t('settings.statusActive')}
                         </Text>
-                        <Text style={[styles.summaryText, { color: theme.gray[500] }]}>
+                        <Text style={[styles.summaryText, { color: theme.gray[500] }]} numberOfLines={2}>
                             {t('settings.devicesLoggedIn')}
                         </Text>
                     </View>
@@ -115,14 +116,15 @@ export const SessionsSection = memo(function SessionsSection({
 
 const styles = StyleSheet.create({
     content: { flex: 1 },
+    contentContainer: { paddingBottom: 32 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
     summaryContainer: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 16 },
     summaryIcon: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-    summaryTitle: { fontSize: 20, fontFamily: Fonts.bold, marginBottom: 4 },
+    summaryTitle: { fontSize: 20, fontFamily: Fonts.bold, marginBottom: 4, textAlign: 'center' },
     summaryText: { fontSize: 14, fontFamily: Fonts.regular, textAlign: 'center' },
     actionsContainer: { paddingHorizontal: 16, paddingVertical: 8 },
-    revokeAllButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12 },
-    revokeAllText: { fontSize: 15, fontFamily: Fonts.semiBold },
+    revokeAllButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12 },
+    revokeAllText: { flexShrink: 1, fontSize: 15, fontFamily: Fonts.semiBold, textAlign: 'center' },
     tipsContainer: { margin: 16, padding: 16, borderRadius: 12, borderWidth: 1 },
     tipsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     tipsTitle: { fontSize: 15, fontFamily: Fonts.semiBold },

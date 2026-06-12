@@ -70,38 +70,41 @@ export function SessionCard({
                 {/* Status indicator dot */}
                 <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
             </View>
-            <View style={styles.info}>
+            <View style={[
+                styles.info,
+                isRTL ? styles.infoRtl : styles.infoLtr,
+            ]}>
                 <View style={styles.header}>
-                    <Text style={[styles.device, { color: theme.text }]} numberOfLines={1}>
+                    <Text style={[styles.device, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                         {deviceName || t('settings.unknownDevice')}
                     </Text>
                     {isCurrent && (
                         <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-                            <Text style={styles.badgeText}>{t('settings.thisDevice')}</Text>
+                            <Text style={styles.badgeText} numberOfLines={1} ellipsizeMode="tail">{t('settings.thisDevice')}</Text>
                         </View>
                     )}
                     {isRevoked && (
                         <View style={[styles.badge, { backgroundColor: statusColor }]}>
-                            <Text style={styles.badgeText}>{t('settings.revoked')}</Text>
+                            <Text style={styles.badgeText} numberOfLines={1} ellipsizeMode="tail">{t('settings.revoked')}</Text>
                         </View>
                     )}
                     {isExpired && !isRevoked && (
                         <View style={[styles.badge, { backgroundColor: statusColor }]}>
-                            <Text style={styles.badgeText}>{t('settings.expired')}</Text>
+                            <Text style={styles.badgeText} numberOfLines={1} ellipsizeMode="tail">{t('settings.expired')}</Text>
                         </View>
                     )}
                 </View>
                 <View style={styles.details}>
-                    <Text style={[styles.browser, { color: theme.gray[600] }]}>
+                    <Text style={[styles.browser, { color: theme.gray[600] }]} numberOfLines={1} ellipsizeMode="tail">
                         {getPlatformDisplayName(platform)}
                     </Text>
                     {location && (
                         <View style={styles.locationRow}>
                             <Ionicons name="location-outline" size={12} color={theme.gray[500]} />
-                            <Text style={[styles.location, { color: theme.gray[500] }]}>{location}</Text>
+                            <Text style={[styles.location, { color: theme.gray[500] }]} numberOfLines={1} ellipsizeMode="tail">{location}</Text>
                         </View>
                     )}
-                    <Text style={[styles.time, { color: theme.gray[500] }]}>
+                    <Text style={[styles.time, { color: theme.gray[500] }]} numberOfLines={1} ellipsizeMode="tail">
                         {isCurrent ? t('settings.activeNow') : formatTime(lastActivityAt)}
                     </Text>
                 </View>
@@ -119,9 +122,11 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        paddingVertical: 16,
+        paddingHorizontal: 14,
         borderRadius: 12,
         marginBottom: 12,
+        overflow: 'hidden',
     },
     icon: {
         width: 44,
@@ -143,18 +148,29 @@ const styles = StyleSheet.create({
     },
     info: {
         flex: 1,
+        minWidth: 0,
+    },
+    infoLtr: {
         marginLeft: 12,
+    },
+    infoRtl: {
+        marginRight: 12,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+        minWidth: 0,
     },
     device: {
+        flex: 1,
+        minWidth: 0,
         fontSize: 15,
         fontFamily: Fonts.semiBold,
     },
     badge: {
+        flexShrink: 1,
+        maxWidth: 104,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 10,
@@ -176,8 +192,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 4,
         marginTop: 2,
+        minWidth: 0,
     },
     location: {
+        flex: 1,
+        minWidth: 0,
         fontSize: 13,
         fontFamily: Fonts.regular,
     },
