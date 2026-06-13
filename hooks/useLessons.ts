@@ -58,6 +58,7 @@ export function useLessonControl(lessonId: string) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: LESSON_DETAILS_QUERY_KEY(lessonId) });
             queryClient.invalidateQueries({ queryKey: LESSON_QR_QUERY_KEY(lessonId) });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 
@@ -65,6 +66,7 @@ export function useLessonControl(lessonId: string) {
         mutationFn: () => endLesson(lessonId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: LESSON_DETAILS_QUERY_KEY(lessonId) });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 
@@ -84,6 +86,7 @@ export function useCreateLesson() {
             if (response.data?.courseId) {
                 queryClient.invalidateQueries({ queryKey: ['course', response.data.courseId] });
             }
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 }
@@ -96,6 +99,7 @@ export function useLessonMutations() {
         onSuccess: (_, lessonId) => {
             queryClient.invalidateQueries({ queryKey: LESSON_DETAILS_QUERY_KEY(lessonId) });
             queryClient.invalidateQueries({ queryKey: ['course'] }); // Broad invalidation to refresh lists
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 
@@ -104,6 +108,7 @@ export function useLessonMutations() {
         onSuccess: (_, lessonId) => {
             queryClient.invalidateQueries({ queryKey: LESSON_DETAILS_QUERY_KEY(lessonId) });
             queryClient.invalidateQueries({ queryKey: ['course'] });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 
@@ -136,6 +141,7 @@ export function useCancelLesson() {
         onSuccess: (_, lessonId) => {
             queryClient.invalidateQueries({ queryKey: LESSON_DETAILS_QUERY_KEY(lessonId) });
             queryClient.invalidateQueries({ queryKey: ['course'] });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 }
@@ -157,6 +163,7 @@ export function useRescheduleLesson() {
                 queryClient.invalidateQueries({ queryKey: COURSE_LESSONS_QUERY_KEY(response.data.courseId) });
             }
             queryClient.invalidateQueries({ queryKey: ['course'] });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 }
@@ -178,6 +185,7 @@ export function useUpdateLesson() {
                 queryClient.invalidateQueries({ queryKey: COURSE_LESSONS_QUERY_KEY(response.data.courseId) });
             }
             queryClient.invalidateQueries({ queryKey: ['course'] });
+            queryClient.invalidateQueries({ queryKey: ['calendar'] });
         },
     });
 }

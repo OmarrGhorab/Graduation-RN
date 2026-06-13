@@ -161,7 +161,18 @@ export default function CalendarScreen() {
                             <TouchableOpacity
                                 key={lesson.id}
                                 style={[styles.lessonCard, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[100] }]}
-                                onPress={() => router.push({ pathname: '/course-details', params: { id: lesson.courseId } })}
+                                onPress={() => {
+                                    if (user?.role === 'TEACHER') {
+                                        const statusUpper = (lesson.status || '').toUpperCase();
+                                        if (statusUpper === 'COMPLETED' || statusUpper === 'FINISHED') {
+                                            router.push({ pathname: '/lesson-analytics', params: { lessonId: lesson.id, courseId: lesson.courseId } });
+                                            return;
+                                        }
+                                        router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
+                                    } else {
+                                        router.push({ pathname: '/course-details', params: { id: lesson.courseId } });
+                                    }
+                                }}
                             >
                                 <View style={styles.lessonHeader}>
                                     <View style={styles.lessonInfo}>

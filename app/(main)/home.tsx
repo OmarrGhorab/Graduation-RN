@@ -774,9 +774,15 @@ export default function MainHomeScreen() {
                                         {...item}
                                         status={item.status as any}
                                         isLast={index === schedule.length - 1 && !hasMoreSchedule}
-                                        isTeacher={user?.role === 'TEACHER'}
+                                        isTeacher={isTeacher}
                                         onPress={() => {
-                                            if (user?.role === 'TEACHER' && item.status === 'LIVE') {
+                                            if (isTeacher) {
+                                                const statusUpper = (item.status || '').toUpperCase();
+                                                if (statusUpper === 'COMPLETED' || statusUpper === 'FINISHED') {
+                                                    router.push({ pathname: '/lesson-analytics', params: { lessonId: item.id, courseId: item.courseId } });
+                                                    return;
+                                                }
+
                                                 router.push({ pathname: '/teacher-control', params: { lessonId: item.id } });
                                             } else {
                                                 router.push({ pathname: '/course-details', params: { id: item.courseId } });

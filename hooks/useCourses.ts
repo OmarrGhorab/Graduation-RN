@@ -55,7 +55,7 @@ export function useTeacherCourses() {
     return useQuery({
         queryKey: ['courses', 'teacher'],
         queryFn: getTeacherCourses,
-        staleTime: STALE_TIMES.STANDARD,
+        staleTime: 0,
     });
 }
 

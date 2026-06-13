@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useTeacherCourses } from '@/hooks/useCourses';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -10,6 +10,11 @@ export default function TeacherDashboardSummary() {
     const { t } = useTranslation();
     const { isDark, theme } = useTheme();
     const { data: coursesData, isLoading } = useTeacherCourses();
+    const { width } = useWindowDimensions();
+
+    const isMobile = width < 600;
+    const revenueCardStyle = isMobile ? styles.fullWidthCard : styles.thirdWidthCard;
+    const secondaryCardStyle = isMobile ? styles.halfWidthCard : styles.thirdWidthCard;
 
     const stats = useMemo(() => {
         if (!coursesData) return { revenue: 0, students: 0, rating: 0 };
@@ -78,6 +83,8 @@ export default function TeacherDashboardSummary() {
                     icon="cash-outline"
                     color="#10b981"
                     delay={100}
+                    compact
+                    cardStyle={revenueCardStyle}
                 />
                 <StatCard
                     title={t('teacher.totalStudents') || 'Students'}
@@ -85,6 +92,8 @@ export default function TeacherDashboardSummary() {
                     icon="people-outline"
                     color="#3b82f6"
                     delay={200}
+                    compact
+                    cardStyle={secondaryCardStyle}
                 />
                 <StatCard
                     title={t('teacher.avgRating') || 'Rating'}
@@ -92,6 +101,8 @@ export default function TeacherDashboardSummary() {
                     icon="star-outline"
                     color="#f59e0b"
                     delay={300}
+                    compact
+                    cardStyle={secondaryCardStyle}
                 />
             </View>
         </View>
@@ -113,8 +124,22 @@ const styles = StyleSheet.create({
     },
     statsRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginHorizontal: -4,
+        flexWrap: 'wrap',
+        gap: 10,
+    },
+    thirdWidthCard: {
+        minWidth: '30%',
+        flexBasis: '30%',
+        flexGrow: 1,
+    },
+    halfWidthCard: {
+        minWidth: '45%',
+        flexBasis: '45%',
+        flexGrow: 1,
+    },
+    fullWidthCard: {
+        minWidth: '100%',
+        flexBasis: '100%',
     },
     loadingContainer: {
         height: 100,

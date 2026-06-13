@@ -1,4 +1,4 @@
-import { Fonts } from '@/constants/theme';
+import { Fonts, cskColors } from '@/constants/theme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,11 +51,8 @@ export default function HomeHeader({ onNotificationPress, onCalendarPress, onRef
     return (
         <Animated.View style={[styles.wrapper, { paddingTop: insets.top }, animatedStyle]}>
             <LinearGradient
-                colors={['#0A8F51', '#097D46', '#075F36']}
-                locations={[0.1, 0.5, 0.9]}
+                colors={[cskColors[600], cskColors[500]]}
                 style={styles.container}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
             >
                 <View style={styles.contentRow}>
                     {/* Greeting Section (Left) */}
@@ -117,14 +114,19 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 100,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
         overflow: 'hidden',
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
     },
     container: {
         paddingHorizontal: 20,
-        paddingBottom: 24,
-        paddingTop: 12,
+        paddingBottom: 28,
+        paddingTop: 16,
     },
     contentRow: {
         flexDirection: 'row',

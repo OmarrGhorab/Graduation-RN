@@ -116,20 +116,17 @@ export default function TeacherCourseDetailsScreen() {
     }
 
     const handleLessonPress = (lesson: typeof lessons[number]) => {
-        if (lesson.status === 'LIVE') {
+        if (lesson.status === 'COMPLETED') {
+            router.push({ pathname: '/lesson-analytics', params: { lessonId: lesson.id, courseId: id } });
+            return;
+        }
+
+        if (lesson.status === 'LIVE' || lesson.status === 'SCHEDULED') {
             router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
             return;
         }
 
-        if (lesson.status === 'COMPLETED') {
-            router.push({ pathname: '/attendance-list', params: { lessonId: lesson.id } });
-            return;
-        }
-
-        const courseId = Array.isArray(id) ? id[0] : id;
-        const lessonId = String(lesson.id);
-        const encodedLesson = encodeURIComponent(JSON.stringify(lesson));
-        router.push(`/edit-lesson?courseId=${encodeURIComponent(String(courseId || ''))}&editId=${encodeURIComponent(lessonId)}&lessonId=${encodeURIComponent(lessonId)}&initialLesson=${encodedLesson}`);
+        router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
     };
 
     return (
@@ -357,6 +354,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderBottomLeftRadius: 32,
         borderBottomRightRadius: 32,
+        zIndex: 10,
+        elevation: 5,
     },
     headerContent: {
         flexDirection: 'row',

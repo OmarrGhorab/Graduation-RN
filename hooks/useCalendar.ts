@@ -6,7 +6,8 @@ export function useStudentCalendar(filters?: CalendarFilters, enabled: boolean =
     return useQuery({
         queryKey: ['calendar', 'student', filters],
         queryFn: () => getStudentCalendar(filters),
-        enabled: enabled
+        enabled: enabled,
+        staleTime: 0
     });
 }
 
@@ -14,7 +15,8 @@ export function useTeacherCalendar(filters?: CalendarFilters, enabled: boolean =
     return useQuery({
         queryKey: ['calendar', 'teacher', filters],
         queryFn: () => getTeacherCalendar(filters),
-        enabled: enabled
+        enabled: enabled,
+        staleTime: 0
     });
 }
 
