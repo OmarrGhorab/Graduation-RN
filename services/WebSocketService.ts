@@ -2,9 +2,6 @@ import { WS_URL } from '@/constants/config';
 import { logger } from '@/libs/logger';
 import { getValidAccessToken } from './AuthService';
 
-// Module-level verification log
-console.log('[[WebSocketService]] MODULE LOADED: Using WS_URL from config + Robust Error Handling');
-
 // Define known event types
 export type WebSocketEventType =
     | 'message.send'
@@ -168,16 +165,9 @@ class WebSocketService {
                 return;
             }
 
-            // Use WebSocket URL from environment variable
             const url = `${WS_URL}/ws?token=${finalToken}`;
-
-            console.log(`[WS] Full connection URL: ${url.substring(0, 50)}...`);
-            console.log(`[WS] Token length: ${finalToken.length}`);
-            console.log(`[WS] WebSocket base URL: ${WS_URL}`);
-            logger.log(`[WS] Attempting connection to: ${url.replace(finalToken, '***')}`);
-
+            logger.log(`[WS] Connecting to: ${WS_URL}`);
             this.ws = new WebSocket(url);
-            console.log('[WS] WebSocket object created, readyState:', this.ws.readyState);
 
             // Add connection timeout (10 seconds)
             const connectionTimeout = setTimeout(() => {
@@ -192,8 +182,7 @@ class WebSocketService {
 
             this.ws.onopen = () => {
                 clearTimeout(connectionTimeout);
-                console.log('[WS CRITICAL] Connection Established!');
-                logger.log('[WS] Connection Established (onopen fired)');
+                logger.log('[WS] Connected');
                 this.reconnectAttempts = 0;
                 this.isConnecting = false;
                 this.setConnectionState('connected');
@@ -202,9 +191,6 @@ class WebSocketService {
             };
 
             this.ws.onmessage = (event) => {
-                // CRITICAL DEBUG - Log ALL received messages
-                console.log('[WS CRITICAL] Raw message received:', event.data?.substring?.(0, 200) || event.data);
-                
                 // Defensive check for null/undefined data
                 if (event.data === undefined || event.data === null) {
                     logger.warn('[WS] Received undefined/null event data');
@@ -213,7 +199,6 @@ class WebSocketService {
 
                 // Handle "ping" text
                 if (event.data === 'ping') {
-                    console.log('[WS CRITICAL] Ping received, sending pong');
                     this.ws?.send('pong');
                     return;
                 }
@@ -223,24 +208,6 @@ class WebSocketService {
                     const message = this.normalizeEvent(event.data);
                     
                     if (message) {
-                        console.log('[WS DEBUG] Normalized event:', message.type, '| Payload:', JSON.stringify(message.payload, null, 2));
-                        
-                        // Handle message.created with new structure
-                        if (message.type === 'message.created') {
-                            logger.log('[WS] Message created event received:', message.payload);
-                        }
-                        
-                        // Handle unified typing event
-                        if (message.type === 'typing') {
-                            logger.log('[WS] Typing event received:', message.payload);
-                        }
-                        
-                        // Handle user presence event
-                        if (message.type === 'chat.user.presence') {
-                            logger.log('[WS] User presence event received:', message.payload);
-                        }
-                        
-                        // Emit the normalized event
                         this.emit(message.type, message.payload);
                     }
                 } catch (e) {
@@ -296,7 +263,6 @@ class WebSocketService {
     }
 
     send(type: WebSocketEventType, payload: any): void {
-        // Validate payload before sending
         if (!this.validatePayload(type, payload)) {
             logger.error(`[WS] Invalid payload for ${type}, not sending`);
             return;
@@ -305,9 +271,6 @@ class WebSocketService {
         const message = JSON.stringify({ type, payload });
 
         if (this.ws?.readyState === WebSocket.OPEN) {
-            console.log(`[WS SEND] Sending ${type}`);
-            console.log(`[WS SEND] Full message:`, message);
-            logger.log(`[WS] Sending message: ${type}`);
             this.ws.send(message);
         } else {
             logger.log(`[WS] Queueing message: ${type} (not connected)`);

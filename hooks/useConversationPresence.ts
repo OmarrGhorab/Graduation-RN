@@ -1,4 +1,3 @@
-import { logger } from '@/libs/logger';
 import { webSocketService } from '@/services/WebSocketService';
 import { Conversation, ConversationDetail, UserPresenceEvent } from '@/types/chat';
 import { useEffect, useState } from 'react';
@@ -17,18 +16,6 @@ export function useConversationPresence<T extends Conversation | ConversationDet
 ): T | null {
     const [updatedConversation, setUpdatedConversation] = useState<T | null>(conversation);
 
-    // Debug logging
-    useEffect(() => {
-        if (conversation?.type === 'DIRECT') {
-            console.log('[useConversationPresence] Initial conversation:', {
-                id: conversation.id,
-                type: conversation.type,
-                peer_online: (conversation as any).peer_online,
-                peer_profile: (conversation as any).peer_profile
-            });
-        }
-    }, [conversation?.id]);
-
     // Update when conversation prop changes
     useEffect(() => {
         setUpdatedConversation(conversation);
@@ -39,8 +26,6 @@ export function useConversationPresence<T extends Conversation | ConversationDet
         if (!conversation) return;
 
         const handlePresenceUpdate = (event: UserPresenceEvent) => {
-            logger.log('[useConversationPresence] Presence update:', event);
-
             setUpdatedConversation(prev => {
                 if (!prev) return prev;
 

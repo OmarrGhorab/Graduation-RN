@@ -1,5 +1,4 @@
 import { Fonts, primaryGradient } from '@/constants/theme';
-import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -15,15 +14,15 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, LayoutAnimation, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const FILTERS = [
-    { key: 'ALL', label: 'All' },
-    { key: 'groups', label: 'My Groups' },
-    { key: 'students', label: 'Students' },
-    { key: 'teachers', label: 'Teachers' },
-    { key: 'instructors', label: 'Instructors' },
-    { key: 'parents', label: 'Parents' },
-    { key: 'DIRECT', label: 'Direct' },
-    { key: 'GROUP', label: 'All Groups' }
+const FILTER_KEYS = [
+    { key: 'ALL', tKey: 'chat.filterAll' },
+    { key: 'groups', tKey: 'chat.filterMyGroups' },
+    { key: 'students', tKey: 'chat.filterStudents' },
+    { key: 'teachers', tKey: 'chat.filterTeachers' },
+    { key: 'instructors', tKey: 'chat.filterInstructors' },
+    { key: 'parents', tKey: 'chat.filterParents' },
+    { key: 'DIRECT', tKey: 'chat.filterDirect' },
+    { key: 'GROUP', tKey: 'chat.filterAllGroups' },
 ];
 
 // Conversation Item Component with Presence
@@ -34,28 +33,12 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
     t: any,
     textAlign: 'left' | 'right'
 }) {
-    // Add real-time presence tracking
-    const conversationWithPresence = useConversationPresence(item);
-    const isOnline = conversationWithPresence?.type === 'DIRECT'
-        ? (conversationWithPresence.peer_online ?? false)
-        : false;
-
-    // Debug logging
-    React.useEffect(() => {
-        if (item.type === 'DIRECT') {
-            console.log('[ConversationItem] Presence Debug:', {
-                conversationId: item.id,
-                peerName: item.peer_profile?.name,
-                peer_online: conversationWithPresence?.peer_online,
-                isOnline: isOnline,
-                hasPresenceData: conversationWithPresence !== null
-            });
-        }
-    }, [conversationWithPresence?.peer_online, isOnline]);
+    // peer_online is maintained in the conversations cache by the parent screen's presence listener
+    const isOnline = item.type === 'DIRECT' ? (item.peer_online ?? false) : false;
 
     const getConversationDisplay = (item: Conversation) => {
         if (item.type === 'DIRECT') {
-            const displayName = item.peer_profile?.name || item.name || 'User';
+            const displayName = item.peer_profile?.name || item.name || t('chat.defaultUser');
             const displayImage = item.peer_profile?.image || item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
             return {
                 name: displayName,
@@ -63,7 +46,7 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
                 role: item.role || item.peer_profile?.role || 'STUDENT',
             };
         }
-        const groupName = item.name || 'Group Chat';
+        const groupName = item.name || t('chat.defaultGroup');
         return {
             name: groupName,
             avatar: item.image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(groupName)}`,
@@ -87,20 +70,20 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
     const getSubtitle = () => {
         if (item.is_typing_name) {
             return {
-                text: `${item.is_typing_name} is typing...`,
+                text: t('chat.isTyping', { name: item.is_typing_name }),
                 senderImage: item.is_typing_image
             };
         }
         if (item.last_message) {
             const isMe = item.last_message.sender_id === useAuthStore.getState().user?.id;
-            const senderName = item.last_message.sender?.name || 'Someone';
+            const senderName = item.last_message.sender?.name || t('chat.someone');
             const senderImage = item.last_message.sender?.image;
 
             let content = item.last_message.content;
             if (item.last_message.type === 'image') {
-                content = '📷 Image';
+                content = t('chat.imageMessage');
             } else if (item.last_message.type === 'voice') {
-                content = '🎤 Voice Message';
+                content = t('chat.voiceMessage');
             }
 
             if (item.type === 'GROUP' && !isMe) {
@@ -109,7 +92,7 @@ function ConversationItem({ item, theme, router, t, textAlign }: {
                     senderImage: senderImage
                 };
             } else if (isMe) {
-                return { text: `You: ${content}` };
+                return { text: t('chat.youPrefix', { content }) };
             }
             return { text: content };
         }
@@ -384,10 +367,15 @@ export default function ChatScreen() {
                     const index = page.findIndex(c => c.id === typingData.conversation_id);
                     if (index !== -1) {
                         const newPage = [...page];
+                        const conv = newPage[index];
+                        // Look up real name/image from cached members if missing in typing event
+                        const memberProfile = conv.members?.find((m: any) => m.user_id === typingData.user_id)?.profile;
+                        const resolvedName = typingData.user_name || memberProfile?.name || 'Someone';
+                        const resolvedImage = typingData.user_image || memberProfile?.image || null;
                         newPage[index] = {
-                            ...newPage[index],
-                            is_typing_name: typingData.is_typing ? (typingData.user_name || 'Someone') : null,
-                            is_typing_image: typingData.is_typing ? typingData.user_image : null
+                            ...conv,
+                            is_typing_name: typingData.is_typing ? resolvedName : null,
+                            is_typing_image: typingData.is_typing ? resolvedImage : null
                         };
                         return newPage;
                     }
@@ -398,7 +386,30 @@ export default function ChatScreen() {
             });
         });
 
-        // 3. Conversation Read Listener (Multi-device sync)
+        // 3. Presence Listener — single subscriber for the whole list
+        const unsubscribePresence = subscribe('chat.user.presence', (payload: any) => {
+            const presenceData = payload.data || payload;
+            if (!presenceData?.user_id) return;
+
+            queryClient.setQueriesData({ queryKey: ['conversations'] }, (oldData: any) => {
+                if (!oldData?.pages) return oldData;
+
+                let changed = false;
+                const newPages = oldData.pages.map((page: Conversation[]) =>
+                    page.map((conv: Conversation) => {
+                        if (conv.type === 'DIRECT' && conv.peer_profile?.id === presenceData.user_id) {
+                            changed = true;
+                            return { ...conv, peer_online: presenceData.is_online };
+                        }
+                        return conv;
+                    })
+                );
+
+                return changed ? { ...oldData, pages: newPages } : oldData;
+            });
+        });
+
+        // 4. Conversation Read Listener (Multi-device sync)
         const unsubscribeRead = subscribe('conversation.read', (payload: any) => {
             const readData = payload.data || payload;
             if (!readData || !readData.conversation_id) return;
@@ -426,6 +437,7 @@ export default function ChatScreen() {
         return () => {
             unsubscribeMessage();
             unsubscribeTyping();
+            unsubscribePresence();
             unsubscribeRead();
         };
     }, [queryClient, subscribe]);
@@ -456,7 +468,7 @@ export default function ChatScreen() {
                         <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.8)" />
                         <TextInput
                             style={[styles.searchInput, { textAlign }]}
-                            placeholder={t('common.search') + "..."}
+                            placeholder={t('common.search')}
                             placeholderTextColor="rgba(255, 255, 255, 0.7)"
                             value={searchQuery}
                             onChangeText={setSearchQuery}
@@ -472,7 +484,7 @@ export default function ChatScreen() {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.filtersContent}
                 >
-                    {FILTERS.map((filter) => (
+                    {FILTER_KEYS.map((filter) => (
                         <TouchableOpacity
                             key={filter.key}
                             style={[
@@ -492,7 +504,7 @@ export default function ChatScreen() {
                                     ? { color: '#FFFFFF' }
                                     : { color: theme.primary }
                             ]}>
-                                {filter.label}
+                                {t(filter.tKey)}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -503,7 +515,7 @@ export default function ChatScreen() {
             {isLoading ? (
                 <LoadingSkeleton theme={theme} isDark={isDark} />
             ) : isError ? (
-                <ErrorState theme={theme} isDark={isDark} onRetry={refetch} />
+                <ErrorState theme={theme} isDark={isDark} onRetry={refetch} t={t} />
             ) : (
                 <FlatList
                     data={conversations}
@@ -538,6 +550,7 @@ export default function ChatScreen() {
                             isDark={isDark}
                             activeFilter={activeFilter}
                             searchQuery={searchQuery}
+                            t={t}
                         />
                     }
                 />
@@ -602,32 +615,32 @@ function RoleBadge({ role, isDark }: { role: string, isDark: boolean }) {
 }
 
 // Empty State Component
-function EmptyState({ theme, isDark, activeFilter, searchQuery }: { theme: any, isDark: boolean, activeFilter: string, searchQuery: string }) {
+function EmptyState({ theme, isDark, activeFilter, searchQuery, t }: { theme: any, isDark: boolean, activeFilter: string, searchQuery: string, t: any }) {
     const getMessage = () => {
-        if (searchQuery) return `No chats matching "${searchQuery}"`;
+        if (searchQuery) return t('chat.noChatsMatching', { query: searchQuery });
         switch (activeFilter) {
-            case 'instructors': return 'No instructor conversations';
-            case 'students': return 'No student conversations';
-            case 'teachers': return 'No teacher conversations';
-            case 'parents': return 'No parent conversations';
-            case 'groups': return 'No group conversations';
-            case 'GROUP': return 'No group conversations';
-            case 'DIRECT': return 'No direct conversations';
-            default: return 'No conversations yet';
+            case 'instructors': return t('chat.noInstructorConversations');
+            case 'students': return t('chat.noStudentConversations');
+            case 'teachers': return t('chat.noTeacherConversations');
+            case 'parents': return t('chat.noParentConversations');
+            case 'groups':
+            case 'GROUP': return t('chat.noGroupConversations');
+            case 'DIRECT': return t('chat.noDirectConversations');
+            default: return t('chat.noConversationsYet');
         }
     };
 
     const getSubtitle = () => {
-        if (searchQuery) return "Try adjusting your search or check your spelling";
+        if (searchQuery) return t('chat.tryAdjustSearch');
         switch (activeFilter) {
-            case 'instructors': return 'Start chatting with your instructors';
-            case 'students': return 'Connect with students';
-            case 'teachers': return 'Reach out to teachers';
-            case 'parents': return 'Connect with parents';
-            case 'groups': return 'Browse your course groups';
-            case 'GROUP': return 'Browse all groups';
-            case 'DIRECT': return 'Start a direct chat';
-            default: return 'Start a new conversation by tapping the + button below';
+            case 'instructors': return t('chat.startChattingInstructors');
+            case 'students': return t('chat.connectStudents');
+            case 'teachers': return t('chat.reachTeachers');
+            case 'parents': return t('chat.connectParents');
+            case 'groups': return t('chat.browseCourseGroups');
+            case 'GROUP': return t('chat.browseAllGroups');
+            case 'DIRECT': return t('chat.startDirectChat');
+            default: return t('chat.startNewConversation');
         }
     };
 
@@ -681,17 +694,17 @@ function LoadingSkeleton({ theme, isDark }: { theme: any, isDark: boolean }) {
 }
 
 // Error State Component
-function ErrorState({ theme, isDark, onRetry }: { theme: any, isDark: boolean, onRetry: () => void }) {
+function ErrorState({ theme, isDark, onRetry, t }: { theme: any, isDark: boolean, onRetry: () => void, t: any }) {
     return (
         <View style={styles.emptyContainer}>
             <View style={[styles.emptyIconContainer, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)' }]}>
                 <Ionicons name="alert-circle-outline" size={60} color="#EF4444" />
             </View>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                Failed to load conversations
+                {t('chat.failedToLoad')}
             </Text>
             <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-                Something went wrong while loading your chats. Please check your connection and try again.
+                {t('chat.loadError')}
             </Text>
             <TouchableOpacity
                 style={[styles.retryButton, { backgroundColor: theme.primary }]}
@@ -699,7 +712,7 @@ function ErrorState({ theme, isDark, onRetry }: { theme: any, isDark: boolean, o
                 activeOpacity={0.8}
             >
                 <Ionicons name="refresh" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.retryButtonText}>Try Again</Text>
+                <Text style={styles.retryButtonText}>{t('chat.tryAgain')}</Text>
             </TouchableOpacity>
         </View>
     );

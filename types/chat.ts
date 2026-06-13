@@ -80,6 +80,7 @@ export const ConversationSchema = z.object({
     peer_online: z.boolean().optional(),
     is_typing_name: z.string().nullable().optional(),
     is_typing_image: z.string().nullable().optional(),
+    members: z.array(ChatMemberSchema).optional(),
 });
 
 export type Conversation = z.infer<typeof ConversationSchema>;
@@ -179,8 +180,9 @@ export interface MediaPresignResponse {
 
 // Typing indicator types
 export interface TypingUser {
-    id: string;
-    name: string;
+    user_id: string;
+    user_name: string;
+    user_image?: string;
 }
 
 // Presence types

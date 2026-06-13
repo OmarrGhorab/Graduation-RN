@@ -33,7 +33,8 @@ const ChatHeader = React.memo(({
     router,
     id,
     textAlign,
-    isOnline
+    isOnline,
+    t,
 }: {
     headerInfo: any,
     insets: any,
@@ -42,7 +43,8 @@ const ChatHeader = React.memo(({
     router: any,
     id: string,
     textAlign: 'left' | 'right',
-    isOnline?: boolean
+    isOnline?: boolean,
+    t: any,
 }) => (
     <BlurView
         intensity={Platform.OS === 'android' ? 50 : 80}
@@ -77,7 +79,7 @@ const ChatHeader = React.memo(({
                         {/* Show "Online" text if user is online, otherwise show role */}
                         {isOnline ? (
                             <Text style={{ fontSize: 12, color: '#10B981', fontFamily: Fonts.medium, marginTop: 2 }}>
-                                Online
+                                {t('chat.online')}
                             </Text>
                         ) : (
                             <View style={[styles.roleTag, { backgroundColor: isDark ? 'rgba(9, 125, 70, 0.2)' : 'rgba(9, 125, 70, 0.1)' }]}>
@@ -153,6 +155,12 @@ export default function ChatDetailScreen() {
     // Add real-time presence tracking
     const conversationWithPresence = useConversationPresence(conversation || null);
 
+    // Keep a ref to latest members so socket closures always read current data
+    const conversationMembersRef = useRef<any[]>([]);
+    useEffect(() => {
+        conversationMembersRef.current = conversation?.members || [];
+    }, [conversation?.members]);
+
     // Real-time updates
     useEffect(() => {
         // Track this conversation as "active" in the cache
@@ -165,9 +173,13 @@ export default function ChatDetailScreen() {
             const message = payload.data || payload;
 
             // Ensure sender object is populated from new payload fields if needed
-            const senderName = message.sender_name || message.sender?.name || 'Someone';
-            const senderImage = (message.sender_image && message.sender_image !== "") ? message.sender_image : (message.sender?.image || "");
-            
+            const memberProfile = conversationMembersRef.current.find((m: any) => m.user_id === message.sender_id)?.profile;
+            const senderName = message.sender_name || message.sender?.name || memberProfile?.name || 'Someone';
+            let senderImage = (message.sender_image && message.sender_image !== "") ? message.sender_image : (message.sender?.image || "");
+
+            // Look up real image from cached conversation members if missing from socket event
+            if (!senderImage && memberProfile?.image) senderImage = memberProfile.image;
+
             if (!message.sender || !message.sender.image || message.sender.image === "") {
                 message.sender = {
                     id: message.sender_id,
@@ -251,10 +263,12 @@ export default function ChatDetailScreen() {
                 const users = old?.typing_users || [];
 
                 if (data.is_typing) {
+                    // Resolve name and image from cached members if missing in event
+                    const memberProfile = conversationMembersRef.current.find((m: any) => m.user_id === data.user_id)?.profile;
                     const nextUser = {
                         user_id: data.user_id,
-                        user_name: data.user_name || data.name || 'Someone',
-                        user_image: data.user_image || data.image,
+                        user_name: data.user_name || data.name || memberProfile?.name || 'Someone',
+                        user_image: data.user_image || data.image || memberProfile?.image || undefined,
                     };
 
                     const existingIndex = users.findIndex((u: any) => u.user_id === data.user_id);
@@ -450,10 +464,10 @@ export default function ChatDetailScreen() {
         try {
             if (isCurrentlyPinned) {
                 await ChatService.unpinMessage(id!, selectedMessage.id);
-                toast.success('Unpinned', 'Message unpinned successfully');
+                toast.success(t('chat.unpinned'));
             } else {
                 await ChatService.pinMessage(id!, selectedMessage.id);
-                toast.success('Pinned', 'Message pinned successfully');
+                toast.success(t('chat.pinned'));
             }
             refetchPinned();
         } catch (error: any) {
@@ -466,7 +480,7 @@ export default function ChatDetailScreen() {
     const handleCopy = async () => {
         if (selectedMessage?.content) {
             await Clipboard.setStringAsync(selectedMessage.content);
-            toast.info('Copied', 'Text copied to clipboard');
+            toast.info(t('chat.copied'));
         }
         closeActionSheet();
     };
@@ -482,10 +496,10 @@ export default function ChatDetailScreen() {
         const userToKickName = selectedMessage.sender?.name || 'this user';
         try {
             await ChatService.removeMember(id!, selectedMessage.sender_id);
-            toast.success('Removed', `${userToKickName} has been removed.`);
+            toast.success(t('chat.userRemoved', { name: userToKickName }));
             queryClient.invalidateQueries({ queryKey: ['members', id] });
         } catch (error: any) {
-            toast.error('Error', 'Failed to remove user');
+            toast.error(t('chat.failedRemove'));
         }
         setIsKickModalVisible(false);
     };
@@ -521,10 +535,10 @@ export default function ChatDetailScreen() {
                         })
                     };
                 });
-                toast.success('Deleted', 'Message deleted successfully');
+                toast.success(t('chat.messageDeleted'));
             } catch (error: any) {
                 console.error('[ChatDetail] Delete failed:', error);
-                toast.error('Error', 'Failed to delete message');
+                toast.error(t('chat.failedDelete'));
             }
             setMessageToDelete(null);
             setDeletingMessageId(null);
@@ -588,17 +602,6 @@ export default function ChatDetailScreen() {
 
     const currentTypingUsers = typingData?.typing_users || [];
 
-    // Debug typing data
-    useEffect(() => {
-        console.log('[ChatDetail] Typing data updated:', {
-            typingData,
-            currentTypingUsers,
-            currentUserId: currentUser?.id,
-            othersTyping: currentTypingUsers.filter(u => u.user_id !== currentUser?.id)
-        });
-    }, [typingData, currentTypingUsers, currentUser?.id]);
-
-
     const handleInputChange = (text: string) => {
         if (text.endsWith('\n')) {
             const cleanText = text.slice(0, -1);
@@ -618,30 +621,19 @@ export default function ChatDetailScreen() {
     };
 
     const getTypingMessage = () => {
-        // Filter out current user
         const othersTyping = currentTypingUsers.filter(u => u.user_id !== currentUser?.id);
-
-        console.log('[ChatDetail] getTypingMessage called:', {
-            currentTypingUsers,
-            othersTyping,
-            currentUserId: currentUser?.id
-        });
-
         if (othersTyping.length === 0) return null;
 
         if (othersTyping.length === 1) {
-            // Try to get the actual name from conversation members if "Someone" is used
             let displayName = othersTyping[0].user_name;
-            if (displayName === 'Someone' && conversation?.members) {
+            if ((!displayName || displayName === 'Someone') && conversation?.members) {
                 const member = conversation.members.find((m: ChatMember) => m.user_id === othersTyping[0].user_id);
-                if (member?.profile?.name) {
-                    displayName = member.profile.name;
-                }
+                if (member?.profile?.name) displayName = member.profile.name;
             }
-            return `${displayName} is typing...`;
+            return t('chat.isTyping', { name: displayName || t('chat.someone') });
         }
 
-        return `${othersTyping.length} people are typing...`;
+        return t('chat.peopleTyping', { count: othersTyping.length });
     };
 
     // Send Message via HTTP API (WebSocket will broadcast the created message)
@@ -840,7 +832,7 @@ export default function ChatDetailScreen() {
                 return { ...old, pages: newPages };
             });
 
-            toast.error('Error', 'Failed to send message. Please try again.');
+            toast.error(t('chat.failedSend'));
         }
     };
 
@@ -853,7 +845,7 @@ export default function ChatDetailScreen() {
 
             const payload = {
                 type,
-                content: type === 'image' ? 'Image' : 'Voice message',  // Text description
+                content: type === 'image' ? t('chat.photo') : t('chat.voice'),
                 media_urls: [mediaUrl],  // URL in media_urls array
                 media_metadata: type === 'voice' ? { duration } : undefined,
                 reply_to_id: replyToMessage?.id
@@ -896,7 +888,7 @@ export default function ChatDetailScreen() {
 
                 // Send one message with all images and optional text
                 sendMessage({
-                    content: currentText.trim() || 'Image',  // Use text or default to "Image"
+                    content: currentText.trim() || t('chat.photo'),
                     type: 'image',
                     media_urls: uploadedUrls,
                     reply_to_id: replyToMessage?.id
@@ -908,7 +900,7 @@ export default function ChatDetailScreen() {
                 setIsEmojiOpen(false);
             } catch (error) {
                 console.error('[ChatDetail] Failed to upload images:', error);
-                toast.error('Error', 'Failed to upload images. Please try again.');
+                toast.error(t('chat.failedUpload'));
             } finally {
                 setUploadingMedia(false);
             }
@@ -948,7 +940,7 @@ export default function ChatDetailScreen() {
         setIsAttachmentMenuVisible(false);
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert("Permission Required", "Camera access is needed to take photos");
+            Alert.alert(t('chat.permissionRequired'), t('chat.cameraPermission'));
             return;
         }
 
@@ -967,7 +959,7 @@ export default function ChatDetailScreen() {
         try {
             const { status } = await requestRecordingPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert("Permission Required", "Microphone access is needed to record voice messages");
+                Alert.alert(t('chat.permissionRequired'), t('chat.microphonePermission'));
                 return;
             }
 
@@ -1008,21 +1000,21 @@ export default function ChatDetailScreen() {
                     <View style={[styles.attachmentIcon, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.2)' : '#EBF4FF' }]}>
                         <Ionicons name="images" size={24} color="#3B82F6" />
                     </View>
-                    <Text style={[styles.attachmentText, { color: theme.text }]}>Gallery</Text>
+                    <Text style={[styles.attachmentText, { color: theme.text }]}>{t('chat.gallery')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.attachmentItem} onPress={handleTakePhoto} disabled={uploadingMedia}>
                     <View style={[styles.attachmentIcon, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FFF5F5' }]}>
                         <Ionicons name="camera" size={24} color="#EF4444" />
                     </View>
-                    <Text style={[styles.attachmentText, { color: theme.text }]}>Camera</Text>
+                    <Text style={[styles.attachmentText, { color: theme.text }]}>{t('chat.camera')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.attachmentItem} onPress={() => { setIsAttachmentMenuVisible(false); startRecording(); }} disabled={uploadingMedia}>
                     <View style={[styles.attachmentIcon, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : '#F0FFF4' }]}>
                         <Ionicons name="mic" size={24} color="#10B981" />
                     </View>
-                    <Text style={[styles.attachmentText, { color: theme.text }]}>Voice</Text>
+                    <Text style={[styles.attachmentText, { color: theme.text }]}>{t('chat.voice')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -1107,6 +1099,7 @@ export default function ChatDetailScreen() {
                 id={id!}
                 textAlign={textAlign}
                 isOnline={headerInfo.isOnline}
+                t={t}
             />
 
             {pinnedMessages.length > 0 && (
@@ -1127,12 +1120,12 @@ export default function ChatDetailScreen() {
                                 {pinnedMessages[0].message?.type === 'image' ? (
                                     <View style={styles.mediaPreview}>
                                         <Ionicons name="image" size={14} color={theme.textSecondary} />
-                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>Photo</Text>
+                                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>{t('chat.photo')}</Text>
                                     </View>
                                 ) : pinnedMessages[0].message?.type === 'voice' ? (
                                     <View style={styles.mediaPreview}>
                                         <Ionicons name="mic" size={14} color={theme.textSecondary} />
-                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>Voice Message</Text>
+                                        <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>{t('chat.voiceMessage')}</Text>
                                     </View>
                                 ) : (
                                     <Text style={[styles.pinnedSnippet, { color: theme.textSecondary }]} numberOfLines={1}>
@@ -1227,7 +1220,7 @@ export default function ChatDetailScreen() {
                             ) : (
                                 <View style={styles.dateDivider}>
                                     <View style={[styles.dateBadge, { backgroundColor: isDark ? theme.surface : theme.surfaceVariant }]}>
-                                        <Text style={[styles.dateText, { color: theme.textSecondary }]}>TODAY</Text>
+                                        <Text style={[styles.dateText, { color: theme.textSecondary }]}>{t('chat.today')}</Text>
                                     </View>
                                 </View>
                             )
@@ -1281,7 +1274,7 @@ export default function ChatDetailScreen() {
                         <View style={styles.recordingContainer}>
                             <View style={styles.recordingIndicator}>
                                 <VoiceWaveform theme={theme} />
-                                <Text style={[styles.recordingText, { color: theme.text }]}>Recording...</Text>
+                                <Text style={[styles.recordingText, { color: theme.text }]}>{t('chat.recording')}</Text>
                             </View>
                             <TouchableOpacity onPress={stopRecording} style={[styles.stopButton, { backgroundColor: theme.primary }]}>
                                 <Ionicons name="stop" size={20} color="#FFFFFF" />
@@ -1322,7 +1315,7 @@ export default function ChatDetailScreen() {
                                     </TouchableOpacity>
                                     <TextInput
                                         style={[styles.input, { color: theme.text, textAlign }]}
-                                        placeholder="Type a message..."
+                                        placeholder={t('chat.typeMessage')}
                                         placeholderTextColor={theme.textTertiary}
                                         value={inputText}
                                         onChangeText={handleInputChange}
@@ -1386,9 +1379,9 @@ export default function ChatDetailScreen() {
                 visible={isDeleteModalVisible}
                 onClose={() => setIsDeleteModalVisible(false)}
                 onConfirm={confirmDelete}
-                title="Delete Message"
-                message="Are you sure you want to delete this message? This action cannot be undone."
-                confirmText="Delete"
+                title={t('chat.deleteMessageTitle')}
+                message={t('chat.deleteMessageBody')}
+                confirmText={t('chat.deleteButton')}
                 isDestructive
                 isDark={isDark}
                 theme={theme}
@@ -1398,9 +1391,9 @@ export default function ChatDetailScreen() {
                 visible={isKickModalVisible}
                 onClose={() => setIsKickModalVisible(false)}
                 onConfirm={confirmKick}
-                title="Remove User"
-                message={`Are you sure you want to remove ${selectedMessage?.sender?.name || 'this user'} from the group?`}
-                confirmText="Remove"
+                title={t('chat.removeUserTitle')}
+                message={t('chat.removeUserBody', { name: selectedMessage?.sender?.name || t('chat.someone') })}
+                confirmText={t('chat.removeButton')}
                 isDestructive
                 isDark={isDark}
                 theme={theme}
