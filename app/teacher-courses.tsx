@@ -7,7 +7,7 @@ import { ApiCourse } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/libs/auth';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -15,6 +15,7 @@ import {
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
     Alert
@@ -29,6 +30,13 @@ export default function TeacherCoursesScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const user = useAuthStore(state => state.user);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     useEffect(() => {
         if (user && user.role !== 'TEACHER') {
@@ -39,15 +47,23 @@ export default function TeacherCoursesScreen() {
     if (!user || user.role !== 'TEACHER') return null;
 
     const { data: coursesData, isLoading, refetch } = useTeacherCourses();
-    const courses = coursesData?.success ? coursesData.data : [];
+    const courses: ApiCourse[] = coursesData?.success ? coursesData.data : [];
 
+    const filteredCourses = useMemo(() => {
+        const q = debouncedQuery.trim().toLowerCase();
+        if (!q) return courses;
+        return courses.filter((c) =>
+            c.title?.toLowerCase().includes(q) ||
+            c.subject?.toLowerCase().includes(q) ||
+            c.description?.toLowerCase().includes(q)
+        );
+    }, [courses, debouncedQuery]);
 
     const handleCoursePress = (courseId: string) => {
         router.push({ pathname: '/teacher-course-details', params: { id: courseId } });
     };
 
     const handleEditCourse = (course: ApiCourse) => {
-        // Navigate to edit course screen (which usually reuses create-course logic with initial data)
         router.push({ pathname: '/create-course', params: { editId: course.id } });
     };
 
@@ -57,8 +73,8 @@ export default function TeacherCoursesScreen() {
             t('teacher.deleteConfirm'),
             [
                 { text: t('common.cancel') || "Cancel", style: "cancel" },
-                { 
-                    text: t('common.delete') || "Delete", 
+                {
+                    text: t('common.delete') || "Delete",
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -79,7 +95,7 @@ export default function TeacherCoursesScreen() {
     };
 
     const renderHeader = () => (
-        <View style={[styles.header, { 
+        <View style={[styles.header, {
             backgroundColor: isDark ? '#183327' : '#FFFFFF',
             paddingTop: insets.top + 12
         }]}>
@@ -100,7 +116,7 @@ export default function TeacherCoursesScreen() {
                     <Ionicons name="add" size={24} color="#FFF" />
                 </TouchableOpacity>
             </View>
-            
+
             <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                     <Text style={[styles.statValue, { color: cskColors[500] }]}>{courses.length}</Text>
@@ -114,29 +130,51 @@ export default function TeacherCoursesScreen() {
                     <Text style={[styles.statLabel, { color: theme.gray[500] }]}>{t('common.students') || 'Total Students'}</Text>
                 </View>
             </View>
+
+            {/* Search bar */}
+            <View style={[styles.searchBar, {
+                backgroundColor: isDark ? '#1f3b2e' : '#F0F2F5',
+                borderColor: isDark ? '#2a4a38' : 'transparent',
+            }]}>
+                <Ionicons name="search" size={18} color={theme.gray[400]} style={{ marginRight: 8 }} />
+                <TextInput
+                    style={[styles.searchInput, { color: isDark ? '#ffffff' : '#0d1b15' }]}
+                    placeholder={t('common.search') || 'Search courses...'}
+                    placeholderTextColor={theme.gray[400]}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    returnKeyType="search"
+                    clearButtonMode="while-editing"
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={18} color={theme.gray[400]} />
+                    </TouchableOpacity>
+                )}
+            </View>
         </View>
     );
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#10221a' : '#F6F8F7' }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
-            
+
             {renderHeader()}
 
             <FlatList
-                data={courses}
+                data={filteredCourses}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContent}
                 refreshControl={
-                    <RefreshControl 
-                        refreshing={isLoading} 
-                        onRefresh={refetch} 
-                        tintColor={cskColors[500]} 
+                    <RefreshControl
+                        refreshing={isLoading}
+                        onRefresh={refetch}
+                        tintColor={cskColors[500]}
                         colors={[cskColors[500]]}
                     />
                 }
                 renderItem={({ item, index }) => (
-                    <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
+                    <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
                         <CourseMarketplaceCard
                             course={item}
                             onPress={handleCoursePress}
@@ -150,20 +188,26 @@ export default function TeacherCoursesScreen() {
                     !isLoading ? (
                         <View style={styles.emptyState}>
                             <View style={[styles.emptyIconContainer, { backgroundColor: isDark ? '#183327' : '#FFF' }]}>
-                                <Ionicons name="book-outline" size={64} color={theme.gray[300]} />
+                                <Ionicons
+                                    name={debouncedQuery ? 'search-outline' : 'book-outline'}
+                                    size={64}
+                                    color={theme.gray[300]}
+                                />
                             </View>
                             <Text style={[styles.emptyText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                {t('teacher.noCoursesYet')}
+                                {debouncedQuery ? `No courses matching "${debouncedQuery}"` : t('teacher.noCoursesYet')}
                             </Text>
                             <Text style={[styles.emptySubtext, { color: theme.gray[500] }]}>
-                                {t('teacher.createFirstCourse')}
+                                {debouncedQuery ? 'Try a different search term' : t('teacher.createFirstCourse')}
                             </Text>
-                            <TouchableOpacity
-                                style={[styles.createBtn, { backgroundColor: cskColors[500] }]}
-                                onPress={() => router.push('/create-course')}
-                            >
-                                <Text style={styles.createBtnText}>{t('teacher.createNewCourse')}</Text>
-                            </TouchableOpacity>
+                            {!debouncedQuery && (
+                                <TouchableOpacity
+                                    style={[styles.createBtn, { backgroundColor: cskColors[500] }]}
+                                    onPress={() => router.push('/create-course')}
+                                >
+                                    <Text style={styles.createBtnText}>{t('teacher.createNewCourse')}</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     ) : (
                         <View style={styles.loadingContainer}>
@@ -240,6 +284,21 @@ const styles = StyleSheet.create({
     statDivider: {
         width: 1,
         height: 30,
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        fontFamily: Fonts.regular,
+        padding: 0,
     },
     listContent: {
         padding: 16,

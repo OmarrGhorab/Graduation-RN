@@ -934,6 +934,12 @@ export default {
     hoursAgo: 'منذ {{count}} ساعات',
     yesterday: 'أمس',
     daysAgo: 'منذ {{count}} أيام',
+    filterAll: 'الكل',
+    filterChats: 'المحادثات',
+    filterCourses: 'الدورات',
+    filterRequests: 'الطلبات',
+    filterSecurity: 'الأمان',
+    filterUnlink: 'إلغاء الربط',
   },
 
   // Subscriptions

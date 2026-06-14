@@ -23,6 +23,7 @@ import { ApiSchedule } from '@/services/CalendarService';
 import { ApiSubject, scanAttendance } from '@/services/CourseService';
 import { DeviceService } from '@/services/DeviceService';
 import { ApiNotification } from '@/services/NotificationService';
+import { navigateFromNotification } from '@/utils/notificationNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -135,17 +136,22 @@ export default function MainHomeScreen() {
         return filters;
     }, [startDate, endDate, rangePreset, statusFilter, selectedSubject, schedulePage]);
 
-    // Scroll tracking for header animation
+    // Scroll tracking for header animation + infinite scroll
     const scrollY = useSharedValue(0);
     const lastScrollY = useSharedValue(0);
     const headerTranslateY = useSharedValue(0);
+    const scrollContentHeight = React.useRef(0);
+    const scrollViewHeight = React.useRef(0);
+    const isLoadingMoreRef = React.useRef(false);
+
+    // loadMoreIfNeeded and its effect are declared after hasMoreSchedule/isFetchingCalendar below
 
     const scrollHandler = useAnimatedScrollHandler({
         onScroll: (event) => {
             const currentScrollY = event.contentOffset.y;
             const diff = currentScrollY - lastScrollY.value;
 
-            // Simple header hide/show logic on scroll
+            // Header hide/show logic
             if (currentScrollY > 0) {
                 if (diff > 0) {
                     headerTranslateY.value = Math.min(headerTranslateY.value + diff, 150);
@@ -175,9 +181,10 @@ export default function MainHomeScreen() {
     const { data: subjectsData, isLoading: isLoadingSubjects } = useMySubjects();
     
     // Use appropriate calendar based on user role
-    const { 
-        data: calendarData, 
+    const {
+        data: calendarData,
         isLoading: isLoadingCalendar,
+        isFetching: isFetchingCalendar,
         refetch: refetchCalendar
     } = useCalendar(calendarFilters);
 
@@ -256,6 +263,20 @@ export default function MainHomeScreen() {
     const scheduleMeta = calendarData?.meta;
     const hasMoreSchedule = !!scheduleMeta && scheduleMeta.page < scheduleMeta.totalPages;
 
+    const loadMoreIfNeeded = React.useCallback((offsetY: number) => {
+        const remaining = scrollContentHeight.current - scrollViewHeight.current - offsetY;
+        if (remaining < 300 && hasMoreSchedule && !isFetchingCalendar && !isLoadingMoreRef.current) {
+            isLoadingMoreRef.current = true;
+            setSchedulePage((prev) => prev + 1);
+        }
+    }, [hasMoreSchedule, isFetchingCalendar]);
+
+    React.useEffect(() => {
+        if (!isFetchingCalendar) {
+            isLoadingMoreRef.current = false;
+        }
+    }, [isFetchingCalendar]);
+
     const activeLessonId = useMemo(() => {
         const live = schedule.find((s: any) => s.status === 'LIVE');
         if (live) return live.id;
@@ -318,115 +339,14 @@ export default function MainHomeScreen() {
     }, [markAllAsReadMutation]);
 
     const handleNotificationItemPress = useCallback((notification: ApiNotification) => {
-        const { action, type, data } = notification;
-        const role = user?.role;
-
-        // 0. Emergency Security Handling (Highest Priority)
-        if (type === 'security_new_device_blocked') {
-            logger.log('[Home] Security alert tapped in list, redirecting to Security Alert screen');
-            router.push({
-                pathname: '/security-alert' as any,
-                params: {
-                    deviceName: data?.newDevice?.name,
-                    platform: data?.newDevice?.platform,
-                    ipAddress: data?.newDevice?.ipAddress,
-                    timestamp: data?.timestamp,
-                    securityTip: data?.securityTip
-                }
-            });
-            setShowNotifications(false);
-            return;
-        }
-
-        // 1. Role-Based Overrides (Consistency with system tray / NotificationListener)
-        if (type === 'lesson_started' || type === 'LESSON_STARTED' || type === 'reminder') {
-            if (role === 'STUDENT') {
-                logger.log('[Home] Student tapped lesson notification in list, opening scanner');
-                setIsScannerVisible(true);
-                setShowNotifications(false);
-                return;
-            } else if (role === 'TEACHER') {
-                const lessonId = data?.lessonId || data?.lesson_id || action?.params?.lessonId;
-                if (lessonId) {
-                    logger.log('[Home] Teacher tapped lesson notification in list, going to Control');
-                    router.push({ pathname: '/teacher-control', params: { lessonId } });
-                    setShowNotifications(false);
-                    return;
-                }
-            }
-        }
-
-        if (action && action.type === 'navigate') {
-            logger.log('[Home] Unified Action Navigate:', action.target, action.params);
-
-            // Security Guard: Prevent students from accessing teacher screens
-            const teacherOnlyScreens = ['teacher-control', 'teacher-dashboard', 'teacher-courses', 'create-course', 'create-lesson', 'lesson-analytics'];
-            if (role === 'STUDENT' && teacherOnlyScreens.includes(action.target)) {
-                logger.warn(`[Home] Student attempted to access ${action.target}, redirecting to scan`);
-                setIsScannerVisible(true);
-                setShowNotifications(false);
-                return;
-            }
-
-            if (action.target === 'chat-detail' && action.params?.conversationId) {
-                router.push(`/conversation/${action.params.conversationId}`);
-            } else if (action.target === 'link-requests') {
-                router.push('/settings?section=parentLink');
-            } else if (action.target === '/security-settings' || action.target === 'security-settings') {
-                // Map generic security settings target to the specific alert screen if we have data
-                router.push({
-                    pathname: '/security-alert' as any,
-                    params: {
-                        deviceName: data?.newDevice?.name,
-                        platform: data?.newDevice?.platform,
-                        ipAddress: data?.newDevice?.ipAddress,
-                        timestamp: data?.timestamp,
-                        securityTip: data?.securityTip
-                    }
-                });
-            } else if (action.target === '/course-reviews' || action.target === 'course-reviews') {
-                const courseId = action.params?.id || action.params?.courseId;
-                if (courseId) {
-                    router.push({ pathname: '/course-details', params: { id: courseId, tab: 'REVIEWS' } });
-                } else {
-                    router.push('/(main)/courses');
-                }
-            } else if (action.params) {
-                router.push({ pathname: action.target as any, params: action.params });
-            } else if (action.target) {
-                router.push(action.target as any);
-            }
-            setShowNotifications(false);
-            return;
-        }
-
-        // Backward compatibility
-        if (
-            notification.type === 'parent_link_request' ||
-            notification.type === 'parent_link_accepted' ||
-            notification.type === 'parent_link_declined' ||
-            notification.type === 'parent_link_request_accepted' ||
-            notification.type === 'parent_link_request_declined' ||
-            notification.type === 'unlink_request' ||
-            notification.type === 'unlink_request_accepted' ||
-            notification.type === 'unlink_request_declined'
-        ) {
-            router.push('/settings?section=parentLink');
-            setShowNotifications(false);
-            return;
-        }
-
-        if (notification.type === 'parent_report_ready') {
-            const studentId = data?.studentId || data?.student_id;
-            const period = data?.period;
-            router.push({
-                pathname: '/progress-report' as any,
-                params: { studentId, period }
-            });
-            setShowNotifications(false);
-            return;
-        }
-    }, [router, user?.role, t]);
+        navigateFromNotification(
+            notification,
+            router,
+            user?.role,
+            () => { setIsScannerVisible(true); },
+        );
+        setShowNotifications(false);
+    }, [router, user?.role]);
 
     const handleDeleteNotification = useCallback((notificationId: string) => {
         deleteNotificationMutation.mutate(notificationId);
@@ -574,6 +494,10 @@ export default function MainHomeScreen() {
                     showsVerticalScrollIndicator={false}
                     onScroll={scrollHandler}
                     scrollEventThrottle={16}
+                    onContentSizeChange={(_w, h) => { scrollContentHeight.current = h; }}
+                    onLayout={(e) => { scrollViewHeight.current = e.nativeEvent.layout.height; }}
+                    onMomentumScrollEnd={(e) => loadMoreIfNeeded(e.nativeEvent.contentOffset.y)}
+                    onScrollEndDrag={(e) => loadMoreIfNeeded(e.nativeEvent.contentOffset.y)}
                     refreshControl={
                         <RefreshControl
                             refreshing={isRefreshing}
@@ -764,7 +688,7 @@ export default function MainHomeScreen() {
                     )}
 
                     <View style={{ marginTop: 8 }}>
-                        {isLoadingCalendar ? (
+                        {isLoadingCalendar && schedule.length === 0 ? (
                             <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
                         ) : schedule.length > 0 ? (
                             <>
@@ -791,15 +715,12 @@ export default function MainHomeScreen() {
                                         onScanPress={handleScanQR}
                                     />
                                 ))}
-                                {hasMoreSchedule && (
-                                    <TouchableOpacity
-                                        style={[styles.loadMoreButton, { borderColor: isDark ? theme.border : theme.gray[200], backgroundColor: isDark ? theme.surface : '#FFFFFF' }]}
-                                        onPress={() => setSchedulePage((prev) => prev + 1)}
-                                    >
-                                        <Text style={[styles.loadMoreText, { color: theme.primary }]}>
-                                            {t('common.loadMore') || 'Load More'}
-                                        </Text>
-                                    </TouchableOpacity>
+                                {isFetchingCalendar && hasMoreSchedule && (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={theme.primary}
+                                        style={{ marginVertical: 16 }}
+                                    />
                                 )}
                             </>
                         ) : (

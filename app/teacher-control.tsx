@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, Modal, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -17,7 +17,11 @@ import Animated, {
 import { Circle, Svg } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = height < 700;
+// QR card: smaller on short screens so stats stay visible without scrolling
+const QR_SIZE = isSmallScreen ? width * 0.58 : width * 0.72;
+const QR_MAX = isSmallScreen ? 240 : 300;
 
 export default function TeacherControlPanel() {
     const router = useRouter();
@@ -189,8 +193,13 @@ export default function TeacherControlPanel() {
                 </View>
             </View>
 
-            {/* Content Area */}
-            <View style={styles.content}>
+            {/* Content Area — scrollable so nothing hides behind the footer */}
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.contentInner}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+            >
 
                 {!isLive ? (
                     <View style={styles.startSection}>
@@ -221,107 +230,110 @@ export default function TeacherControlPanel() {
                     </View>
                 ) : (
                     <>
-                        {/* QR Code Card */}
-                        <View style={styles.qrSection}>
-                            <View style={[styles.qrCard, {
-                                backgroundColor: '#ffffff',
-                                borderColor: isDark ? 'rgba(18, 237, 135, 0.1)' : 'rgba(18, 237, 135, 0.2)',
-                                shadowColor: '#000',
-                            }]}>
-                                <View style={styles.qrImageContainer}>
-                                    {qrImageUrl ? (
-                                        <Image
-                                            source={{ uri: qrImageUrl }}
-                                            style={styles.qrImage}
-                                            resizeMode="contain"
-                                        />
-                                    ) : (
-                                        <ActivityIndicator size="large" color={theme.primary} />
-                                    )}
-                                    <Animated.View style={[styles.scanLine, { backgroundColor: cskColors[500] }, animatedScanStyle]} />
-                                </View>
-
-                                {/* QR Countdown Timer */}
-                                <View style={[styles.qrCountdownContainer, { 
-                                    backgroundColor: qrCountdown <= 10 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(18, 237, 135, 0.1)',
-                                    borderColor: qrCountdown <= 10 ? '#ef4444' : cskColors[500]
+                        {/* QR + Stats side by side on small screens, stacked on tall screens */}
+                        <View style={[styles.liveRow, isSmallScreen && styles.liveRowCompact]}>
+                            {/* QR Code Card */}
+                            <View style={styles.qrSection}>
+                                <View style={[styles.qrCard, {
+                                    backgroundColor: '#ffffff',
+                                    borderColor: isDark ? 'rgba(18, 237, 135, 0.1)' : 'rgba(18, 237, 135, 0.2)',
                                 }]}>
-                                    <MaterialIcons 
-                                        name="timer" 
-                                        size={16} 
-                                        color={qrCountdown <= 10 ? '#ef4444' : cskColors[500]} 
-                                    />
-                                    <Text style={[styles.qrCountdownText, { 
-                                        color: qrCountdown <= 10 ? '#ef4444' : cskColors[500] 
+                                    <View style={styles.qrImageContainer}>
+                                        {qrImageUrl ? (
+                                            <Image
+                                                source={{ uri: qrImageUrl }}
+                                                style={styles.qrImage}
+                                                resizeMode="contain"
+                                            />
+                                        ) : (
+                                            <ActivityIndicator size="large" color={theme.primary} />
+                                        )}
+                                        <Animated.View style={[styles.scanLine, { backgroundColor: cskColors[500] }, animatedScanStyle]} />
+                                    </View>
+
+                                    <View style={[styles.qrCountdownContainer, {
+                                        backgroundColor: qrCountdown <= 10 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(18, 237, 135, 0.1)',
+                                        borderColor: qrCountdown <= 10 ? '#ef4444' : cskColors[500]
                                     }]}>
-                                        {qrCountdown}s {qrCountdown <= 10 ? '(Rotating soon...)' : 'valid'}
-                                    </Text>
+                                        <MaterialIcons
+                                            name="timer"
+                                            size={14}
+                                            color={qrCountdown <= 10 ? '#ef4444' : cskColors[500]}
+                                        />
+                                        <Text style={[styles.qrCountdownText, {
+                                            color: qrCountdown <= 10 ? '#ef4444' : cskColors[500]
+                                        }]}>
+                                            {qrCountdown}s {qrCountdown <= 10 ? '↻' : 'valid'}
+                                        </Text>
+                                    </View>
+
+                                    <View style={[styles.securityBadge, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
+                                        <MaterialIcons name="security" size={12} color={cskColors[500]} />
+                                        <Text style={[styles.securityText, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>CSK Secure</Text>
+                                    </View>
                                 </View>
 
-                                <View style={[styles.securityBadge, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: 'rgba(18, 237, 135, 0.2)' }]}>
-                                    <MaterialIcons name="security" size={14} color={cskColors[500]} />
-                                    <Text style={[styles.securityText, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>CSK Secure</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.refreshContainer}>
-                                <Text style={[styles.refreshText, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                                    Rolling QR tokens active
-                                </Text>
                                 <TouchableOpacity style={styles.refreshButton} onPress={() => refetchQR()}>
-                                    <MaterialIcons name="refresh" size={16} color={cskColors[500]} />
-                                    <Text style={[styles.refreshButtonText, { color: cskColors[500] }]}>Rotate Token</Text>
+                                    <MaterialIcons name="refresh" size={14} color={cskColors[500]} />
+                                    <Text style={[styles.refreshButtonText, { color: cskColors[500] }]}>Rotate</Text>
                                 </TouchableOpacity>
                             </View>
-                        </View>
 
-                        {/* Attendance Stats */}
-                        <View style={[styles.statsCard, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
-                            <View>
-                                <Text style={[styles.statsLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Students Present</Text>
+                            {/* Attendance Stats — always visible next to or below QR */}
+                            <View style={[styles.statsCard, {
+                                backgroundColor: isDark ? '#183327' : '#ffffff',
+                                borderColor: isDark ? '#2a4d3d' : '#cfe7dc',
+                            }, isSmallScreen && styles.statsCardCompact]}>
+                                <View style={[styles.progressCircleContainer, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}>
+                                    <Svg width="52" height="52" viewBox="0 0 36 36" style={styles.svg}>
+                                        <Circle cx="18" cy="18" r="15.9155" fill="none" stroke={cskColors[500]} strokeWidth="3" strokeOpacity="0.2" />
+                                        <Circle
+                                            cx="18"
+                                            cy="18"
+                                            r="15.9155"
+                                            fill="none"
+                                            stroke={cskColors[500]}
+                                            strokeWidth="3"
+                                            strokeDasharray={`${attendancePercentage}, 100`}
+                                            strokeLinecap="round"
+                                            rotation="-90"
+                                            origin="18, 18"
+                                        />
+                                    </Svg>
+                                    <View style={styles.progressIcon}>
+                                        <MaterialIcons name="groups" size={20} color={cskColors[500]} />
+                                    </View>
+                                </View>
+
+                                <Text style={[styles.statsLabel, { color: isDark ? '#94a3b8' : '#64748b' }]}>Present</Text>
                                 <View style={styles.statsValueContainer}>
                                     <Text style={[styles.statsValue, { color: isDark ? '#ffffff' : '#0d1b15' }]}>{studentsPresent}</Text>
-                                    <Text style={[styles.statsTotal, { color: '#94a3b8' }]}>/ {totalStudents}</Text>
+                                    <Text style={[styles.statsTotal, { color: '#94a3b8' }]}>/{totalStudents}</Text>
                                 </View>
-                            </View>
-                            <View style={[styles.progressCircleContainer, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}>
-                                <Svg width="48" height="48" viewBox="0 0 36 36" style={styles.svg}>
-                                    <Circle cx="18" cy="18" r="15.9155" fill="none" stroke={cskColors[500]} strokeWidth="3" strokeOpacity="0.2" />
-                                    <Circle
-                                        cx="18"
-                                        cy="18"
-                                        r="15.9155"
-                                        fill="none"
-                                        stroke={cskColors[500]}
-                                        strokeWidth="3"
-                                        strokeDasharray={`${attendancePercentage}, 100`}
-                                        strokeLinecap="round"
-                                        rotation="-90"
-                                        origin="18, 18"
-                                    />
-                                </Svg>
-                                <View style={styles.progressIcon}>
-                                    <MaterialIcons name="groups" size={24} color={cskColors[500]} />
-                                </View>
+                                <Text style={[styles.statsPercent, { color: cskColors[500] }]}>
+                                    {totalStudents > 0 ? Math.round(attendancePercentage) : 0}%
+                                </Text>
                             </View>
                         </View>
                     </>
                 )}
 
-                {/* Manual Entry */}
+                {/* View Attendance List */}
                 <TouchableOpacity
-                    style={[styles.manualButton, { borderColor: isDark ? '#475569' : '#cbd5e1', backgroundColor: 'transparent' }]}
+                    style={[styles.manualButton, { borderColor: isDark ? '#475569' : '#cbd5e1' }]}
                     onPress={() => router.push({ pathname: '/attendance-list', params: { lessonId } })}
                 >
-                    <MaterialIcons name="list" size={24} color={isDark ? '#94a3b8' : '#64748b'} />
+                    <MaterialIcons name="list" size={20} color={isDark ? '#94a3b8' : '#64748b'} />
                     <Text style={[styles.manualButtonText, { color: isDark ? '#94a3b8' : '#64748b' }]}>View Attendance List</Text>
                 </TouchableOpacity>
 
-            </View>
+                {/* Bottom padding so content clears the fixed footer + safe area */}
+                <View style={{ height: 90 + insets.bottom }} />
+            </ScrollView>
 
-            {/* Footer */}
+            {/* Footer — positioned absolute so it always overlays the scroll */}
             {isLive && !isCompleted && (
-                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc', paddingBottom: insets.bottom || 16 }]}>
                     <TouchableOpacity
                         style={[styles.endButton, { backgroundColor: errorColors[500], shadowColor: 'rgba(239, 68, 68, 0.4)' }]}
                         onPress={() => setIsEndModalVisible(true)}
@@ -342,7 +354,7 @@ export default function TeacherControlPanel() {
 
             {/* Show completed message */}
             {isCompleted && (
-                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc' }]}>
+                <View style={[styles.footer, { backgroundColor: isDark ? '#183327' : '#ffffff', borderColor: isDark ? '#2a4d3d' : '#cfe7dc', paddingBottom: insets.bottom || 16 }]}>
                     <View style={[styles.completedBanner, { backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: '#22c55e' }]}>
                         <MaterialIcons name="check-circle" size={24} color="#22c55e" />
                         <Text style={[styles.completedText, { color: '#22c55e' }]}>Lesson Completed</Text>
@@ -503,9 +515,23 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    contentInner: {
         alignItems: 'center',
-        padding: 24,
-        gap: 32,
+        padding: 20,
+        gap: 16,
+    },
+    // On small screens, QR + stats go side-by-side in a row
+    liveRow: {
+        width: '100%',
+        alignItems: 'center',
+        gap: 16,
+    },
+    liveRowCompact: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        gap: 12,
     },
     startSection: {
         flex: 1,
@@ -537,19 +563,18 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
     },
     qrSection: {
-        width: '100%',
         alignItems: 'center',
-        gap: 24,
+        gap: 10,
     },
     qrCard: {
-        width: width * 0.8,
-        maxWidth: 320,
+        width: QR_SIZE,
+        maxWidth: QR_MAX,
         aspectRatio: 1,
         borderRadius: 16,
-        padding: 24,
+        padding: isSmallScreen ? 14 : 20,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 4,
+        borderWidth: 3,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
@@ -634,31 +659,41 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.semiBold,
     },
     statsCard: {
-        width: width * 0.8,
-        maxWidth: 320,
-        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 20,
-        borderRadius: 12,
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 16,
         borderWidth: 1,
+        gap: 6,
+        minWidth: 120,
+    },
+    statsCardCompact: {
+        flex: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 16,
+        alignSelf: 'stretch',
     },
     statsLabel: {
-        fontSize: 14,
+        fontSize: 12,
         fontFamily: Fonts.medium,
+        textAlign: 'center',
     },
     statsValueContainer: {
         flexDirection: 'row',
         alignItems: 'baseline',
-        gap: 6,
+        gap: 2,
     },
     statsValue: {
-        fontSize: 30,
+        fontSize: 28,
         fontFamily: Fonts.bold,
     },
     statsTotal: {
-        fontSize: 18,
+        fontSize: 16,
         fontFamily: Fonts.medium,
+    },
+    statsPercent: {
+        fontSize: 13,
+        fontFamily: Fonts.bold,
     },
     progressCircleContainer: {
         width: 48,
@@ -677,22 +712,27 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     manualButton: {
-        width: width * 0.8,
+        width: '90%',
         maxWidth: 320,
-        height: 50,
+        height: 44,
         borderRadius: 8,
         borderWidth: 1,
         borderStyle: 'dashed',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        gap: 6,
+        backgroundColor: 'transparent',
     },
     manualButtonText: {
         fontSize: 16,
         fontFamily: Fonts.medium,
     },
     footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
         padding: 16,
         borderTopWidth: 1,
     },

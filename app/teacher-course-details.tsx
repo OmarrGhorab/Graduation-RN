@@ -116,17 +116,16 @@ export default function TeacherCourseDetailsScreen() {
     }
 
     const handleLessonPress = (lesson: typeof lessons[number]) => {
-        if (lesson.status === 'COMPLETED') {
+        if (lesson.status === 'COMPLETED' || lesson.status === 'CANCELED') {
             router.push({ pathname: '/lesson-analytics', params: { lessonId: lesson.id, courseId: id } });
             return;
         }
-
-        if (lesson.status === 'LIVE' || lesson.status === 'SCHEDULED') {
+        if (lesson.status === 'LIVE') {
             router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
             return;
         }
-
-        router.push({ pathname: '/teacher-control', params: { lessonId: lesson.id } });
+        // SCHEDULED only
+        router.push({ pathname: '/edit-lesson', params: { lessonId: lesson.id, courseId: id } });
     };
 
     return (
@@ -238,15 +237,17 @@ export default function TeacherCourseDetailsScreen() {
                                                 {lesson.title}
                                             </Text>
                                         </View>
-                                        <View style={[styles.lessonStatusBadge, { 
-                                            backgroundColor: 
-                                                lesson.status === 'LIVE' ? '#ef444420' : 
-                                                lesson.status === 'COMPLETED' ? '#10b98120' : '#3b82f620' 
+                                        <View style={[styles.lessonStatusBadge, {
+                                            backgroundColor:
+                                                lesson.status === 'LIVE' ? '#ef444420' :
+                                                lesson.status === 'COMPLETED' ? '#10b98120' :
+                                                lesson.status === 'CANCELED' ? '#f9731620' : '#3b82f620'
                                         }]}>
-                                            <Text style={[styles.lessonStatusText, { 
-                                                color: 
-                                                    lesson.status === 'LIVE' ? '#ef4444' : 
-                                                    lesson.status === 'COMPLETED' ? '#10b981' : '#3b82f6'
+                                            <Text style={[styles.lessonStatusText, {
+                                                color:
+                                                    lesson.status === 'LIVE' ? '#ef4444' :
+                                                    lesson.status === 'COMPLETED' ? '#10b981' :
+                                                    lesson.status === 'CANCELED' ? '#f97316' : '#3b82f6'
                                             }]}>
                                                 {lesson.status}
                                             </Text>
@@ -280,7 +281,7 @@ export default function TeacherCourseDetailsScreen() {
 
                                     <View style={styles.lessonActions}>
                                         {lesson.status === 'LIVE' ? (
-                                            <TouchableOpacity 
+                                            <TouchableOpacity
                                                 style={[styles.lessonActionBtn, { backgroundColor: cskColors[500] }]}
                                                 onPress={() => handleLessonPress(lesson)}
                                             >
@@ -288,15 +289,21 @@ export default function TeacherCourseDetailsScreen() {
                                                 <Text style={styles.lessonActionBtnText}>{t('teacher.manageLesson')}</Text>
                                             </TouchableOpacity>
                                         ) : lesson.status === 'COMPLETED' ? (
-                                            <TouchableOpacity 
+                                            <TouchableOpacity
                                                 style={[styles.lessonActionBtn, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}
                                                 onPress={() => handleLessonPress(lesson)}
                                             >
                                                 <Ionicons name="list-outline" size={18} color={cskColors[500]} />
                                                 <Text style={[styles.lessonActionBtnText, { color: cskColors[500] }]}>{t('teacher.viewAttendance')}</Text>
                                             </TouchableOpacity>
+                                        ) : lesson.status === 'CANCELED' ? (
+                                            <View style={[styles.lessonActionBtn, { backgroundColor: isDark ? '#2a1f1f' : '#fff1ee', opacity: 0.7 }]}>
+                                                <Ionicons name="close-circle-outline" size={18} color="#f97316" />
+                                                <Text style={[styles.lessonActionBtnText, { color: '#f97316' }]}>{t('teacher.lessonCanceled') || 'Canceled'}</Text>
+                                            </View>
                                         ) : (
-                                            <TouchableOpacity 
+                                            // SCHEDULED — only status that allows editing
+                                            <TouchableOpacity
                                                 style={[styles.lessonActionBtn, { backgroundColor: isDark ? '#1f3b2e' : '#e7f3ee' }]}
                                                 onPress={() => handleLessonPress(lesson)}
                                             >

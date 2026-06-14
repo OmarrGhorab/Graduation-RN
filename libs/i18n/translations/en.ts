@@ -942,6 +942,12 @@ export default {
     hoursAgo: '{{count}} hours ago',
     yesterday: 'Yesterday',
     daysAgo: '{{count}} days ago',
+    filterAll: 'All',
+    filterChats: 'Chats',
+    filterCourses: 'Courses',
+    filterRequests: 'Requests',
+    filterSecurity: 'Security',
+    filterUnlink: 'Unlink',
   },
 
   // Subscriptions

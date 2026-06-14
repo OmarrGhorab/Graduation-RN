@@ -27,7 +27,7 @@ const NotificationItem = memo(({ item, onPress, onDelete, onRespondToParentLink,
     const icon = getNotificationIcon(item.type, isDark);
     const time = formatTimeAgo(item.createdAt, t);
     const isParentLinkRequest = item.type === 'parent_link_request';
-    const isChatMessage = item.type === 'chat.message' || item.type === 'message' || item.type === 'CHAT_MESSAGE';
+    const isChatMessage = item.type === 'chat.message' || item.type === 'message' || item.type === 'CHAT_MESSAGE' || item.type === 'chat_message';
 
     // Check if this request has been responded to
     const status = item.data?.status;
@@ -44,10 +44,13 @@ const NotificationItem = memo(({ item, onPress, onDelete, onRespondToParentLink,
 
     // Get icon background color based on type
     const getIconBgColor = () => {
+        const t = item.type;
         if (isChatMessage) return isDark ? 'rgba(79, 191, 138, 0.15)' : 'rgba(9, 125, 70, 0.1)';
-        if (isParentLinkRequest) return isDark ? 'rgba(147, 51, 234, 0.15)' : 'rgba(147, 51, 234, 0.1)';
-        if (item.type.includes('security')) return isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)';
-        if (item.type.includes('grade') || item.type.includes('school')) return isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)';
+        if (isParentLinkRequest || t.startsWith('unlink')) return isDark ? 'rgba(147, 51, 234, 0.15)' : 'rgba(147, 51, 234, 0.1)';
+        if (t.includes('security') || t.includes('FRAUD') || t === 'SUBSCRIPTION_PAYMENT_FAILED') return isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)';
+        if (t === 'LESSON_CANCELED' || t === 'VIDEO_FAILED') return isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.1)';
+        if (t === 'LESSON_RESCHEDULED' || t === 'LESSON_REMINDER' || t === 'reminder' || t === 'SUBSCRIPTION_RENEWAL_SOON') return isDark ? 'rgba(249, 115, 22, 0.15)' : 'rgba(249, 115, 22, 0.1)';
+        if (t.startsWith('LESSON') || t.startsWith('CHILD_LESSON') || t === 'COURSE_ENROLLMENT' || t === 'COURSE_REVIEW' || t === 'VIDEO_READY' || t.startsWith('ATTENDANCE') || t.startsWith('ABSENCE') || t === 'PROGRESS_UPDATED' || t === 'parent_report_ready') return isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)';
         return isDark ? 'rgba(156, 163, 175, 0.15)' : 'rgba(156, 163, 175, 0.1)';
     };
 

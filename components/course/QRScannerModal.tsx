@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width } = Dimensions.get('window');
-const SCANNER_SIZE = width * 0.7;
+const { width, height } = Dimensions.get('window');
+// Scanner frame: 70% of width but capped so it never overflows on tall or short screens
+const SCANNER_SIZE = Math.min(width * 0.7, height * 0.42);
 
 interface QRScannerModalProps {
     visible: boolean;
@@ -17,6 +19,7 @@ interface QRScannerModalProps {
 
 export default function QRScannerModal({ visible, onClose, onScan }: QRScannerModalProps) {
     const { theme, isDark } = useTheme();
+    const insets = useSafeAreaInsets();
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
 
@@ -47,7 +50,7 @@ export default function QRScannerModal({ visible, onClose, onScan }: QRScannerMo
                     <TouchableOpacity onPress={requestPermission} style={styles.button}>
                         <Text style={styles.buttonText}>Grant Permission</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                    <TouchableOpacity onPress={onClose} style={[styles.closeButton, { top: insets.top + 16 }]}>
                         <Ionicons name="close" size={24} color={theme.text} />
                     </TouchableOpacity>
                 </View>
@@ -65,17 +68,19 @@ export default function QRScannerModal({ visible, onClose, onScan }: QRScannerMo
                 />
 
                 {/* Overlay */}
-                <View style={styles.overlay}>
+                <View style={[styles.overlay, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}>
+                    {/* Header */}
                     <View style={styles.header}>
                         <TouchableOpacity onPress={onClose} style={styles.closeButtonCircle}>
                             <Ionicons name="close" size={24} color="#FFF" />
                         </TouchableOpacity>
                         <Text style={styles.overlayTitle}>Scan QR Code</Text>
+                        <View style={{ width: 40 }} />
                     </View>
 
+                    {/* Scanner frame */}
                     <View style={styles.scannerContainer}>
                         <View style={styles.scannerFrame}>
-                            {/* Corner Markers */}
                             <View style={[styles.corner, styles.cornerTL]} />
                             <View style={[styles.corner, styles.cornerTR]} />
                             <View style={[styles.corner, styles.cornerBL]} />
@@ -84,8 +89,15 @@ export default function QRScannerModal({ visible, onClose, onScan }: QRScannerMo
                         <View style={styles.scanLine} />
                     </View>
 
+                    {/* Footer hint */}
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>Align the QR code within the frame to mark attendance</Text>
+                        {scanned && (
+                            <TouchableOpacity onPress={() => setScanned(false)} style={styles.rescanButton}>
+                                <Ionicons name="refresh" size={16} color={cskColors[500]} />
+                                <Text style={styles.rescanText}>Tap to scan again</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             </View>
@@ -103,17 +115,15 @@ const styles = StyleSheet.create({
     overlay: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'space-between',
-        paddingVertical: 60,
         backgroundColor: 'rgba(0,0,0,0.5)',
     },
     header: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 20,
     },
     closeButtonCircle: {
-        position: 'absolute',
-        left: 20,
-        top: 0,
         width: 40,
         height: 40,
         borderRadius: 20,
@@ -125,7 +135,6 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 18,
         fontFamily: Fonts.bold,
-        marginTop: 8,
     },
     scannerContainer: {
         alignSelf: 'center',
@@ -141,8 +150,8 @@ const styles = StyleSheet.create({
     },
     corner: {
         position: 'absolute',
-        width: 40,
-        height: 40,
+        width: 36,
+        height: 36,
         borderColor: cskColors[500],
         borderWidth: 4,
     },
@@ -165,6 +174,7 @@ const styles = StyleSheet.create({
     footer: {
         alignItems: 'center',
         paddingHorizontal: 40,
+        gap: 12,
     },
     footerText: {
         color: '#FFF',
@@ -172,6 +182,22 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.medium,
         fontSize: 14,
         opacity: 0.8,
+    },
+    rescanButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: cskColors[500],
+    },
+    rescanText: {
+        color: cskColors[500],
+        fontFamily: Fonts.semiBold,
+        fontSize: 14,
     },
     text: {
         fontSize: 16,
@@ -190,7 +216,6 @@ const styles = StyleSheet.create({
     },
     closeButton: {
         position: 'absolute',
-        top: 40,
         right: 20,
     },
 });

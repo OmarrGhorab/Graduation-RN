@@ -5,7 +5,7 @@ import GeofenceSlider from '@/components/GeofenceSlider';
 import LocationPickerModal from '@/components/location/LocationPickerModal';
 import TimePickerModal from '@/components/TimePickerModal';
 import { Fonts, cskColors } from '@/constants/theme';
-import { useMyCourses } from '@/hooks/useCourses';
+import { useMyCourses, useCourse } from '@/hooks/useCourses';
 import { useLessonDetails, useUpdateLesson } from '@/hooks/useLessons';
 import { useLessonCreation } from '@/hooks/useLessonCreation';
 import { useTheme } from '@/hooks/useTheme';
@@ -127,9 +127,15 @@ export default function CreateLessonScreen() {
         setTimeout(() => router.back(), 900);
     };
 
-    // Fetch courses
+    // In create mode fetch all teacher's courses; in edit mode only fetch the specific course
     const { data: coursesData, isLoading: isLoadingCourses } = useMyCourses();
-    const courses = coursesData?.data || [];
+    const { data: singleCourseData, isLoading: isLoadingSingleCourse } = useCourse(courseId || paramCourseId);
+
+    // Determine which course list to show in the picker
+    const courses = isEditMode
+        ? (singleCourseData?.data ? [singleCourseData.data] : [])
+        : (coursesData?.data || []);
+    const isLoadingCourseList = isEditMode ? isLoadingSingleCourse : isLoadingCourses;
 
     useEffect(() => {
         if (!isEditMode) return;
@@ -405,12 +411,27 @@ export default function CreateLessonScreen() {
                             <Text style={[styles.label, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
                                 Course
                             </Text>
-                            {(isLoadingCourses || (isEditMode && isLoadingLessonDetails)) ? (
+                            {(isLoadingCourseList || (isEditMode && isLoadingLessonDetails)) ? (
                                 <View style={[styles.input, {
                                     backgroundColor: isDark ? '#1e1e1e' : '#f7f8f9',
                                     justifyContent: 'center',
                                 }]}>
                                     <ActivityIndicator size="small" color={cskColors[500]} />
+                                </View>
+                            ) : isEditMode && courses.length > 0 ? (
+                                // Edit mode: show single course as read-only
+                                <View style={[styles.courseOption, {
+                                    backgroundColor: isDark ? '#1a2e24' : '#e7f3ee',
+                                    borderColor: cskColors[500],
+                                }]}>
+                                    <Text style={[styles.courseOptionText, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
+                                        {courses[0].title}
+                                    </Text>
+                                    {courses[0].subjectName && (
+                                        <Text style={[styles.courseOptionSubtext, { color: isDark ? '#a8b0b8' : '#696f77' }]}>
+                                            {courses[0].subjectName}
+                                        </Text>
+                                    )}
                                 </View>
                             ) : (
                                 <View style={styles.pickerContainer}>

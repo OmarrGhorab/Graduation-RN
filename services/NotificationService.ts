@@ -77,28 +77,38 @@ export function getNotificationRequestId(notification: Pick<ApiNotification, 'da
 export function isSameNotification(a: ApiNotification, b: ApiNotification): boolean {
     if (a.id === b.id) return true;
 
+    // Cross-match real DB id with notification_id embedded in FCM data
+    const aRealId = a.id || a.data?.notification_id;
+    const bRealId = b.id || b.data?.notification_id;
+    if (aRealId && bRealId && aRealId === bRealId) return true;
+
+    if (a.type !== b.type) return false;
+
+    // Chat: same conversation + same message
+    if (a.type === 'chat.message') {
+        const aMsg = a.data?.message_id;
+        const bMsg = b.data?.message_id;
+        if (aMsg && bMsg) return aMsg === bMsg;
+    }
+
+    // Lesson / child lesson: same lesson_id
+    if (a.type.startsWith('LESSON_') || a.type.startsWith('CHILD_LESSON_')) {
+        const aLesson = a.data?.lesson_id;
+        const bLesson = b.data?.lesson_id;
+        if (aLesson && bLesson) return aLesson === bLesson;
+    }
+
+    // Attendance: same lesson + same student
+    if (a.type.startsWith('ATTENDANCE_') || a.type.startsWith('CHILD_ATTENDANCE_')) {
+        const aLesson = a.data?.lesson_id;
+        const bLesson = b.data?.lesson_id;
+        if (aLesson && bLesson) return aLesson === bLesson;
+    }
+
+    // Parent link / unlink: same request id
     const aRequestId = getNotificationRequestId(a);
     const bRequestId = getNotificationRequestId(b);
-
-    if (
-        a.type === 'parent_link_request' &&
-        b.type === 'parent_link_request' &&
-        aRequestId &&
-        bRequestId &&
-        aRequestId === bRequestId
-    ) {
-        return true;
-    }
-
-    if (
-        a.type === 'unlink_request' &&
-        b.type === 'unlink_request' &&
-        aRequestId &&
-        bRequestId &&
-        aRequestId === bRequestId
-    ) {
-        return true;
-    }
+    if (aRequestId && bRequestId && aRequestId === bRequestId) return true;
 
     return false;
 }

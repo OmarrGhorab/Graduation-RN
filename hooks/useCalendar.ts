@@ -1,13 +1,14 @@
 import { useAuthStore } from '@/libs/auth';
 import { getStudentCalendar, getTeacherCalendar, CalendarFilters } from '@/services/CalendarService';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 export function useStudentCalendar(filters?: CalendarFilters, enabled: boolean = true) {
     return useQuery({
         queryKey: ['calendar', 'student', filters],
         queryFn: () => getStudentCalendar(filters),
         enabled: enabled,
-        staleTime: 0
+        staleTime: 0,
+        placeholderData: keepPreviousData,
     });
 }
 
@@ -16,7 +17,8 @@ export function useTeacherCalendar(filters?: CalendarFilters, enabled: boolean =
         queryKey: ['calendar', 'teacher', filters],
         queryFn: () => getTeacherCalendar(filters),
         enabled: enabled,
-        staleTime: 0
+        staleTime: 0,
+        placeholderData: keepPreviousData,
     });
 }
 

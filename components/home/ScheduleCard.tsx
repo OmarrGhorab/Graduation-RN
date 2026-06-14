@@ -198,6 +198,24 @@ export default function ScheduleCard({
                             <Text style={[styles.liveText, { color: theme.primary }]}>{t('courseDetails.markAttendance').toUpperCase()}</Text>
                         </TouchableOpacity>
                     )}
+                    {!isTeacher && hasAttended && isLive && (
+                        <View style={[styles.liveBadge, {
+                            backgroundColor: attendanceStatus === 'LATE' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                            borderColor: attendanceStatus === 'LATE' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)',
+                        }]}>
+                            <Ionicons
+                                name={attendanceStatus === 'LATE' ? 'time-outline' : 'checkmark-circle'}
+                                size={12}
+                                color={attendanceStatus === 'LATE' ? '#f59e0b' : '#22c55e'}
+                            />
+                            <Text style={[styles.liveText, {
+                                color: attendanceStatus === 'LATE' ? '#f59e0b' : '#22c55e',
+                                marginLeft: 4,
+                            }]}>
+                                {attendanceStatus === 'LATE' ? t('home.attendanceLate') || 'LATE' : t('home.attendancePresent') || 'PRESENT'}
+                            </Text>
+                        </View>
+                    )}
                     {remainingTime && (
                         <View style={[styles.remainingBadge, { backgroundColor: isLive ? `${theme.primary}15` : (isDark ? theme.gray[800] : theme.gray[100]) }]}>
                             <Ionicons name="hourglass-outline" size={10} color={isLive ? theme.primary : theme.gray[500]} />

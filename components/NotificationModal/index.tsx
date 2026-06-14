@@ -26,15 +26,15 @@ import NotificationItem from './NotificationItem';
 import { NotificationModalProps } from './types';
 import { useNotificationStyles } from './useNotificationStyles';
 
-// Match backend categories
-type FilterType = 'all' | 'chat' | 'security' | 'parent_link' | 'unlink';
+type FilterType = 'all' | 'chat' | 'security' | 'parent_link' | 'unlink' | 'courses';
 
-const FILTER_OPTIONS: { key: FilterType; label: string; icon: string }[] = [
-    { key: 'all', label: 'All', icon: 'apps' },
-    { key: 'chat', label: 'Chats', icon: 'chatbubble' },
-    { key: 'parent_link', label: 'Requests', icon: 'person-add' },
-    { key: 'security', label: 'Security', icon: 'shield-checkmark' },
-    { key: 'unlink', label: 'Unlink', icon: 'person-remove' },
+const FILTER_OPTIONS: { key: FilterType; labelKey: string; icon: string }[] = [
+    { key: 'all', labelKey: 'notifications.filterAll', icon: 'apps' },
+    { key: 'chat', labelKey: 'notifications.filterChats', icon: 'chatbubble' },
+    { key: 'courses', labelKey: 'notifications.filterCourses', icon: 'school' },
+    { key: 'parent_link', labelKey: 'notifications.filterRequests', icon: 'person-add' },
+    { key: 'security', labelKey: 'notifications.filterSecurity', icon: 'shield-checkmark' },
+    { key: 'unlink', labelKey: 'notifications.filterUnlink', icon: 'person-remove' },
 ];
 
 export default function NotificationModal({
@@ -74,17 +74,33 @@ export default function NotificationModal({
 
         if (activeFilter === 'all') return uniqueNotifications;
 
+        const COURSE_TYPES = new Set([
+            'LESSON_STARTED', 'LESSON_ENDED', 'LESSON_CANCELED', 'LESSON_RESCHEDULED',
+            'LESSON_REMINDER', 'CHILD_LESSON_REMINDER',
+            'CHILD_LESSON_STARTED', 'CHILD_LESSON_ENDED',
+            'ATTENDANCE_RECORDED', 'CHILD_ATTENDANCE_RECORDED', 'ATTENDANCE_STATUS_UPDATE',
+            'ATTENDANCE_FRAUD_TEACHER', 'ATTENDANCE_FRAUD_PARENT',
+            'ABSENCE_REQUEST_TEACHER', 'ABSENCE_REQUEST_PARENT',
+            'COURSE_ENROLLMENT', 'COURSE_REVIEW', 'VIDEO_READY', 'VIDEO_FAILED',
+            'PROGRESS_UPDATED', 'SUBSCRIPTION_RENEWAL_SOON', 'CHILD_SUBSCRIPTION_RENEWAL_SOON',
+            'SUBSCRIPTION_PAYMENT_FAILED',
+            'lesson_started', 'reminder', 'parent_report_ready',
+        ]);
+
         return uniqueNotifications.filter((n) => {
-            const type = n.type.toLowerCase();
+            const type = n.type;
+            const lcType = type.toLowerCase();
             switch (activeFilter) {
                 case 'chat':
-                    return type.includes('chat') || type.includes('message');
+                    return lcType.includes('chat') || lcType.includes('message');
                 case 'security':
-                    return type.includes('security');
+                    return lcType.includes('security');
                 case 'parent_link':
-                    return type.includes('parent_link');
+                    return lcType.includes('parent_link');
                 case 'unlink':
-                    return type.includes('unlink');
+                    return lcType.includes('unlink');
+                case 'courses':
+                    return COURSE_TYPES.has(type);
                 default:
                     return true;
             }
@@ -374,17 +390,21 @@ export default function NotificationModal({
                     <Text style={[localStyles.headerTitle, { color: isDark ? '#FFFFFF' : '#0D1B15' }]}>
                         Notifications
                     </Text>
-                    <View style={localStyles.headerRight}>
-                        {unreadCount > 0 && (
-                            <TouchableOpacity onPress={onMarkAllAsRead} style={localStyles.markAllButton}>
-                                <Text style={localStyles.markAllText}>Mark all as read</Text>
-                            </TouchableOpacity>
-                        )}
-                        <TouchableOpacity onPress={onClose} style={localStyles.closeButton}>
-                            <Ionicons name="close" size={24} color={isDark ? '#FFFFFF' : '#0D1B15'} />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={onClose} style={localStyles.closeButton}>
+                        <Ionicons name="close" size={24} color={isDark ? '#FFFFFF' : '#0D1B15'} />
+                    </TouchableOpacity>
                 </View>
+
+                {/* Mark all as read — sits directly under the title */}
+                {unreadCount > 0 && (
+                    <TouchableOpacity
+                        onPress={onMarkAllAsRead}
+                        style={[localStyles.markAllRow, { backgroundColor: isDark ? '#10221A' : '#F6F8F7' }]}
+                    >
+                        <Ionicons name="checkmark-done-outline" size={14} color="#48BB78" />
+                        <Text style={localStyles.markAllRowText}>Mark all as read</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Filter Chips */}
                 <View style={[localStyles.filterWrapper, { zIndex: 10, backgroundColor: isDark ? '#10221A' : '#F6F8F7' }]}>
@@ -410,7 +430,7 @@ export default function NotificationModal({
                                         ? localStyles.filterChipTextActive
                                         : { color: isDark ? '#9CA3AF' : '#6B7280' }
                                 ]}>
-                                    {filter.label}
+                                    {t(filter.labelKey)}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -469,6 +489,18 @@ const localStyles = StyleSheet.create({
         fontFamily: Fonts.bold,
         textAlign: 'center',
     },
+    markAllRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    markAllRowText: {
+        color: '#48BB78',
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+    },
     markAllButton: {
         paddingVertical: 6,
         paddingHorizontal: 2,
@@ -478,6 +510,25 @@ const localStyles = StyleSheet.create({
         fontSize: 14,
         fontFamily: Fonts.bold,
         textAlign: 'right',
+    },
+    markAllFooterButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 14,
+        marginHorizontal: 16,
+        marginTop: 4,
+        marginBottom: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(72, 187, 120, 0.3)',
+        backgroundColor: 'rgba(72, 187, 120, 0.07)',
+    },
+    markAllFooterText: {
+        color: '#48BB78',
+        fontSize: 14,
+        fontFamily: Fonts.bold,
     },
     closeButton: {
         width: 40,
