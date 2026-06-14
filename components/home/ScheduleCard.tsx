@@ -118,7 +118,8 @@ export default function ScheduleCard({
     const isCompleted = statusUpper === 'COMPLETED';
     const isCanceled = statusUpper === 'CANCELED';
     const isFuture = statusUpper === 'SCHEDULED';
-    const hasAttended = attendanceStatus === 'PRESENT' || attendanceStatus === 'LATE';
+    const hasAttended = !!attendanceStatus && attendanceStatus !== null;
+    const isAbsent = attendanceStatus === 'ABSENT';
     const canScan = (isLive || canMarkAttendance === true) && !hasAttended && !isTeacher;
 
     // Timeline Icon Logic
@@ -198,21 +199,43 @@ export default function ScheduleCard({
                             <Text style={[styles.liveText, { color: theme.primary }]}>{t('courseDetails.markAttendance').toUpperCase()}</Text>
                         </TouchableOpacity>
                     )}
-                    {!isTeacher && hasAttended && isLive && (
+                    {!isTeacher && hasAttended && (
                         <View style={[styles.liveBadge, {
-                            backgroundColor: attendanceStatus === 'LATE' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                            borderColor: attendanceStatus === 'LATE' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)',
+                            backgroundColor: attendanceStatus === 'LATE'
+                                ? 'rgba(245, 158, 11, 0.1)'
+                                : isAbsent
+                                    ? 'rgba(239, 68, 68, 0.1)'
+                                    : 'rgba(34, 197, 94, 0.1)',
+                            borderColor: attendanceStatus === 'LATE'
+                                ? 'rgba(245, 158, 11, 0.3)'
+                                : isAbsent
+                                    ? 'rgba(239, 68, 68, 0.3)'
+                                    : 'rgba(34, 197, 94, 0.3)',
                         }]}>
                             <Ionicons
-                                name={attendanceStatus === 'LATE' ? 'time-outline' : 'checkmark-circle'}
+                                name={
+                                    attendanceStatus === 'LATE' ? 'time-outline'
+                                    : isAbsent ? 'close-circle'
+                                    : 'checkmark-circle'
+                                }
                                 size={12}
-                                color={attendanceStatus === 'LATE' ? '#f59e0b' : '#22c55e'}
+                                color={
+                                    attendanceStatus === 'LATE' ? '#f59e0b'
+                                    : isAbsent ? '#ef4444'
+                                    : '#22c55e'
+                                }
                             />
                             <Text style={[styles.liveText, {
-                                color: attendanceStatus === 'LATE' ? '#f59e0b' : '#22c55e',
+                                color: attendanceStatus === 'LATE' ? '#f59e0b'
+                                    : isAbsent ? '#ef4444'
+                                    : '#22c55e',
                                 marginLeft: 4,
                             }]}>
-                                {attendanceStatus === 'LATE' ? t('home.attendanceLate') || 'LATE' : t('home.attendancePresent') || 'PRESENT'}
+                                {attendanceStatus === 'LATE'
+                                    ? (t('home.attendanceLate') || 'LATE').toUpperCase()
+                                    : isAbsent
+                                        ? (t('home.attendanceAbsent') || 'ABSENT').toUpperCase()
+                                        : (t('home.attendancePresent') || 'PRESENT').toUpperCase()}
                             </Text>
                         </View>
                     )}
@@ -353,9 +376,11 @@ const styles = StyleSheet.create({
     },
     cardHeader: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 6,
+        gap: 6,
     },
     timeText: {
         fontSize: 12,

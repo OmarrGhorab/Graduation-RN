@@ -140,7 +140,15 @@ export default function TeacherControlPanel() {
             setIsEndModalVisible(false);
             router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to end lesson');
+            const errorMsg = error.message || '';
+            if (errorMsg.includes('Attendance session is not active')) {
+                // If the session is already inactive on the backend (e.g., the attendance window expired),
+                // we should still let the teacher transition to the attendance list.
+                setIsEndModalVisible(false);
+                router.replace({ pathname: '/attendance-list', params: { lessonId: lessonId } });
+            } else {
+                Alert.alert('Error', errorMsg || 'Failed to end lesson');
+            }
         } finally {
             setIsEnding(false);
         }

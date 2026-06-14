@@ -31,7 +31,10 @@ import React, { useCallback, useMemo } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
     useAnimatedScrollHandler,
+    useAnimatedStyle,
     useSharedValue,
+    withRepeat,
+    withTiming,
 } from 'react-native-reanimated';
 
 
@@ -688,8 +691,8 @@ export default function MainHomeScreen() {
                     )}
 
                     <View style={{ marginTop: 8 }}>
-                        {isLoadingCalendar && schedule.length === 0 ? (
-                            <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 20 }} />
+                        {(isLoadingCalendar || (isFetchingCalendar && schedulePage === 1)) ? (
+                            <ScheduleCardSkeleton />
                         ) : schedule.length > 0 ? (
                             <>
                                 {schedule.map((item: any, index: number) => (
@@ -769,6 +772,67 @@ export default function MainHomeScreen() {
                 respondingRequestId={respondToParentLinkMutation.variables?.requestId ?? null}
             />
         </View>
+    );
+}
+
+function ScheduleCardSkeleton() {
+    const { theme, isDark } = useTheme();
+    const shimmer = useSharedValue(0);
+
+    React.useEffect(() => {
+        shimmer.value = withRepeat(withTiming(1, { duration: 1100 }), -1, true);
+    }, []);
+
+    const shimmerStyle = useAnimatedStyle(() => ({
+        opacity: 0.4 + shimmer.value * 0.4,
+    }));
+
+    const bgColor = isDark ? theme.surface : '#FFFFFF';
+    const lineColor = isDark ? theme.gray[700] : '#E5E7EB';
+    const dotColor = isDark ? theme.gray[600] : '#D1D5DB';
+
+    return (
+        <>
+            {[0, 1, 2].map((i) => (
+                <View key={i} style={{ flexDirection: 'row', paddingBottom: 24 }}>
+                    {/* Timeline column */}
+                    <View style={{ width: 40, alignItems: 'center', marginRight: 12 }}>
+                        {i < 2 && (
+                            <View style={{
+                                position: 'absolute', top: 20, bottom: -24,
+                                width: 2, left: '50%', marginLeft: -1,
+                                backgroundColor: dotColor,
+                            }} />
+                        )}
+                        <Animated.View style={[shimmerStyle, {
+                            width: 40, height: 40, borderRadius: 20,
+                            backgroundColor: dotColor,
+                        }]} />
+                    </View>
+                    {/* Card */}
+                    <Animated.View style={[shimmerStyle, {
+                        flex: 1, borderRadius: 16, padding: 16,
+                        backgroundColor: bgColor,
+                        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+                    }]}>
+                        {/* Time + badge row */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <View style={{ width: 80, height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                            <View style={{ width: 64, height: 20, borderRadius: 10, backgroundColor: lineColor }} />
+                        </View>
+                        {/* Title */}
+                        <View style={{ width: '85%', height: 18, borderRadius: 6, backgroundColor: lineColor, marginBottom: 8 }} />
+                        <View style={{ width: '60%', height: 12, borderRadius: 6, backgroundColor: lineColor, marginBottom: 14 }} />
+                        {/* Footer */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <View style={{ width: 100, height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                            <View style={{ width: 70, height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                        </View>
+                    </Animated.View>
+                </View>
+            ))}
+        </>
     );
 }
 

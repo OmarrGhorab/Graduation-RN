@@ -4,12 +4,55 @@ import { useMySubjects } from '@/hooks/useCourses';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
-import { ApiSubject } from '@/services/CourseService';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+
+function CalendarSkeleton({ isDark, theme }: { isDark: boolean; theme: any }) {
+    const shimmer = useSharedValue(0);
+
+    React.useEffect(() => {
+        shimmer.value = withRepeat(withTiming(1, { duration: 1100 }), -1, true);
+    }, []);
+
+    const shimmerStyle = useAnimatedStyle(() => ({
+        opacity: 0.4 + shimmer.value * 0.4,
+    }));
+
+    const bgColor = isDark ? theme.surface : '#FFFFFF';
+    const lineColor = isDark ? theme.gray[700] : '#E5E7EB';
+
+    return (
+        <>
+            {[0, 1, 2, 3].map((i) => (
+                <Animated.View key={i} style={[shimmerStyle, styles.lessonCard, {
+                    backgroundColor: bgColor,
+                    borderColor: lineColor,
+                    marginBottom: 12,
+                }]}>
+                    {/* Header row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                            <View style={{ width: '80%', height: 16, borderRadius: 6, backgroundColor: lineColor, marginBottom: 8 }} />
+                            <View style={{ width: '55%', height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                        </View>
+                        <View style={{ width: 70, height: 26, borderRadius: 8, backgroundColor: lineColor }} />
+                    </View>
+                    {/* Meta row */}
+                    <View style={{ flexDirection: 'row', gap: 16, marginBottom: 8 }}>
+                        <View style={{ width: 90, height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                        <View style={{ width: 60, height: 12, borderRadius: 6, backgroundColor: lineColor }} />
+                    </View>
+                    {/* Location badge */}
+                    <View style={{ width: 100, height: 22, borderRadius: 8, backgroundColor: lineColor, marginTop: 8 }} />
+                </Animated.View>
+            ))}
+        </>
+    );
+}
 
 export default function CalendarScreen() {
     const router = useRouter();
@@ -24,7 +67,7 @@ export default function CalendarScreen() {
     const { data: subjectsData } = useMySubjects();
     const subjects = subjectsData?.data || [];
 
-    const { data, isLoading } = useCalendar({
+    const { data, isLoading, isFetching } = useCalendar({
         range: rangePreset === 'all' ? undefined : rangePreset,
         status: statusFilter === 'all' ? undefined : statusFilter as any,
         subject: selectedSubject || undefined
@@ -51,14 +94,6 @@ export default function CalendarScreen() {
         }
     };
 
-    if (isLoading) {
-        return (
-            <View style={[styles.container, { backgroundColor: isDark ? theme.background : '#F6F8F7' }]}>
-                <ActivityIndicator size="large" color={theme.primary} />
-            </View>
-        );
-    }
-
     const lessons = data?.data || [];
 
     return (
@@ -76,25 +111,25 @@ export default function CalendarScreen() {
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.filtersContainer}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.filterChip, rangePreset === 'all' && styles.filterChipActive]}
                             onPress={() => setRangePreset('all')}
                         >
                             <Text style={[styles.filterText, rangePreset === 'all' && styles.filterTextActive]}>{t('courses.all')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.filterChip, rangePreset === 'upcoming_7' && styles.filterChipActive]}
                             onPress={() => setRangePreset('upcoming_7')}
                         >
                             <Text style={[styles.filterText, rangePreset === 'upcoming_7' && styles.filterTextActive]}>{t('home.next7Days')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.filterChip, rangePreset === 'upcoming_30' && styles.filterChipActive]}
                             onPress={() => setRangePreset('upcoming_30')}
                         >
                             <Text style={[styles.filterText, rangePreset === 'upcoming_30' && styles.filterTextActive]}>{t('home.next30Days')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.filterChip, rangePreset === 'prev_7' && styles.filterChipActive]}
                             onPress={() => setRangePreset('prev_7')}
                         >
@@ -103,19 +138,19 @@ export default function CalendarScreen() {
                     </ScrollView>
 
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.statusChip, statusFilter === 'all' && styles.statusChipActive]}
                             onPress={() => setStatusFilter('all')}
                         >
                             <Text style={[styles.statusTabText, statusFilter === 'all' && styles.statusTabTextActive]}>{t('home.allStatuses')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.statusChip, statusFilter === 'upcoming' && styles.statusChipActive]}
                             onPress={() => setStatusFilter('upcoming')}
                         >
                             <Text style={[styles.statusTabText, statusFilter === 'upcoming' && styles.statusTabTextActive]}>{t('home.upcomingFilter')}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.statusChip, statusFilter === 'finished' && styles.statusChipActive]}
                             onPress={() => setStatusFilter('finished')}
                         >
@@ -126,14 +161,14 @@ export default function CalendarScreen() {
                     {/* Subject Filter */}
                     {subjects.length > 0 && (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={[styles.subjectChip, !selectedSubject && styles.subjectChipActive]}
                                 onPress={() => setSelectedSubject(null)}
                             >
                                 <Text style={[styles.subjectText, !selectedSubject && styles.subjectTextActive]}>{t('courses.all')}</Text>
                             </TouchableOpacity>
                             {subjects.map((subject: any) => (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={subject.id}
                                     style={[styles.subjectChip, selectedSubject === subject.id && styles.subjectChipActive]}
                                     onPress={() => setSelectedSubject(subject.id)}
@@ -145,7 +180,9 @@ export default function CalendarScreen() {
                     )}
                 </View>
 
-                {lessons.length === 0 ? (
+                {(isLoading || isFetching) ? (
+                    <CalendarSkeleton isDark={isDark} theme={theme} />
+                ) : lessons.length === 0 ? (
                     <View style={styles.emptyState}>
                         <Ionicons name="calendar-outline" size={64} color={theme.gray[300]} />
                         <Text style={[styles.emptyText, { color: theme.gray[500] }]}>
