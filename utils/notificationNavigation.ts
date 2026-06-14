@@ -208,11 +208,7 @@ export function navigateFromNotification(
     if (type === 'ABSENCE_REQUEST_TEACHER') {
         const courseId = data.course_id || data.courseId;
         const lessonId = data.lesson_id || data.lessonId;
-        if (lessonId && courseId) {
-            router.push({ pathname: '/lesson-analytics', params: { lessonId, courseId } });
-        } else if (courseId) {
-            router.push({ pathname: '/course-details', params: { id: courseId } });
-        }
+        router.push({ pathname: '/absence-appeals' as any, params: { lessonId, courseId } });
         return;
     }
 

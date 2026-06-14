@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -27,6 +28,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { cancelLesson, rescheduleLesson } from '@/services/CourseService';
 
 type DeliveryType = 'ONLINE' | 'OFFLINE';
 type LessonFormPrefill = {
@@ -103,6 +105,11 @@ export default function CreateLessonScreen() {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [showLocationPicker, setShowLocationPicker] = useState(false);
+    const [showRescheduleCalendar, setShowRescheduleCalendar] = useState(false);
+    const [showRescheduleTimePicker, setShowRescheduleTimePicker] = useState(false);
+    const [rescheduleDate, setRescheduleDate] = useState<Date | null>(null);
+    const [isCanceling, setIsCanceling] = useState(false);
+    const [isRescheduling, setIsRescheduling] = useState(false);
 
     // Materials state
     const [videoFile, setVideoFile] = useState<{ uri: string; name: string; type: string } | null>(null);
@@ -228,6 +235,70 @@ export default function CreateLessonScreen() {
         } catch (error) {
             toast.error('Error', 'Failed to pick document file');
         }
+    };
+
+    const handleCancelLesson = () => {
+        Alert.alert(
+            'Cancel Lesson',
+            'Are you sure you want to cancel this lesson? All enrolled students will be notified.',
+            [
+                { text: 'Keep Lesson', style: 'cancel' },
+                {
+                    text: 'Cancel Lesson',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsCanceling(true);
+                        try {
+                            const res = await cancelLesson(editId);
+                            if (res.success) {
+                                toast.success('Lesson Canceled', 'Students have been notified.');
+                                setTimeout(() => router.back(), 900);
+                            } else {
+                                toast.error('Error', res.message || 'Failed to cancel lesson');
+                            }
+                        } catch (e: any) {
+                            toast.error('Error', e.message || 'Failed to cancel lesson');
+                        } finally {
+                            setIsCanceling(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleRescheduleLesson = async () => {
+        if (!rescheduleDate) {
+            setShowRescheduleCalendar(true);
+            return;
+        }
+        Alert.alert(
+            'Confirm Reschedule',
+            `Reschedule to ${rescheduleDate.toLocaleDateString('en-EG', { timeZone: 'Africa/Cairo' })} at ${rescheduleDate.toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' })}?\n\nAll enrolled students will be notified.`,
+            [
+                { text: 'Back', style: 'cancel' },
+                {
+                    text: 'Reschedule',
+                    onPress: async () => {
+                        setIsRescheduling(true);
+                        try {
+                            const res = await rescheduleLesson(editId, { newScheduledAt: rescheduleDate.toISOString() });
+                            if (res.success) {
+                                toast.success('Lesson Rescheduled', 'Students have been notified of the new time.');
+                                setTimeout(() => router.back(), 900);
+                            } else {
+                                toast.error('Error', res.message || 'Failed to reschedule lesson');
+                            }
+                        } catch (e: any) {
+                            toast.error('Error', e.message || 'Failed to reschedule lesson');
+                        } finally {
+                            setIsRescheduling(false);
+                            setRescheduleDate(null);
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const handleSubmitLesson = async () => {
@@ -542,7 +613,7 @@ export default function CreateLessonScreen() {
                                 >
                                     <MaterialIcons name="calendar-today" size={20} color={cskColors[500]} />
                                     <Text style={[styles.dateTimeText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        {scheduledAt.toLocaleDateString()}
+                                        {scheduledAt.toLocaleDateString('en-EG', { timeZone: 'Africa/Cairo' })}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -559,7 +630,7 @@ export default function CreateLessonScreen() {
                                 >
                                     <MaterialIcons name="access-time" size={20} color={cskColors[500]} />
                                     <Text style={[styles.dateTimeText, { color: isDark ? '#e1e5e9' : '#0d1b15' }]}>
-                                        {scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {scheduledAt.toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' })}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -875,7 +946,7 @@ export default function CreateLessonScreen() {
                     </View>
 
                     {/* Bottom padding for fixed button */}
-                    <View style={{ height: 100 }} />
+                    <View style={{ height: isEditMode ? 160 : 100 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
 
@@ -918,11 +989,82 @@ export default function CreateLessonScreen() {
                 onGeofenceRadiusChange={(radius) => setGeofenceRadius(radius.toString())}
             />
 
+            {/* Reschedule Calendar */}
+            <CalendarModal
+                visible={showRescheduleCalendar}
+                onClose={() => setShowRescheduleCalendar(false)}
+                selectedDate={rescheduleDate || scheduledAt}
+                onSelectDate={(date) => {
+                    const base = rescheduleDate || scheduledAt;
+                    const newDate = new Date(base);
+                    newDate.setFullYear(date.getFullYear());
+                    newDate.setMonth(date.getMonth());
+                    newDate.setDate(date.getDate());
+                    setRescheduleDate(newDate);
+                    setShowRescheduleCalendar(false);
+                    setShowRescheduleTimePicker(true);
+                }}
+                mode="start"
+                minDate={new Date()}
+            />
+
+            {/* Reschedule Time Picker */}
+            <TimePickerModal
+                visible={showRescheduleTimePicker}
+                onClose={() => setShowRescheduleTimePicker(false)}
+                selectedTime={rescheduleDate || scheduledAt}
+                onSelectTime={(time) => {
+                    setRescheduleDate(time);
+                    setShowRescheduleTimePicker(false);
+                }}
+            />
+
             {/* Fixed Footer */}
             <View style={[styles.footer, {
                 backgroundColor: isDark ? 'rgba(24, 51, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                 borderTopColor: isDark ? '#2a4d3d' : '#e9ebed',
             }]}>
+                {/* Cancel + Reschedule row — edit mode only */}
+                {isEditMode && (
+                    <View style={styles.editActionsRow}>
+                        <TouchableOpacity
+                            style={[styles.cancelLessonButton, { borderColor: '#ef4444' }]}
+                            onPress={handleCancelLesson}
+                            disabled={isCanceling}
+                            activeOpacity={0.8}
+                        >
+                            {isCanceling ? (
+                                <ActivityIndicator size="small" color="#ef4444" />
+                            ) : (
+                                <>
+                                    <MaterialIcons name="cancel" size={18} color="#ef4444" />
+                                    <Text style={[styles.cancelLessonText, { color: '#ef4444' }]}>Cancel Lesson</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.rescheduleButton, { borderColor: cskColors[500], backgroundColor: rescheduleDate ? `${cskColors[500]}18` : 'transparent' }]}
+                            onPress={rescheduleDate ? handleRescheduleLesson : () => setShowRescheduleCalendar(true)}
+                            disabled={isRescheduling}
+                            activeOpacity={0.8}
+                        >
+                            {isRescheduling ? (
+                                <ActivityIndicator size="small" color={cskColors[500]} />
+                            ) : (
+                                <>
+                                    <MaterialIcons name="event" size={18} color={cskColors[500]} />
+                                    <Text style={[styles.rescheduleText, { color: cskColors[500] }]}>
+                                        {rescheduleDate
+                                            ? rescheduleDate.toLocaleDateString('en-EG', { month: 'short', day: 'numeric', timeZone: 'Africa/Cairo' })
+                                            : 'Reschedule'}
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 <TouchableOpacity
                     style={[styles.createButton, { backgroundColor: cskColors[500] }]}
                     onPress={handleSubmitLesson}
@@ -1162,7 +1304,41 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         padding: 16,
+        paddingBottom: 24,
         borderTopWidth: 1,
+        gap: 10,
+    },
+    editActionsRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    cancelLessonButton: {
+        flex: 1,
+        height: 44,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    cancelLessonText: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
+    },
+    rescheduleButton: {
+        flex: 1,
+        height: 44,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    rescheduleText: {
+        fontSize: 13,
+        fontFamily: Fonts.semiBold,
     },
     createButton: {
         height: 56,

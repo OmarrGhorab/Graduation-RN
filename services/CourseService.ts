@@ -936,6 +936,19 @@ export interface ScanAttendanceRequest {
  * Scan attendance with QR code
  * IMPORTANT: Sends raw payload and signature without decoding
  */
+export interface ScanAttendanceResult {
+    success: boolean;
+    message: string;
+    data?: {
+        status: string;
+        scannedAt: string;
+        distance?: number;
+        message: string;
+        lessonTitle?: string;
+        locationName?: string;
+    };
+}
+
 export async function scanAttendance(
     qrString: string,
     options?: {
@@ -944,7 +957,7 @@ export async function scanAttendance(
         latitude?: number;
         longitude?: number;
     }
-): Promise<{ success: boolean; message: string; data?: any }> {
+): Promise<ScanAttendanceResult> {
     try {
         logger.log('[Courses] Processing QR Code for attendance');
 
@@ -985,7 +998,7 @@ export async function scanAttendance(
         }
 
         logger.log('[Courses] Sending Scan Request with raw payload');
-        return apiClient.post<{ success: boolean; message: string; data?: any }>(
+        return apiClient.post<ScanAttendanceResult>(
             '/api/v1/attendance/scan',
             requestBody
         );
@@ -1102,6 +1115,11 @@ export async function getKidsAbsenceHistory(): Promise<AbsencesListResponse> {
 /**
  * Get absence requests for a specific lesson (Teacher)
  */
+export async function getTeacherPendingAbsences(): Promise<AbsencesListResponse> {
+    logger.log('[Absences] Fetching teacher pending absence appeals');
+    return apiClient.get<AbsencesListResponse>('/api/v1/absences/teacher/pending');
+}
+
 export async function getLessonAbsenceRequests(lessonId: string): Promise<AbsencesListResponse> {
     logger.log('[Absences] Fetching absence requests for lesson:', lessonId);
     return apiClient.get<AbsencesListResponse>(`/api/v1/absences/lesson/${lessonId}`);

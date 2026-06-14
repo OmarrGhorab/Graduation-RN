@@ -1,16 +1,28 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useTeacherCourses } from '@/hooks/useCourses';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
-import { Fonts } from '@/constants/theme';
+import { Fonts, cskColors } from '@/constants/theme';
 import StatCard from './StatCard';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { getTeacherPendingAbsences } from '@/services/CourseService';
 
 export default function TeacherDashboardSummary() {
     const { t } = useTranslation();
     const { isDark, theme } = useTheme();
+    const router = useRouter();
     const { data: coursesData, isLoading } = useTeacherCourses();
     const { width } = useWindowDimensions();
+
+    const { data: absencesData } = useQuery({
+        queryKey: ['teacher-absences', 'pending'],
+        queryFn: getTeacherPendingAbsences,
+        staleTime: 60_000,
+    });
+    const pendingAppealsCount = absencesData?.data?.length ?? 0;
 
     const isMobile = width < 600;
     const revenueCardStyle = isMobile ? styles.fullWidthCard : styles.thirdWidthCard;
@@ -18,7 +30,7 @@ export default function TeacherDashboardSummary() {
 
     const stats = useMemo(() => {
         if (!coursesData) return { revenue: 0, students: 0, rating: 0 };
-        
+
         if (coursesData.summary) {
             return {
                 revenue: coursesData.summary.totalRevenue || 0,
@@ -27,7 +39,6 @@ export default function TeacherDashboardSummary() {
             };
         }
 
-        // Fallback calculation
         let revenue = 0;
         let students = 0;
         let ratingSum = 0;
@@ -105,6 +116,46 @@ export default function TeacherDashboardSummary() {
                     cardStyle={secondaryCardStyle}
                 />
             </View>
+
+            {/* Absence Appeals Banner */}
+            <TouchableOpacity
+                style={[styles.appealsBanner, {
+                    backgroundColor: pendingAppealsCount > 0
+                        ? (isDark ? '#2a1a0a' : '#fff7ed')
+                        : (isDark ? '#1a332a' : '#f0fdf4'),
+                    borderColor: pendingAppealsCount > 0 ? '#f97316' : cskColors[500],
+                }]}
+                onPress={() => router.push('/absence-appeals' as any)}
+                activeOpacity={0.8}
+            >
+                <View style={[styles.appealsIcon, {
+                    backgroundColor: pendingAppealsCount > 0 ? '#f9731620' : `${cskColors[500]}20`,
+                }]}>
+                    <Ionicons
+                        name="document-text-outline"
+                        size={20}
+                        color={pendingAppealsCount > 0 ? '#f97316' : cskColors[500]}
+                    />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.appealsTitle, {
+                        color: pendingAppealsCount > 0 ? '#f97316' : cskColors[500],
+                    }]}>
+                        Absence Appeals
+                    </Text>
+                    <Text style={[styles.appealsSubtitle, { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                        {pendingAppealsCount > 0
+                            ? `${pendingAppealsCount} pending request${pendingAppealsCount !== 1 ? 's' : ''} to review`
+                            : 'No pending absence requests'}
+                    </Text>
+                </View>
+                {pendingAppealsCount > 0 && (
+                    <View style={styles.badgeCircle}>
+                        <Text style={styles.badgeText}>{pendingAppealsCount}</Text>
+                    </View>
+                )}
+                <Ionicons name="chevron-forward" size={18} color={isDark ? '#64748b' : '#94a3b8'} />
+            </TouchableOpacity>
         </View>
     );
 }
@@ -126,6 +177,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 10,
+        marginBottom: 12,
     },
     thirdWidthCard: {
         minWidth: '30%',
@@ -145,5 +197,42 @@ const styles = StyleSheet.create({
         height: 100,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    appealsBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 14,
+        borderRadius: 14,
+        borderWidth: 1.5,
+    },
+    appealsIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    appealsTitle: {
+        fontSize: 14,
+        fontFamily: Fonts.bold,
+    },
+    appealsSubtitle: {
+        fontSize: 12,
+        fontFamily: Fonts.regular,
+        marginTop: 2,
+    },
+    badgeCircle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#f97316',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    badgeText: {
+        fontSize: 11,
+        fontFamily: Fonts.bold,
+        color: '#fff',
     },
 });

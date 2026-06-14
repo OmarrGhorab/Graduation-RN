@@ -109,8 +109,9 @@ function LessonCard({ lesson, onPress, isDark, theme, isParent, isTeacher }: {
 
     const startDate = new Date(lesson.startTime);
     const endDate = new Date(lesson.endTime);
-    const dateStr = startDate.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric' });
-    const timeStr = `${startDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} – ${endDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
+    const TZ = 'Africa/Cairo';
+    const dateStr = startDate.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric', timeZone: TZ });
+    const timeStr = `${startDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: TZ, hour12: false })} – ${endDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: TZ, hour12: false })}`;
 
     return (
         <TouchableOpacity

@@ -312,37 +312,53 @@ export function ParentMonitoringSuite() {
     };
 
     const renderAttendanceHistory = () => {
+        const statusLabel: Record<string, string> = {
+            PRESENT: 'Present', ABSENT: 'Absent', LATE: 'Late', EXCUSED: 'Excused',
+        };
         return (
             <View style={styles.historySection}>
-                <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Recent Attendance Activity</Text>
+                <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#0d1b15' }]}>Recent Attendance</Text>
                 {isLoadingAttendance ? (
-                    <ActivityIndicator color={theme.primary} />
+                    <ActivityIndicator color={theme.primary} style={{ marginVertical: 16 }} />
                 ) : attendance.length === 0 ? (
-                    <Text style={styles.emptyText}>No attendance records found.</Text>
+                    <Text style={styles.emptyText}>No attendance records yet.</Text>
                 ) : (
-                    attendance.slice(0, 10).map((record) => (
-                        <View key={record.id} style={[styles.historyItem, { borderBottomColor: isDark ? '#2a4a3c' : '#eee' }]}>
-                            <View style={styles.historyLeft}>
-                                <View style={styles.historyLessonRow}>
-                                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(record.status) }]} />
-                                    <Text style={[styles.historyLesson, { color: isDark ? '#fff' : '#0d1b15' }]}>
-                                        {record.lessonId.substring(0, 8).toUpperCase()}
-                                    </Text>
+                    attendance.slice(0, 15).map((record) => {
+                        const color = getStatusColor(record.status);
+                        const lessonName = (record as any).lessonTitle || record.lessonName || record.lesson_title || record.lesson?.title;
+                        const courseName = (record as any).courseTitle || record.courseName || record.course_title || record.course?.title;
+                        const dateStr = (() => {
+                            const d = record.scannedAt || record.createdAt;
+                            if (!d) return 'N/A';
+                            const dt = new Date(d);
+                            return isNaN(dt.getTime()) ? 'N/A' : dt.toLocaleDateString('en-EG', {
+                                month: 'short', day: 'numeric', timeZone: 'Africa/Cairo',
+                            }) + ' · ' + dt.toLocaleTimeString('en-EG', {
+                                hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo', hour12: false,
+                            });
+                        })();
+                        return (
+                            <View key={record.id} style={[styles.historyItem, { borderBottomColor: isDark ? '#2a4a3c' : '#eee' }]}>
+                                <View style={styles.historyLeft}>
+                                    <View style={styles.historyLessonRow}>
+                                        <View style={[styles.statusDot, { backgroundColor: color }]} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.historyLesson, { color: isDark ? '#fff' : '#0d1b15' }]} numberOfLines={1}>
+                                                {lessonName || 'Lesson'}
+                                            </Text>
+                                            {courseName && (
+                                                <Text style={[styles.historyTime, { marginTop: 0 }]} numberOfLines={1}>{courseName}</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <Text style={styles.historyTime}>{dateStr}</Text>
                                 </View>
-                                <Text style={styles.historyTime}>
-                                    {(() => {
-                                        const d = record.scannedAt || record.createdAt;
-                                        if (!d) return 'N/A';
-                                        const dateObj = new Date(d);
-                                        return isNaN(dateObj.getTime()) ? 'N/A' : dateObj.toLocaleString();
-                                    })()}
-                                </Text>
+                                <View style={[styles.statusTag, { backgroundColor: color + '20' }]}>
+                                    <Text style={[styles.statusTagText, { color }]}>{statusLabel[record.status] || record.status}</Text>
+                                </View>
                             </View>
-                            <View style={[styles.statusTag, { backgroundColor: getStatusColor(record.status) + '20' }]}>
-                                <Text style={[styles.statusTagText, { color: getStatusColor(record.status) }]}>{record.status}</Text>
-                            </View>
-                        </View>
-                    ))
+                        );
+                    })
                 )}
             </View>
         );

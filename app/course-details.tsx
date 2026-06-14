@@ -423,9 +423,10 @@ export default function CourseDetailsScreen() {
                 router.push({
                     pathname: '/attendance-success',
                     params: {
-                        data,
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        location: course.locationName || t('home.classroom')
+                        time: new Date().toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' }),
+                        location: result.data?.locationName || course.locationName || t('home.classroom'),
+                        lessonTitle: result.data?.lessonTitle || course.title || '',
+                        status: result.data?.status || 'PRESENT',
                     }
                 });
             } else {

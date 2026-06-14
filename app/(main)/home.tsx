@@ -20,7 +20,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/libs/auth';
 import { logger } from '@/libs/logger';
 import { ApiSchedule } from '@/services/CalendarService';
-import { ApiSubject, scanAttendance } from '@/services/CourseService';
+import { ApiSubject, scanAttendance, ScanAttendanceResult } from '@/services/CourseService';
 import { DeviceService } from '@/services/DeviceService';
 import { ApiNotification } from '@/services/NotificationService';
 import { navigateFromNotification } from '@/utils/notificationNavigation';
@@ -60,8 +60,8 @@ const formatTimeRange = (start: string, end: string) => {
     try {
         const startDate = new Date(ensureUTC(start));
         const endDate = new Date(ensureUTC(end));
-        
-        return `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')} - ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+        const fmt = (d: Date) => d.toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo', hour12: false });
+        return `${fmt(startDate)} - ${fmt(endDate)}`;
     } catch (e) {
         return 'TBD';
     }
@@ -430,8 +430,10 @@ export default function MainHomeScreen() {
                 router.push({
                     pathname: '/attendance-success',
                     params: {
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        location: t('home.classroom')
+                        time: new Date().toLocaleTimeString('en-EG', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' }),
+                        location: result.data?.locationName || t('home.classroom'),
+                        lessonTitle: result.data?.lessonTitle || '',
+                        status: result.data?.status || 'PRESENT',
                     }
                 });
             } else {
