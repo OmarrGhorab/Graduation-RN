@@ -10,6 +10,7 @@ import {
     useColorScheme,
     View,
     ActivityIndicator,
+    DevSettings,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -349,6 +350,19 @@ export default function OnboardingStep1() {
 
     // Handle language selection - apply immediately so user sees UI in their language
     const handleLanguageSelect = async (langId: string) => {
+        // Persist current step 1 inputs before reloading so they are not lost
+        setStep1Data({
+            dateOfBirth: dateOfBirth ? dateOfBirth.toISOString() : undefined,
+            gender: gender as any,
+            country: country || undefined,
+            profileImg: profileImg || undefined,
+            preferences: {
+                language: langId as any,
+                themePreference: selectedTheme,
+                notifications: true,
+            }
+        });
+
         setLanguage(langId as 'system' | 'en' | 'ar');
         setShowLanguagePicker(false);
         
@@ -357,16 +371,10 @@ export default function OnboardingStep1() {
             setIsChangingLanguage(true);
             setTimeout(async () => {
                 try {
-                    if (!__DEV__) {
-                        await Updates.reloadAsync();
+                    if (__DEV__) {
+                        DevSettings.reload();
                     } else {
-                        setIsChangingLanguage(false);
-                        toast.info(
-                            langId === 'ar' ? 'وضع التطوير' : 'Development Mode',
-                            langId === 'ar' 
-                                ? 'يرجى إعادة تشغيل التطبيق يدوياً لرؤية تغييرات RTL'
-                                : 'Please manually restart the app to see RTL changes'
-                        );
+                        await Updates.reloadAsync();
                     }
                 } catch (e) {
                     setIsChangingLanguage(false);

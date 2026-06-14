@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, BackHandler, Text } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, BackHandler, Text, DevSettings } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -126,16 +126,10 @@ export default function SettingsScreen() {
             setIsChangingLanguage(true);
             setTimeout(async () => {
                 try {
-                    if (!__DEV__) {
-                        await Updates.reloadAsync();
+                    if (__DEV__) {
+                        DevSettings.reload();
                     } else {
-                        setIsChangingLanguage(false);
-                        toast.info(
-                            languageCode === 'ar' ? 'وضع التطوير' : 'Development Mode',
-                            languageCode === 'ar' 
-                                ? 'يرجى إعادة تشغيل التطبيق يدوياً لرؤية تغييرات RTL'
-                                : 'Please manually restart the app to see RTL changes'
-                        );
+                        await Updates.reloadAsync();
                     }
                 } catch (e) {
                     setIsChangingLanguage(false);

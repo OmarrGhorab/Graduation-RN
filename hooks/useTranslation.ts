@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react';
 import { TextStyle } from 'react-native';
-import * as Updates from 'expo-updates';
 import { t } from '@/libs/i18n';
 import { useLanguageStore } from '@/libs/language';
 import { logger } from '@/libs/logger';
@@ -11,21 +10,7 @@ export function useTranslation() {
 
   const setLanguage = useCallback(async (languageCode: string) => {
     const needsRestart = await setLocale(languageCode);
-
-    if (needsRestart) {
-      // RTL change requires app restart
-      // In development, user needs to manually restart
-      // In production with expo-updates, we can reload
-      try {
-        if (!__DEV__) {
-          await Updates.reloadAsync();
-        }
-      } catch (e) {
-        logger.log('Restart required for RTL change');
-      }
-      return true; // Indicates restart needed
-    }
-    return false;
+    return needsRestart;
   }, [setLocale]);
 
   // Translation function that triggers re-render on locale change

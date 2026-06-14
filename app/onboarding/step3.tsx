@@ -183,6 +183,7 @@ export default function OnboardingStep3() {
             }
 
             await completeOnboarding();
+            useOnboardingStore.getState().resetForm();
 
             setStep3Data({
                 goals: finalGoals,
