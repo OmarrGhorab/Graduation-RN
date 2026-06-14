@@ -693,6 +693,7 @@ export default {
     totalLessons: 'Total Lessons',
     revenueThisCourse: 'Course Revenue',
     recentActivity: 'Recent Activity',
+    lessonCanceled: 'Lesson Canceled',
   },
 
   // Course

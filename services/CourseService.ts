@@ -1287,7 +1287,7 @@ export async function uploadLessonVideo(
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
                 if (event.lengthComputable) {
-                    const progress = (event.loaded / event.total) * 100;
+                    const progress = Math.min((event.loaded / event.total) * 100, 100);
                     onProgress(progress);
                 }
             });
@@ -1304,7 +1304,7 @@ export async function uploadLessonVideo(
             } else {
                 try {
                     const error = JSON.parse(xhr.responseText);
-                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                    reject(new Error(error.error || error.message || `Upload failed with status ${xhr.status}`));
                 } catch {
                     reject(new Error(`Upload failed with status ${xhr.status}`));
                 }
@@ -1370,7 +1370,7 @@ export async function uploadLessonDocument(
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
                 if (event.lengthComputable) {
-                    const progress = (event.loaded / event.total) * 100;
+                    const progress = Math.min((event.loaded / event.total) * 100, 100);
                     onProgress(progress);
                 }
             });
@@ -1387,7 +1387,7 @@ export async function uploadLessonDocument(
             } else {
                 try {
                     const error = JSON.parse(xhr.responseText);
-                    reject(new Error(error.message || `Upload failed with status ${xhr.status}`));
+                    reject(new Error(error.error || error.message || `Upload failed with status ${xhr.status}`));
                 } catch {
                     reject(new Error(`Upload failed with status ${xhr.status}`));
                 }
@@ -1661,7 +1661,7 @@ export async function uploadCourseImage(
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
                 if (event.lengthComputable) {
-                    const progress = (event.loaded / event.total) * 100;
+                    const progress = Math.min((event.loaded / event.total) * 100, 100);
                     onProgress(progress);
                 }
             });
@@ -1672,7 +1672,12 @@ export async function uploadCourseImage(
                 try { resolve(JSON.parse(xhr.responseText)); }
                 catch (e) { reject(new Error('Failed to parse response')); }
             } else {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.error || error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
             }
         });
 
@@ -1717,7 +1722,7 @@ export async function uploadCoursePreviewVideo(
         if (onProgress) {
             xhr.upload.addEventListener('progress', (event) => {
                 if (event.lengthComputable) {
-                    const progress = (event.loaded / event.total) * 100;
+                    const progress = Math.min((event.loaded / event.total) * 100, 100);
                     onProgress(progress);
                 }
             });
@@ -1728,7 +1733,12 @@ export async function uploadCoursePreviewVideo(
                 try { resolve(JSON.parse(xhr.responseText)); }
                 catch (e) { reject(new Error('Failed to parse response')); }
             } else {
-                reject(new Error(`Upload failed with status ${xhr.status}`));
+                try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.error || error.message || `Upload failed with status ${xhr.status}`));
+                } catch {
+                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
             }
         });
 

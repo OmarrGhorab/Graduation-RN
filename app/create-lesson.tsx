@@ -192,10 +192,22 @@ export default function CreateLessonScreen() {
                 const sizeMB = asset.size ? (asset.size / (1024 * 1024)).toFixed(2) : 'unknown';
                 console.log(`[Video] Selected file: ${asset.name}, Size: ${sizeMB}MB`);
 
+                let mimeType = asset.mimeType;
+                if (!mimeType || mimeType === 'application/octet-stream') {
+                    const ext = asset.name.split('.').pop()?.toLowerCase();
+                    if (ext === 'mp4') mimeType = 'video/mp4';
+                    else if (ext === 'mpeg') mimeType = 'video/mpeg';
+                    else if (ext === 'mov') mimeType = 'video/quicktime';
+                    else if (ext === 'avi') mimeType = 'video/x-msvideo';
+                    else if (ext === 'mkv') mimeType = 'video/x-matroska';
+                    else if (ext === 'webm') mimeType = 'video/webm';
+                    else mimeType = mimeType || 'video/mp4';
+                }
+
                 setVideoFile({
                     uri: asset.uri,
                     name: asset.name,
-                    type: asset.mimeType || 'video/mp4',
+                    type: mimeType,
                 });
                 setVideoUrl(''); // Clear URL if file is selected
             }
@@ -225,10 +237,22 @@ export default function CreateLessonScreen() {
                     return;
                 }
 
+                let mimeType = asset.mimeType;
+                if (!mimeType || mimeType === 'application/octet-stream') {
+                    const ext = asset.name.split('.').pop()?.toLowerCase();
+                    if (ext === 'pdf') mimeType = 'application/pdf';
+                    else if (ext === 'doc') mimeType = 'application/msword';
+                    else if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                    else if (ext === 'ppt') mimeType = 'application/vnd.ms-powerpoint';
+                    else if (ext === 'pptx') mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+                    else if (ext === 'zip') mimeType = 'application/zip';
+                    else mimeType = mimeType || 'application/pdf';
+                }
+
                 setDocumentFile({
                     uri: asset.uri,
                     name: asset.name,
-                    type: asset.mimeType || 'application/pdf',
+                    type: mimeType,
                 });
                 setMaterialsUrl(''); // Clear URL if file is selected
             }
@@ -282,7 +306,7 @@ export default function CreateLessonScreen() {
                     onPress: async () => {
                         setIsRescheduling(true);
                         try {
-                            const res = await rescheduleLesson(editId, { newScheduledAt: rescheduleDate.toISOString() });
+                            const res = await rescheduleLesson(editId, { scheduledAt: rescheduleDate.toISOString() });
                             if (res.success) {
                                 toast.success('Lesson Rescheduled', 'Students have been notified of the new time.');
                                 setTimeout(() => router.back(), 900);
@@ -314,6 +338,7 @@ export default function CreateLessonScreen() {
         }
 
         try {
+            setUploadProgress(prev => ({ ...prev, isUploading: true }));
             // Updated Validation for Online Lessons: 
             // Either a Meeting Link OR a Video must be provided.
             if (deliveryType === 'ONLINE') {
@@ -377,7 +402,7 @@ export default function CreateLessonScreen() {
                     // Import the upload functions
                     const { uploadLessonVideo, uploadLessonDocument, updateLessonMaterials } = await import('@/services/CourseService');
 
-                    setUploadProgress({ video: 0, document: 0, isUploading: true });
+                    setUploadProgress(prev => ({ ...prev, video: 0, document: 0 }));
 
                     // Upload video file if selected
                     if (videoFile) {
@@ -434,12 +459,14 @@ export default function CreateLessonScreen() {
                     toast.error(errorTitle, errorMessage);
                 }
             } else {
+                setUploadProgress(prev => ({ ...prev, isUploading: false }));
                 showSuccessAndGoBack(
                     'Success',
                     isEditMode ? 'Lesson updated successfully.' : 'Lesson created successfully.'
                 );
             }
         } catch (error: any) {
+            setUploadProgress(prev => ({ ...prev, isUploading: false }));
             console.error(isEditMode ? 'Lesson update failed:' : 'Lesson creation failed:', error);
             toast.error('Error', error.message || (isEditMode ? 'Failed to update lesson' : 'Failed to create lesson'));
         }
@@ -1024,7 +1051,7 @@ export default function CreateLessonScreen() {
                 backgroundColor: isDark ? 'rgba(24, 51, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
                 borderTopColor: isDark ? '#2a4d3d' : '#e9ebed',
             }]}>
-                {/* Cancel + Reschedule row — edit mode only */}
+                {/* Cancel row — edit mode only */}
                 {isEditMode && (
                     <View style={styles.editActionsRow}>
                         <TouchableOpacity
@@ -1039,26 +1066,6 @@ export default function CreateLessonScreen() {
                                 <>
                                     <MaterialIcons name="cancel" size={18} color="#ef4444" />
                                     <Text style={[styles.cancelLessonText, { color: '#ef4444' }]}>Cancel Lesson</Text>
-                                </>
-                            )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.rescheduleButton, { borderColor: cskColors[500], backgroundColor: rescheduleDate ? `${cskColors[500]}18` : 'transparent' }]}
-                            onPress={rescheduleDate ? handleRescheduleLesson : () => setShowRescheduleCalendar(true)}
-                            disabled={isRescheduling}
-                            activeOpacity={0.8}
-                        >
-                            {isRescheduling ? (
-                                <ActivityIndicator size="small" color={cskColors[500]} />
-                            ) : (
-                                <>
-                                    <MaterialIcons name="event" size={18} color={cskColors[500]} />
-                                    <Text style={[styles.rescheduleText, { color: cskColors[500] }]}>
-                                        {rescheduleDate
-                                            ? rescheduleDate.toLocaleDateString('en-EG', { month: 'short', day: 'numeric', timeZone: 'Africa/Cairo' })
-                                            : 'Reschedule'}
-                                    </Text>
                                 </>
                             )}
                         </TouchableOpacity>
@@ -1085,11 +1092,11 @@ export default function CreateLessonScreen() {
             {/* Upload Progress Modal */}
             {uploadProgress.isUploading && (
                 <View style={[styles.progressOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
-                    <View style={[styles.progressModal, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+                    <View style={[styles.progressModal, { backgroundColor: isDark ? '#183327' : '#ffffff' }]}>
                         <Text style={[styles.progressTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
-                            Uploading Materials
+                            {isEditMode ? 'Updating Lesson' : 'Creating Lesson'}
                         </Text>
-
+                        
                         {videoFile && (
                             <View style={styles.progressItem}>
                                 <View style={styles.progressHeader}>
@@ -1101,7 +1108,7 @@ export default function CreateLessonScreen() {
                                         {Math.round(uploadProgress.video)}%
                                     </Text>
                                 </View>
-                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a4d3d' : '#e5e7eb' }]}>
                                     <View
                                         style={[
                                             styles.progressBarFill,
@@ -1126,7 +1133,7 @@ export default function CreateLessonScreen() {
                                         {Math.round(uploadProgress.document)}%
                                     </Text>
                                 </View>
-                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb' }]}>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a4d3d' : '#e5e7eb' }]}>
                                     <View
                                         style={[
                                             styles.progressBarFill,
@@ -1137,6 +1144,23 @@ export default function CreateLessonScreen() {
                                         ]}
                                     />
                                 </View>
+                            </View>
+                        )}
+
+                        {(createLessonMutation.isPending || updateLessonMutation.isPending || 
+                          (!videoFile && !documentFile) || 
+                          ((videoFile ? uploadProgress.video >= 100 : true) && 
+                           (documentFile ? uploadProgress.document >= 100 : true))) && (
+                            <View style={{ alignItems: 'center', marginTop: 12 }}>
+                                <ActivityIndicator size="small" color={cskColors[500]} />
+                                <Text style={{ 
+                                    marginTop: 8, 
+                                    color: isDark ? '#a8b0b8' : '#696f77', 
+                                    fontFamily: Fonts.medium,
+                                    fontSize: 14,
+                                }}>
+                                    Saving lesson details...
+                                </Text>
                             </View>
                         )}
                     </View>

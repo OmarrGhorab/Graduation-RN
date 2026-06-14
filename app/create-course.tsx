@@ -191,6 +191,7 @@ export default function CreateCourseScreen() {
         }
 
         try {
+            setUploadProgress({ image: 0, video: 0 });
             setUploading(true);
             const { uploadCourseImage, uploadCoursePreviewVideo } = await import('@/services/CourseService');
             
@@ -248,11 +249,13 @@ export default function CreateCourseScreen() {
 
             if (editId) {
                 await updateCourseMutation.mutateAsync({ id: editId, data: courseData });
+                setUploading(false);
                 Alert.alert('Success', 'Course updated successfully!', [
                     { text: 'OK', onPress: () => router.back() }
                 ]);
             } else {
                 await createCourseMutation.mutateAsync(courseData);
+                setUploading(false);
                 Alert.alert('Success', 'Course created successfully!', [
                     { text: 'OK', onPress: () => router.back() }
                 ]);
@@ -963,7 +966,7 @@ export default function CreateCourseScreen() {
                     disabled={createCourseMutation.isPending || updateCourseMutation.isPending || uploading}
                     activeOpacity={0.9}
                 >
-                    {(createCourseMutation.isPending || updateCourseMutation.isPending) ? (
+                    {(createCourseMutation.isPending || updateCourseMutation.isPending || uploading) ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
                         <>
@@ -976,6 +979,83 @@ export default function CreateCourseScreen() {
                 </TouchableOpacity>
             </View>
             </>
+            )}
+
+            {uploading && (
+                <View style={[styles.progressOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+                    <View style={[styles.progressModal, { backgroundColor: isDark ? '#183327' : '#ffffff' }]}>
+                        <Text style={[styles.progressTitle, { color: isDark ? '#ffffff' : '#0d1b15' }]}>
+                            {editId ? 'Updating Course' : 'Creating Course'}
+                        </Text>
+
+                        {courseImage && courseImage.startsWith('file://') && (
+                            <View style={styles.progressItem}>
+                                <View style={styles.progressHeader}>
+                                    <MaterialIcons name="image" size={20} color={cskColors[500]} />
+                                    <Text style={[styles.progressLabel, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>
+                                        Course Thumbnail
+                                    </Text>
+                                    <Text style={[styles.progressPercent, { color: cskColors[500] }]}>
+                                        {Math.round(uploadProgress.image)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a4d3d' : '#e9ebed' }]}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            {
+                                                backgroundColor: cskColors[500],
+                                                width: `${uploadProgress.image}%`
+                                            }
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        )}
+
+                        {videoFile && (
+                            <View style={styles.progressItem}>
+                                <View style={styles.progressHeader}>
+                                    <MaterialIcons name="videocam" size={20} color={cskColors[500]} />
+                                    <Text style={[styles.progressLabel, { color: isDark ? '#e0e7e4' : '#0d1b15' }]}>
+                                        Preview Video
+                                    </Text>
+                                    <Text style={[styles.progressPercent, { color: cskColors[500] }]}>
+                                        {Math.round(uploadProgress.video)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#2a4d3d' : '#e9ebed' }]}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            {
+                                                backgroundColor: cskColors[500],
+                                                width: `${uploadProgress.video}%`
+                                            }
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        )}
+
+                        {(createCourseMutation.isPending || updateCourseMutation.isPending || 
+                          ((!courseImage || !courseImage.startsWith('file://')) && !videoFile) || 
+                          ((courseImage && courseImage.startsWith('file://') ? uploadProgress.image >= 100 : true) && 
+                           (videoFile ? uploadProgress.video >= 100 : true))) && (
+                            <View style={{ alignItems: 'center', marginTop: 12 }}>
+                                <ActivityIndicator size="small" color={cskColors[500]} />
+                                <Text style={{ 
+                                    marginTop: 8, 
+                                    color: isDark ? '#a8b0b8' : '#696f77', 
+                                    fontFamily: Fonts.medium,
+                                    fontSize: 14,
+                                }}>
+                                    Saving course details...
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
             )}
         </View>
     );
@@ -1250,5 +1330,59 @@ const styles = StyleSheet.create({
         fontFamily: Fonts.bold,
         textAlign: 'center',
         zIndex: 1,
+    },
+    progressOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    progressModal: {
+        width: '85%',
+        maxWidth: 400,
+        borderRadius: 16,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    progressTitle: {
+        fontSize: 20,
+        fontFamily: Fonts.bold,
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    progressItem: {
+        marginBottom: 20,
+    },
+    progressHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+        gap: 8,
+    },
+    progressLabel: {
+        flex: 1,
+        fontSize: 16,
+        fontFamily: Fonts.medium,
+    },
+    progressPercent: {
+        fontSize: 16,
+        fontFamily: Fonts.bold,
+    },
+    progressBarContainer: {
+        height: 8,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: '100%',
+        borderRadius: 4,
     },
 });

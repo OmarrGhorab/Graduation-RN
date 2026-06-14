@@ -8,9 +8,12 @@ import {
     Text,
     TouchableOpacity,
     useColorScheme,
+    View,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { Colors, Fonts } from '@/constants/theme';
 import { useToast } from '@/components/toast';
 import { useOnboardingStore } from '@/libs/onboarding';
@@ -97,7 +100,7 @@ const LANGUAGES = [
 export default function OnboardingStep1() {
     const router = useRouter();
     const toast = useToast();
-    const { t, locale } = useTranslation();
+    const { t, locale, setLanguage: setAppLanguage } = useTranslation();
     const isArabic = locale === 'ar';
     const systemColorScheme = useColorScheme();
     const { themeMode, setThemeMode } = useThemeStore();
@@ -180,6 +183,7 @@ export default function OnboardingStep1() {
     // Loading state
     const [isImgLoading, setIsImgLoading] = useState(false);
     const [datePickerReady, setDatePickerReady] = useState(false);
+    const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
     useEffect(() => {
         if (user?.profileImg && !profileImg) {
@@ -346,8 +350,35 @@ export default function OnboardingStep1() {
     // Handle language selection - apply immediately so user sees UI in their language
     const handleLanguageSelect = async (langId: string) => {
         setLanguage(langId as 'system' | 'en' | 'ar');
-        // Apply the language change immediately (without restart during onboarding)
-        await useLanguageStore.getState().setLocale(langId);
+        setShowLanguagePicker(false);
+        
+        const needsRestart = await setAppLanguage(langId);
+        if (needsRestart) {
+            setIsChangingLanguage(true);
+            setTimeout(async () => {
+                try {
+                    if (!__DEV__) {
+                        await Updates.reloadAsync();
+                    } else {
+                        setIsChangingLanguage(false);
+                        toast.info(
+                            langId === 'ar' ? 'وضع التطوير' : 'Development Mode',
+                            langId === 'ar' 
+                                ? 'يرجى إعادة تشغيل التطبيق يدوياً لرؤية تغييرات RTL'
+                                : 'Please manually restart the app to see RTL changes'
+                        );
+                    }
+                } catch (e) {
+                    setIsChangingLanguage(false);
+                    toast.info(
+                        langId === 'ar' ? 'إعادة التشغيل مطلوبة' : 'Restart Required',
+                        langId === 'ar' 
+                            ? 'يرجى إعادة تشغيل التطبيق يدوياً'
+                            : 'Please manually restart the app'
+                    );
+                }
+            }, 500);
+        }
     };
 
     return (
@@ -480,6 +511,17 @@ export default function OnboardingStep1() {
                 onPickImage={handlePickImage}
                 onDeleteImage={handleDeleteImage}
             />
+
+            {isChangingLanguage && (
+                <View style={styles.languageOverlay}>
+                    <View style={[styles.languageOverlayContent, { backgroundColor: theme.surface }]}>
+                        <ActivityIndicator size="large" color={theme.primary} />
+                        <Text style={[styles.languageOverlayText, { color: theme.text }]}>
+                            {locale === 'ar' ? 'جاري تغيير اللغة...' : 'Changing language...'}
+                        </Text>
+                    </View>
+                </View>
+            )}
         </KeyboardAvoidingView>
     );
 }
@@ -514,5 +556,26 @@ const styles = StyleSheet.create({
     continueButtonText: {
         fontSize: 16,
         color: '#FFFFFF',
+    },
+    languageOverlay: { 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        zIndex: 9999,
+    },
+    languageOverlayContent: { 
+        padding: 32, 
+        borderRadius: 16, 
+        alignItems: 'center',
+        gap: 16,
+    },
+    languageOverlayText: { 
+        fontSize: 16, 
+        fontFamily: Fonts.medium,
     },
 });

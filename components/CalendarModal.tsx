@@ -1,7 +1,7 @@
 import { Fonts } from '@/constants/theme';
 import { useTheme } from '@/hooks/useTheme';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface CalendarModalProps {
@@ -25,6 +25,12 @@ export default function CalendarModal({
 }: CalendarModalProps) {
     const { theme, isDark } = useTheme();
     const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate));
+
+    useEffect(() => {
+        if (visible) {
+            setCurrentMonth(new Date(selectedDate));
+        }
+    }, [visible, selectedDate]);
 
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'];
@@ -170,7 +176,7 @@ export default function CalendarModal({
                                                 style={[
                                                     styles.dayText,
                                                     { color: isDark ? theme.text : theme.gray[900] },
-                                                    selected && { color: '#000000', fontFamily: Fonts.bold },
+                                                    selected && { color: '#ffffff', fontFamily: Fonts.bold },
                                                     disabled && { color: theme.gray[300] },
                                                     today && !selected && { color: theme.primary, fontFamily: Fonts.bold },
                                                 ]}

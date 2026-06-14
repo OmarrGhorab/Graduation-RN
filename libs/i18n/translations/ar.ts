@@ -686,6 +686,7 @@ export default {
     totalLessons: 'إجمالي الدروس',
     revenueThisCourse: 'إيرادات الدورة',
     recentActivity: 'النشاط الأخير',
+    lessonCanceled: 'الدرس ملغي',
   },
 
   // Course
