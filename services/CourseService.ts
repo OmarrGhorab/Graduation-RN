@@ -370,6 +370,34 @@ export async function getTeacherCourses(): Promise<CoursesResponse> {
     return apiClient.get<CoursesResponse>('/api/v1/courses/teacher');
 }
 
+export interface TeacherCourseSearchParams {
+    q?: string;
+    subject_id?: string;
+    delivery_type?: 'ONLINE' | 'OFFLINE' | '';
+    status?: 'PUBLISHED' | 'DRAFT' | '';
+    sort?: 'newest' | 'oldest' | 'enrollment_desc' | 'enrollment_asc' | 'rating_desc' | 'rating_asc';
+}
+
+export interface TeacherCourseSearchResponse {
+    success: boolean;
+    data: ApiCourse[];
+    count: number;
+}
+
+/**
+ * Search/filter teacher's own courses with server-side filtering and sorting
+ */
+export async function searchTeacherCourses(params: TeacherCourseSearchParams): Promise<TeacherCourseSearchResponse> {
+    const query = new URLSearchParams();
+    if (params.q) query.set('q', params.q);
+    if (params.subject_id) query.set('subject_id', params.subject_id);
+    if (params.delivery_type) query.set('delivery_type', params.delivery_type);
+    if (params.status) query.set('status', params.status);
+    if (params.sort) query.set('sort', params.sort);
+    const qs = query.toString();
+    return apiClient.get<TeacherCourseSearchResponse>(`/api/v1/courses/teacher/search${qs ? `?${qs}` : ''}`);
+}
+
 /**
  * Fetch subject categories for the student
  */

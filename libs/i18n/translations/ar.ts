@@ -633,6 +633,12 @@ export default {
     canceledFilter: 'الملغاة',
     liveManage: 'مباشر - إدارة',
     myCourses: 'دوراتي',
+    childrenSchedule: 'جدول الأبناء',
+    noLessonsSubtitle: 'جرّب نطاق تاريخ أو تصفية مختلفة',
+    lessonCanceled: 'الدرس ملغي',
+    attendancePresent: 'حاضر',
+    attendanceLate: 'متأخر',
+    attendanceAbsent: 'غائب',
   },
 
   teacher: {

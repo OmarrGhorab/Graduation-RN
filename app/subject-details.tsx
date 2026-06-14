@@ -15,6 +15,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -38,6 +39,9 @@ export default function SubjectDetailsScreen() {
     const { theme, isDark } = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+
+    const contentWidth = width > 640 ? 600 : width - 40;
 
     const { data: detailsData, isLoading, error } = useSubjectDetails(id as string);
 
@@ -55,6 +59,8 @@ export default function SubjectDetailsScreen() {
                     style={[
                         styles.courseCard,
                         {
+                            width: contentWidth,
+                            alignSelf: 'center',
                             backgroundColor: isDark ? theme.surface : '#FFFFFF',
                             borderColor: isDark ? theme.border : theme.gray[200],
                         },
@@ -67,7 +73,7 @@ export default function SubjectDetailsScreen() {
                             <Ionicons name="book" size={24} color={theme.primary} />
                         </View>
                         <View style={styles.courseTitleContainer}>
-                            <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={1}>
+                            <Text style={[styles.courseTitle, { color: isDark ? theme.text : '#000' }]} numberOfLines={2}>
                                 {item.title}
                             </Text>
                             <View style={styles.badgeRow}>
@@ -95,7 +101,11 @@ export default function SubjectDetailsScreen() {
                                 source={{ uri: teacherAvatarUri }}
                                 style={styles.teacherAvatar}
                             />
-                            <Text style={[styles.teacherName, { color: theme.gray[600] }]}>
+                            <Text 
+                                style={[styles.teacherName, { color: theme.gray[600] }]} 
+                                numberOfLines={1} 
+                                ellipsizeMode="tail"
+                            >
                                 {teacherDisplayName}
                             </Text>
                         </View>
@@ -151,7 +161,7 @@ export default function SubjectDetailsScreen() {
                             style={styles.gradientHeader}
                         />
 
-                        <View style={styles.navBar}>
+                        <View style={[styles.navBar, { width: contentWidth, alignSelf: 'center' }]}>
                             <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                                 <Ionicons name="arrow-back" size={22} color={isDark ? theme.text : '#000'} />
                             </TouchableOpacity>
@@ -159,7 +169,7 @@ export default function SubjectDetailsScreen() {
                             <View style={{ width: 40 }} />
                         </View>
 
-                        <Animated.View entering={FadeInUp.duration(600)} style={styles.subjectHero}>
+                        <Animated.View entering={FadeInUp.duration(600)} style={[styles.subjectHero, { width: contentWidth, alignSelf: 'center' }]}>
                             <View style={[styles.heroIconContainer, { backgroundColor: isDark ? theme.surface : '#FFFFFF', borderColor: isDark ? theme.border : theme.gray[200] }]}>
                                 <Ionicons name={getSubjectIcon(subject.icon)} size={48} color={theme.primary} />
                             </View>
@@ -180,13 +190,13 @@ export default function SubjectDetailsScreen() {
                             </View>
                         </Animated.View>
 
-                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000' }]}>
+                        <Text style={[styles.sectionTitle, { color: isDark ? theme.text : '#000', width: contentWidth, alignSelf: 'center' }]}>
                             {t('subjectDetails.availableCourses')}
                         </Text>
                     </View>
                 }
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
+                    <View style={[styles.emptyContainer, { width: contentWidth, alignSelf: 'center' }]}>
                         <View style={[styles.emptyIconContainer, { backgroundColor: isDark ? theme.surface : 'rgba(0,0,0,0.02)' }]}>
                             <Ionicons name="journal-outline" size={48} color={theme.gray[300]} />
                         </View>
@@ -290,7 +300,6 @@ const styles = StyleSheet.create({
         marginBottom: 16,
     },
     courseCard: {
-        marginHorizontal: 20,
         borderRadius: 20,
         borderWidth: 1,
         marginBottom: 16,
@@ -324,6 +333,7 @@ const styles = StyleSheet.create({
     },
     badgeRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 8,
     },
     deliveryBadge: {
@@ -358,6 +368,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+        flex: 1,
+        marginRight: 12,
     },
     teacherAvatar: {
         width: 32,
@@ -369,6 +381,7 @@ const styles = StyleSheet.create({
     teacherName: {
         fontSize: 14,
         fontFamily: Fonts.medium,
+        flex: 1,
     },
     priceContainer: {
         alignItems: 'flex-end',

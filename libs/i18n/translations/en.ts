@@ -640,6 +640,12 @@ export default {
     canceledFilter: 'Canceled',
     liveManage: 'LIVE - MANAGE',
     myCourses: 'My Courses',
+    childrenSchedule: "Children's Schedule",
+    noLessonsSubtitle: 'Try a different date range or filter',
+    lessonCanceled: 'Lesson canceled',
+    attendancePresent: 'Present',
+    attendanceLate: 'Late',
+    attendanceAbsent: 'Absent',
   },
 
   teacher: {

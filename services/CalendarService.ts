@@ -13,6 +13,8 @@ export interface ApiSchedule {
     lessonNumber: number;
     attendanceStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | null;
     canMarkAttendance?: boolean;
+    childId?: string;
+    childName?: string;
 }
 
 export interface CalendarResponse {
@@ -35,26 +37,22 @@ export interface CalendarFilters {
     end?: string;
     page?: number;
     limit?: number;
+    child_id?: string;
     [key: string]: string | number | boolean | undefined;
 }
 
-/**
- * Fetch calendar/schedule for the current student
- */
 export async function getStudentCalendar(filters?: CalendarFilters): Promise<CalendarResponse> {
     logger.log('[Calendar] Fetching student calendar', filters);
-    return apiClient.get<CalendarResponse>('/api/v1/calendar/student', {
-        params: filters
-    });
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/student', { params: filters });
 }
 
-
-/**
- * Fetch calendar/schedule for the current teacher
- */
 export async function getTeacherCalendar(filters?: CalendarFilters): Promise<CalendarResponse> {
     logger.log('[Calendar] Fetching teacher calendar', filters);
-    return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', {
-        params: filters
-    });
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/teacher', { params: filters });
 }
+
+export async function getParentCalendar(filters?: CalendarFilters): Promise<CalendarResponse> {
+    logger.log('[Calendar] Fetching parent calendar', filters);
+    return apiClient.get<CalendarResponse>('/api/v1/calendar/parent', { params: filters });
+}
+
